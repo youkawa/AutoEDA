@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { suggestCharts } from '@autoeda/client-sdk';
+import type { ChartCandidate } from '@autoeda/schemas';
 
 export function ChartsPage() {
   const { datasetId } = useParams();
   const [loading, setLoading] = useState(true);
-  const [charts, setCharts] = useState<any[]>([]);
+  const [charts, setCharts] = useState<ChartCandidate[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -29,4 +30,3 @@ export function ChartsPage() {
     </div>
   );
 }
-

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { askQnA } from '@autoeda/client-sdk';
+import type { Answer } from '@autoeda/schemas';
 
 export function QnaPage() {
   const { datasetId } = useParams();
   const [q, setQ] = useState('売上のトレンドは？');
-  const [ans, setAns] = useState<any[] | null>(null);
+  const [ans, setAns] = useState<Answer[] | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function onAsk() {
@@ -31,4 +32,3 @@ export function QnaPage() {
     </div>
   );
 }
-
