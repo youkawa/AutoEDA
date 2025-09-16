@@ -31,3 +31,52 @@ export const EDAReportSchema = z.object({
 
 export type EDAReport = z.infer<typeof EDAReportSchema>;
 
+// --- A2: Chart Suggestion ---
+export const ChartCandidateSchema = z.object({
+  id: z.string(),
+  type: z.enum(['bar', 'line', 'scatter']),
+  explanation: z.string(),
+  source_ref: ReferenceSchema,
+  consistency_score: z.number().min(0).max(1),
+});
+export type ChartCandidate = z.infer<typeof ChartCandidateSchema>;
+
+// --- B1: QnA ---
+export const AnswerSchema = z.object({
+  text: z.string(),
+  references: z.array(ReferenceSchema),
+  coverage: z.number().min(0).max(1),
+});
+export type Answer = z.infer<typeof AnswerSchema>;
+
+// --- B2: Prioritize ---
+export const PrioritizeItemSchema = z.object({
+  title: z.string(),
+  impact: z.number(),
+  effort: z.number(),
+  confidence: z.number().min(0).max(1),
+});
+export type PrioritizeItem = z.infer<typeof PrioritizeItemSchema>;
+
+export const PrioritizedActionSchema = z.object({
+  title: z.string(),
+  impact: z.number(),
+  effort: z.number(),
+  confidence: z.number(),
+  score: z.number(),
+});
+export type PrioritizedAction = z.infer<typeof PrioritizedActionSchema>;
+
+// --- C1: PII Scan ---
+export const PIIScanResultSchema = z.object({
+  detected_fields: z.array(z.string()),
+  mask_policy: z.enum(['MASK', 'HASH', 'DROP']).default('MASK'),
+});
+export type PIIScanResult = z.infer<typeof PIIScanResultSchema>;
+
+// --- C2: Leakage Scan ---
+export const LeakageScanResultSchema = z.object({
+  flagged_columns: z.array(z.string()),
+  rules_matched: z.array(z.string()),
+});
+export type LeakageScanResult = z.infer<typeof LeakageScanResultSchema>;

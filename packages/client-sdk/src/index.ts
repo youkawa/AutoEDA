@@ -1,4 +1,12 @@
-import type { EDAReport } from '@autoeda/schemas';
+import type {
+  EDAReport,
+  ChartCandidate,
+  Answer,
+  PrioritizeItem,
+  PrioritizedAction,
+  PIIScanResult,
+  LeakageScanResult,
+} from '@autoeda/schemas';
 
 export type Dataset = { id: string; name: string; rows: number; cols: number; updatedAt: string };
 
@@ -9,8 +17,21 @@ export async function listDatasets(): Promise<Dataset[]> {
   ];
 }
 
-export async function getEDAReport(datasetId: string): Promise<EDAReport> {
-  void datasetId;
+const API_BASE: string | undefined = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_BASE) || undefined;
+
+async function postJSON<T>(path: string, body: unknown): Promise<T> {
+  const url = `${API_BASE ?? ''}${path}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+// Mock fallback used when fetch fails (dev/test without API)
+function fallbackEDA(): EDAReport {
   return {
     summary: { rows: 1_000_000, cols: 48, missingRate: 0.12, typeMix: { int: 20, float: 10, cat: 18 } },
     issues: [
@@ -34,18 +55,53 @@ export async function getEDAReport(datasetId: string): Promise<EDAReport> {
   };
 }
 
-export type ChartCandidate = {
-  id: string;
-  type: 'bar' | 'line' | 'scatter';
-  explanation: string;
-  source_ref: { kind: 'figure'; locator: string };
-  consistency_score: number;
-};
-
-export async function suggestCharts(datasetId: string, k = 5): Promise<ChartCandidate[]> {
-  void datasetId; void k;
-  return [
-    { id: 'c1', type: 'bar', explanation: '売上の季節性を示すバーチャート', source_ref: { kind: 'figure', locator: 'fig:sales_seasonality' }, consistency_score: 0.97 },
-  ];
+export async function getEDAReport(datasetId: string): Promise<EDAReport> {
+  try {
+    return await postJSON<EDAReport>('/api/eda', { dataset_id: datasetId });
+  } catch (_) {
+    return fallbackEDA();
+  }
 }
 
+export async function suggestCharts(datasetId: string, k = 5): Promise<ChartCandidate[]> {
+  try {
+    return await postJSON<ChartCandidate[]>('/api/charts/suggest', { dataset_id: datasetId, k });
+  } catch (_) {
+    return [
+      { id: 'c1', type: 'bar', explanation: '売上の季節性を示すバーチャート', source_ref: { kind: 'figure', locator: 'fig:sales_seasonality' }, consistency_score: 0.97 },
+    ];
+  }
+}
+
+export async function askQnA(datasetId: string, question: string): Promise<Answer[]> {
+  try {
+    return await postJSON<Answer[]>('/api/qna', { dataset_id: datasetId, question });
+  } catch (_) {
+    return [{ text: 'モック回答', references: [{ kind: 'figure', locator: 'fig:mock' }], coverage: 0.8 }];
+  }
+}
+
+export async function prioritizeActions(datasetId: string, next_actions: PrioritizeItem[]): Promise<PrioritizedAction[]> {
+  try {
+    return await postJSON<PrioritizedAction[]>('/api/actions/prioritize', { dataset_id: datasetId, next_actions });
+  } catch (_) {
+    return next_actions.map(a => ({ ...a, score: (a.impact / Math.max(1, a.effort)) * a.confidence })).sort((a, b) => b.score - a.score);
+  }
+}
+
+export async function piiScan(datasetId: string, columns: string[]): Promise<PIIScanResult> {
+  try {
+    return await postJSON<PIIScanResult>('/api/pii/scan', { dataset_id: datasetId, columns });
+  } catch (_) {
+    const detected = columns.filter(c => ['email', 'phone', 'ssn'].includes(c));
+    return { detected_fields: detected, mask_policy: 'MASK' };
+  }
+}
+
+export async function leakageScan(datasetId: string): Promise<LeakageScanResult> {
+  try {
+    return await postJSON<LeakageScanResult>('/api/leakage/scan', { dataset_id: datasetId });
+  } catch (_) {
+    return { flagged_columns: ['target_next_month'], rules_matched: ['time_causality'] };
+  }
+}

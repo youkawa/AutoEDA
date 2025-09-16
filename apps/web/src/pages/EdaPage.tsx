@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { getEDAReport } from '@autoeda/client-sdk';
 
 export function EdaPage() {
@@ -29,6 +29,14 @@ export function EdaPage() {
             <li key={idx}>{i.description}</li>
           ))}
         </ul>
+      </div>
+      <div style={{ marginTop: 16, display: 'flex', gap: 12 }}>
+        <Link to={`/charts/${datasetId}`}>可視化を自動提案</Link>
+        <Link to={`/qna/${datasetId}`}>Q&A</Link>
+        <Link to={`/actions/${datasetId}`}>Next Actions</Link>
+        <Link to={`/pii/${datasetId}`}>PII</Link>
+        <Link to={`/leakage/${datasetId}`}>Leakage</Link>
+        <Link to={`/recipes/${datasetId}`}>Recipes</Link>
       </div>
     </div>
   );
