@@ -15,7 +15,12 @@ describe('QnaPage', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: '質問する' }));
     expect(await screen.findByRole('heading', { name: '回答' })).toBeTruthy();
-    const coverage = await screen.findAllByText(/引用被覆率/);
-    expect(coverage.length).toBeGreaterThanOrEqual(1);
+    const coverageNodes = await screen.findAllByText(/引用被覆率/);
+    expect(coverageNodes.length).toBeGreaterThanOrEqual(1);
+    const text = coverageNodes[0].textContent || '';
+    const match = text.match(/引用被覆率:\s*(\d+)%/);
+    expect(match).toBeTruthy();
+    const pct = Number(match?.[1] || '0');
+    expect(pct).toBeGreaterThanOrEqual(80);
   });
 });

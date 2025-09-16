@@ -14,7 +14,11 @@ describe('ChartsPage', () => {
       </MemoryRouter>
     );
     expect(await screen.findByText(/Charts 候補/)).toBeTruthy();
-    expect(await screen.findByText(/consistency:/)).toBeTruthy();
+    const item = await screen.findByText(/consistency:/);
+    const text = item.textContent || '';
+    const match = text.match(/consistency:\s*(\d+)%/);
+    expect(match).toBeTruthy();
+    const pct = Number(match?.[1] || '0');
+    expect(pct).toBeGreaterThanOrEqual(95);
   });
 });
-
