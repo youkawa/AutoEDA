@@ -1,0 +1,41 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+.env
+.env.*
+.DS_Store
+
+# Monorepo build artifacts
+apps/*/dist
+coverage
+playwright-report
+test-results
+
+# Local tools/state (not for VCS)
+.gemini/
+.serena/
+
+# Legacy root src (migrated to apps/*)
+/src/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.env
