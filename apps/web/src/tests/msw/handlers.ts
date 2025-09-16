@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import type { PrioritizeItem, PrioritizedAction } from '@autoeda/schemas';
 
 export const handlers = [
   http.post('/api/eda', async () => {
@@ -25,10 +26,11 @@ export const handlers = [
     ]);
   }),
   http.post('/api/actions/prioritize', async ({ request }) => {
-    const body = await request.json() as any;
-    const items = body?.next_actions ?? [];
-    const ranked = items.map((a: any) => ({ ...a, score: (a.impact / Math.max(1, a.effort)) * a.confidence }))
-      .sort((a: any, b: any) => b.score - a.score);
+    const body = (await request.json()) as { next_actions: PrioritizeItem[] };
+    const items: PrioritizeItem[] = body?.next_actions ?? [];
+    const ranked: PrioritizedAction[] = items
+      .map((a) => ({ ...a, score: (a.impact / Math.max(1, a.effort)) * a.confidence }))
+      .sort((a, b) => b.score - a.score);
     return HttpResponse.json(ranked);
   }),
   http.post('/api/pii/scan', async () => {
@@ -38,4 +40,3 @@ export const handlers = [
     return HttpResponse.json({ flagged_columns: ['target_next_month'], rules_matched: ['time_causality'] });
   }),
 ];
-
