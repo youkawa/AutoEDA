@@ -1,0 +1,19 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci || npm i
+      - run: npm run lint:web
+      - run: npm run typecheck:web
+      - run: npm run test:web
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+      - run: npm run test:e2e
+      - run: npm run build:web
