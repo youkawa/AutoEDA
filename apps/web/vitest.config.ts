@@ -8,6 +8,7 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     globals: true,
     css: true,
-    exclude: ['../../tests/e2e/**', 'node_modules/**']
+    exclude: ['../../tests/e2e/**', 'node_modules/**'],
+    pool: 'forks',
   },
 });
