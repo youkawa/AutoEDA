@@ -227,16 +227,16 @@ export async function emitRecipes(datasetId: string): Promise<RecipeEmitResult> 
 }
 
 export async function applyPiiPolicy(datasetId: string, mask_policy: 'MASK' | 'HASH' | 'DROP', columns: string[]): Promise<PIIApplyResult> {
-    try {
-        return await postJSON<PIIApplyResult>('/api/pii/apply', { dataset_id: datasetId, mask_policy, columns });
-    } catch (_) {
-        return {
-            dataset_id: datasetId,
-            mask_policy,
-            masked_fields: columns,
-            updated_at: new Date().toISOString(),
-        };
-    }
+  try {
+    return await postJSON<PIIApplyResult>('/api/pii/apply', { dataset_id: datasetId, mask_policy, columns });
+  } catch (_) {
+    return {
+      dataset_id: datasetId,
+      mask_policy,
+      masked_fields: columns,
+      updated_at: new Date().toISOString(),
+    };
+  }
 }
 
 export type LlmCredentialStatus = {
@@ -247,7 +247,7 @@ export async function getLlmCredentialStatus(): Promise<LlmCredentialStatus> {
   try {
     const res = await fetch(`${API_BASE ?? ''}/api/credentials/llm`, {
       method: 'GET',
-      headers: { 'accept': 'application/json' },
+      headers: { accept: 'application/json' },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return (await res.json()) as LlmCredentialStatus;

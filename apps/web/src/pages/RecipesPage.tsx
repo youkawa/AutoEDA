@@ -44,7 +44,6 @@ export function RecipesPage() {
       compare(summary.missing_rate, measured.missing_rate)
     );
   }, [state]);
-
   return (
     <div>
       <h1>Recipes</h1>
