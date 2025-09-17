@@ -28,6 +28,8 @@ def test_api_eda_returns_augmented_report(monkeypatch):
 
     monkeypatch.setattr(orchestrator, "generate_eda_report", lambda dataset_id, sample_ratio=None: (payload, evaluation))
 
+    monkeypatch.setattr(metrics, "persist_event", lambda payload: None)
+
     client = TestClient(app)
     resp = client.post("/api/eda", json={"dataset_id": "ds_api"})
     assert resp.status_code == 200
@@ -66,6 +68,7 @@ def test_api_eda_records_metrics(monkeypatch):
         recorded[event_name] = properties
 
     monkeypatch.setattr(metrics, "record_event", fake_record)
+    monkeypatch.setattr(metrics, "persist_event", lambda payload: None)
 
     client = TestClient(app)
     resp = client.post("/api/eda", json={"dataset_id": "ds_api"})

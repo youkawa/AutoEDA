@@ -210,6 +210,7 @@ def log_event(event_name: str, properties: dict) -> None:
         **properties,
     }
     metrics.record_event(event_name, **properties)
+    metrics.persist_event(payload)
     print(payload)
 
 

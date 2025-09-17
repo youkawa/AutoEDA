@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import json
+import os
 import threading
 from math import floor
-from typing import Any, Dict, List, MutableMapping
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, MutableMapping
 
 _LOCK = threading.Lock()
 _STORE: MutableMapping[str, Dict[str, List[float]]] = {}
+_EVENT_LOG_PATH = Path(os.getenv("AUTOEDA_METRICS_LOG", "data/metrics/events.jsonl"))
 
 
 def reset() -> None:
@@ -24,6 +28,28 @@ def record_event(event_name: str, **properties: Any) -> None:
             bucket["duration_ms"].append(duration)
         if groundedness is not None:
             bucket["groundedness"].append(groundedness)
+
+
+def persist_event(payload: Dict[str, Any]) -> None:
+    path = get_event_log_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+
+def load_event_log(path: Path | str | None = None) -> Iterable[Dict[str, Any]]:
+    target = Path(path) if path else get_event_log_path()
+    if not target.exists():
+        return []
+    with target.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                continue
 
 
 def slo_snapshot() -> Dict[str, Any]:
@@ -47,6 +73,29 @@ def detect_violations(slo_config: Dict[str, Dict[str, float]]) -> Dict[str, Dict
             event_report["groundedness_below"] = summary["groundedness_min"] < thresholds["groundedness"] if summary["count"] else False
         report[name] = event_report
     return report
+
+
+def set_event_log_path(path: Path | str) -> None:
+    global _EVENT_LOG_PATH
+    _EVENT_LOG_PATH = Path(path)
+
+
+def get_event_log_path() -> Path:
+    return _EVENT_LOG_PATH
+
+
+def reset_store() -> None:
+    reset()
+
+
+def bootstrap_from_events(events: Iterable[Dict[str, Any]]) -> None:
+    reset_store()
+    for event in events:
+        name = event.get("event_name")
+        if not name:
+            continue
+        props = {k: v for k, v in event.items() if k != "event_name"}
+        record_event(name, **props)
 
 
 def _summarize(metrics: Dict[str, List[float]]) -> Dict[str, Any]:
