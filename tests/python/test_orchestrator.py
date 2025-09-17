@@ -45,6 +45,8 @@ def test_generate_eda_report_fallback(monkeypatch, patch_tools):
     assert evaluation["llm_error"] is not None
     assert report["key_features"], "fallback should synthesize key features"
     assert report["next_actions"], "fallback should generate next actions"
+    assert "wsjf" in report["next_actions"][0]
+    assert "rice" in report["next_actions"][0]
     # references deduplicated and include policy entries
     locators = {ref["locator"] for ref in report["references"]}
     assert "policy:pii" in locators
@@ -60,7 +62,16 @@ def test_generate_eda_report_with_llm(monkeypatch, patch_tools):
             payload = {
                 "key_features": ["LLM 派生の洞察"],
                 "next_actions": [
-                    {"title": "LLM Action", "reason": "LLM", "impact": 0.8, "effort": 0.2, "confidence": 0.9, "score": 3.6},
+                    {
+                        "title": "LLM Action",
+                        "reason": "LLM",
+                        "impact": 0.8,
+                        "effort": 0.2,
+                        "confidence": 0.9,
+                        "score": 3.42,
+                        "wsjf": 3.42,
+                        "rice": 26.28,
+                    },
                 ],
                 "references": [{"kind": "doc", "locator": "llm:analysis"}],
             }

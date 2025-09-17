@@ -17,12 +17,19 @@ export function ActionsPage() {
     <div>
       <h1>Next Actions</h1>
       <ol>
-        {ranked.map(a => (
-          <li key={a.title}>
-            <strong>{a.title}</strong> — score: {a.score.toFixed(2)} (impact {(a.impact * 100).toFixed(0)}%, effort {(a.effort * 100).toFixed(0)}%)
-            {a.reason && <div>理由: {a.reason}</div>}
-          </li>
-        ))}
+        {ranked.map(a => {
+          const wsjf = a.wsjf ?? a.score ?? 0;
+          const rice = a.rice ?? a.score ?? 0;
+          const score = a.score ?? wsjf;
+          return (
+            <li key={a.title}>
+              <strong>{a.title}</strong>
+              {' '}— WSJF {wsjf.toFixed(2)} / RICE {rice.toFixed(2)}
+              {' '} (score {score.toFixed(2)}, impact {(a.impact * 100).toFixed(0)}%, effort {(a.effort * 100).toFixed(0)}%)
+              {a.reason && <div>理由: {a.reason}</div>}
+            </li>
+          );
+        })}
       </ol>
     </div>
   );

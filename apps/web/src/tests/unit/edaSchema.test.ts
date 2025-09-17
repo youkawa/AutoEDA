@@ -11,7 +11,7 @@ describe('EDAReportSchema', () => {
       key_features: ['a'],
       outliers: [{ column: 'x', indices: [1, 2], evidence: { kind: 'table', locator: 'tbl:x' } }],
       data_quality_report: { issues: [{ severity: 'high', column: 'x', description: 'test', statistic: { missing_ratio: 0.3 }, evidence: { kind: 'table', locator: 'tbl:x_quality' } }] },
-      next_actions: [{ title: '対応', impact: 0.9, effort: 0.4, confidence: 0.8, score: 1.8 }],
+      next_actions: [{ title: '対応', impact: 0.9, effort: 0.4, confidence: 0.8, score: 1.8, wsjf: 1.8, rice: 18.0 }],
       references: [{ kind: 'table', locator: 'tbl:summary' }],
     };
     const parsed = EDAReportSchema.parse(data);

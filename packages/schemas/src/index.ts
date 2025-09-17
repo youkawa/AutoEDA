@@ -48,6 +48,8 @@ export const NextActionSchema = z.object({
   effort: z.number().min(0).max(1),
   confidence: z.number().min(0).max(1),
   score: z.number(),
+  wsjf: z.number(),
+  rice: z.number(),
   dependencies: z.array(z.string()).optional(),
 });
 
@@ -111,6 +113,8 @@ export const PrioritizedActionSchema = z.object({
   effort: z.number().min(0).max(1),
   confidence: z.number().min(0).max(1),
   score: z.number(),
+  wsjf: z.number(),
+  rice: z.number(),
   dependencies: z.array(z.string()).optional(),
 });
 export type PrioritizedAction = z.infer<typeof PrioritizedActionSchema>;
