@@ -1,6 +1,18 @@
 import { http, HttpResponse } from 'msw';
 import type { PrioritizeItem, PrioritizedAction } from '@autoeda/schemas';
 
+function priorityMetrics(impact: number, effort: number, confidence: number, urgency = impact) {
+  const normalizedImpact = Math.min(1, Math.max(0, impact));
+  const normalizedConfidence = Math.min(1, Math.max(0, confidence));
+  const eff = Math.min(1, Math.max(0.05, effort));
+  const urg = Math.min(1, Math.max(0.1, urgency));
+  const costOfDelay = (normalizedImpact * 0.6 + urg * 0.4) * normalizedConfidence;
+  const wsjf = Number((costOfDelay / eff).toFixed(4));
+  const reach = 1 + urg * 9;
+  const rice = Number(((reach * normalizedImpact * normalizedConfidence) / eff).toFixed(2));
+  return { score: wsjf, wsjf, rice };
+}
+
 export const handlers = [
   http.post('/api/eda', async () => {
     return HttpResponse.json({
@@ -16,7 +28,14 @@ export const handlers = [
         ],
       },
       next_actions: [
-        { title: '欠損補完', reason: '高い欠損率', impact: 0.9, effort: 0.3, confidence: 0.8, score: 2.4 },
+        {
+          title: '欠損補完',
+          reason: '高い欠損率',
+          impact: 0.9,
+          effort: 0.3,
+          confidence: 0.8,
+          ...priorityMetrics(0.9, 0.3, 0.8, 0.95),
+        },
       ],
       references: [{ kind: 'table', locator: 'tbl:summary' }],
     });
@@ -39,7 +58,7 @@ export const handlers = [
         const impact = Math.min(1, Math.max(0, a.impact));
         const effort = Math.min(1, Math.max(0.01, a.effort));
         const confidence = Math.min(1, Math.max(0, a.confidence));
-        return { ...a, score: (impact / effort) * confidence };
+        return { ...a, ...priorityMetrics(impact, effort, confidence) };
       })
       .sort((a, b) => b.score - a.score);
     return HttpResponse.json(ranked);

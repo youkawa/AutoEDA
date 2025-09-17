@@ -11,7 +11,17 @@ def test_api_eda_returns_augmented_report(monkeypatch):
         "key_features": ["from orchestrator"],
         "outliers": [],
         "data_quality_report": {"issues": []},
-        "next_actions": [{"title": "Action", "impact": 0.8, "effort": 0.2, "confidence": 0.9, "score": 3.6}],
+        "next_actions": [
+            {
+                "title": "Action",
+                "impact": 0.8,
+                "effort": 0.2,
+                "confidence": 0.9,
+                "score": 3.42,
+                "wsjf": 3.42,
+                "rice": 26.28,
+            }
+        ],
         "references": [{"kind": "doc", "locator": "orchestrator:ref"}],
     }
     evaluation = {"groundedness": 0.9, "llm_latency_ms": 120, "llm_error": None}

@@ -291,7 +291,7 @@ def _derive_actions_from_issues(report: Dict[str, Any], pii: Optional[Dict[str, 
         impact = severity_map.get(issue.get("severity", "medium"), 0.6)
         effort = 0.35 if impact >= 0.9 else 0.5
         confidence = 0.85 if impact >= 0.9 else 0.75
-        score = round((impact / max(effort, 0.1)) * confidence, 4)
+        metrics = tools.compute_priority_metrics(impact, effort, confidence, urgency=impact)
         actions.append(
             {
                 "title": f"{issue.get('column')} の改善",
@@ -299,13 +299,14 @@ def _derive_actions_from_issues(report: Dict[str, Any], pii: Optional[Dict[str, 
                 "impact": min(1.0, impact),
                 "effort": min(1.0, effort),
                 "confidence": min(1.0, confidence),
-                "score": score,
+                **metrics,
                 "dependencies": [f"remediate_{issue.get('column')}"]
                 if issue.get("column")
                 else [],
             }
         )
     if pii and pii.get("detected_fields"):
+        metrics = tools.compute_priority_metrics(0.9, 0.4, 0.8, urgency=0.95)
         actions.append(
             {
                 "title": "PII マスキングの徹底",
@@ -313,11 +314,12 @@ def _derive_actions_from_issues(report: Dict[str, Any], pii: Optional[Dict[str, 
                 "impact": 0.9,
                 "effort": 0.4,
                 "confidence": 0.8,
-                "score": round((0.9 / 0.4) * 0.8, 4),
+                **metrics,
                 "dependencies": ["pii_policy_review"],
             }
         )
     if leakage and leakage.get("flagged_columns"):
+        metrics = tools.compute_priority_metrics(0.85, 0.45, 0.75, urgency=0.9)
         actions.append(
             {
                 "title": "リークリスク列の除外/変換",
@@ -325,7 +327,7 @@ def _derive_actions_from_issues(report: Dict[str, Any], pii: Optional[Dict[str, 
                 "impact": 0.85,
                 "effort": 0.45,
                 "confidence": 0.75,
-                "score": round((0.85 / 0.45) * 0.75, 4),
+                **metrics,
                 "dependencies": ["leakage_rule_review"],
             }
         )
@@ -344,9 +346,14 @@ def _sanitize_actions(actions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         impact = min(1.0, max(0.0, impact))
         effort = min(1.0, max(0.01, effort))
         confidence = min(1.0, max(0.0, confidence))
-        score = action.get("score")
-        if score is None:
-            score = round((impact / effort) * confidence, 4)
+        if action.get("wsjf") is None or action.get("rice") is None:
+            metrics = tools.compute_priority_metrics(impact, effort, confidence, urgency=impact)
+        else:
+            wsjf = round(float(action.get("wsjf", 0.0)), 4)
+            rice = round(float(action.get("rice", 0.0)), 2)
+            score_val = action.get("score")
+            score = wsjf if score_val is None else round(float(score_val), 4)
+            metrics = {"wsjf": wsjf, "rice": rice, "score": score}
         sanitized.append(
             {
                 "title": action.get("title", ""),
@@ -354,7 +361,7 @@ def _sanitize_actions(actions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "impact": impact,
                 "effort": effort,
                 "confidence": confidence,
-                "score": round(float(score), 4),
+                **metrics,
                 "dependencies": action.get("dependencies", []),
             }
         )

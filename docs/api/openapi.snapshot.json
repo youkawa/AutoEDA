@@ -786,6 +786,14 @@
             "type": "number",
             "title": "Score"
           },
+          "wsjf": {
+            "type": "number",
+            "title": "Wsjf"
+          },
+          "rice": {
+            "type": "number",
+            "title": "Rice"
+          },
           "dependencies": {
             "anyOf": [
               {
@@ -807,7 +815,9 @@
           "impact",
           "effort",
           "confidence",
-          "score"
+          "score",
+          "wsjf",
+          "rice"
         ],
         "title": "NextAction"
       },
@@ -1014,6 +1024,14 @@
             "type": "number",
             "title": "Score"
           },
+          "wsjf": {
+            "type": "number",
+            "title": "Wsjf"
+          },
+          "rice": {
+            "type": "number",
+            "title": "Rice"
+          },
           "dependencies": {
             "anyOf": [
               {
@@ -1035,7 +1053,9 @@
           "impact",
           "effort",
           "confidence",
-          "score"
+          "score",
+          "wsjf",
+          "rice"
         ],
         "title": "PrioritizedAction"
       },

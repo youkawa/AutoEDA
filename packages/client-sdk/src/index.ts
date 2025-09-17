@@ -46,6 +46,18 @@ function makeReference(locator: string, kind: Reference['kind'] = 'figure'): Ref
   return { kind, locator };
 }
 
+function computePriorityMetrics(impact: number, effort: number, confidence: number, urgency = impact) {
+  const normalizedImpact = Math.min(1, Math.max(0, impact));
+  const normalizedConfidence = Math.min(1, Math.max(0, confidence));
+  const eff = Math.min(1, Math.max(0.05, effort));
+  const urg = Math.min(1, Math.max(0.1, urgency));
+  const costOfDelay = (normalizedImpact * 0.6 + urg * 0.4) * normalizedConfidence;
+  const wsjf = Number((costOfDelay / eff).toFixed(4));
+  const reach = 1 + urg * 9;
+  const rice = Number(((reach * normalizedImpact * normalizedConfidence) / eff).toFixed(2));
+  return { score: wsjf, wsjf, rice };
+}
+
 function fallbackEDA(): EDAReport {
   return {
     summary: { rows: 1_000_000, cols: 48, missing_rate: 0.12, type_mix: { int: 20, float: 10, cat: 18 } },
@@ -70,8 +82,24 @@ function fallbackEDA(): EDAReport {
       ],
     },
     next_actions: [
-      { title: 'price 列の欠損補完', impact: 0.9, effort: 0.3, confidence: 0.8, score: 2.4, reason: '重大な欠損により分析が阻害', dependencies: ['impute_price_mean'] },
-      { title: 'date 列の検証', impact: 0.8, effort: 0.4, confidence: 0.7, score: 1.4, reason: '未来日付がターゲットリークを誘発', dependencies: ['validate_date_source'] },
+      {
+        title: 'price 列の欠損補完',
+        impact: 0.9,
+        effort: 0.3,
+        confidence: 0.8,
+        reason: '重大な欠損により分析が阻害',
+        dependencies: ['impute_price_mean'],
+        ...computePriorityMetrics(0.9, 0.3, 0.8, 0.95),
+      },
+      {
+        title: 'date 列の検証',
+        impact: 0.8,
+        effort: 0.4,
+        confidence: 0.7,
+        reason: '未来日付がターゲットリークを誘発',
+        dependencies: ['validate_date_source'],
+        ...computePriorityMetrics(0.8, 0.4, 0.7, 0.9),
+      },
     ],
     references: [
       makeReference('tbl:summary'),
@@ -116,7 +144,10 @@ export async function prioritizeActions(datasetId: string, next_actions: Priorit
     return await postJSON<PrioritizedAction[]>('/api/actions/prioritize', { dataset_id: datasetId, next_actions });
   } catch (_) {
     return next_actions
-      .map(a => ({ ...a, score: Number.isFinite(a.effort) && a.effort > 0 ? (a.impact / a.effort) * a.confidence : a.impact * a.confidence }))
+      .map(a => {
+        const metrics = computePriorityMetrics(a.impact, a.effort, a.confidence);
+        return { ...a, ...metrics };
+      })
       .sort((a, b) => b.score - a.score);
   }
 }

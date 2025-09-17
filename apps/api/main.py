@@ -44,6 +44,8 @@ class NextAction(BaseModel):
     effort: float = Field(ge=0, le=1)
     confidence: float = Field(ge=0, le=1)
     score: float
+    wsjf: float
+    rice: float
     dependencies: Optional[List[str]] = None
 
 
@@ -135,6 +137,8 @@ class PrioritizedAction(BaseModel):
     effort: float = Field(ge=0, le=1)
     confidence: float = Field(ge=0, le=1)
     score: float
+    wsjf: float
+    rice: float
     dependencies: Optional[List[str]] = None
 
 

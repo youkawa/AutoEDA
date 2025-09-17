@@ -14,7 +14,7 @@ describe('ActionsPage', () => {
       </MemoryRouter>
     );
     expect(await screen.findByText(/Next Actions/)).toBeTruthy();
-    const scores = await screen.findAllByText(/score:/);
-    expect(scores.length).toBeGreaterThanOrEqual(1);
+    const metrics = await screen.findAllByText(/WSJF/);
+    expect(metrics.length).toBeGreaterThanOrEqual(1);
   });
 });
