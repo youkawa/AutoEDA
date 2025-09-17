@@ -1,8 +1,15 @@
 import time
+import sys
+from pathlib import Path
 from statistics import quantiles
 from typing import Any, Dict, List
 
 from fastapi.testclient import TestClient
+
+# Ensure repo root is on sys.path so that `apps.api.main` can be imported on CI
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from apps.api.main import app  # type: ignore
 
@@ -93,4 +100,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
