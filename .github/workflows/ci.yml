@@ -45,6 +45,8 @@ jobs:
         run: python3 apps/api/scripts/check_openapi_paths.py
       - name: Evaluate API NFR (p95 & thresholds)
         run: python3 apps/api/scripts/evaluate_nfr.py
+      - name: Check SLO thresholds
+        run: npm run check:slo
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
       - run: npm run test:e2e
