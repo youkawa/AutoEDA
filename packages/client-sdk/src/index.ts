@@ -6,11 +6,22 @@ import type {
   PrioritizedAction,
   PIIScanResult,
   LeakageScanResult,
+  Reference,
 } from '@autoeda/schemas';
 
-export type Dataset = { id: string; name: string; rows: number; cols: number; updatedAt: string };
+export type Dataset = { id: string; name: string; rows: number; cols: number; updatedAt?: string };
 
 export async function listDatasets(): Promise<Dataset[]> {
+  try {
+    const res = await fetch(`${API_BASE ?? ''}/api/datasets`);
+    if (res.ok) {
+      const data = (await res.json()) as Dataset[];
+      if (Array.isArray(data) && data.length > 0) return data;
+    }
+  } catch (_) {
+    // fall through
+  }
+  // Fallback (dev/test)
   return [
     { id: 'ds_001', name: 'sales.csv', rows: 1_000_000, cols: 48, updatedAt: '2025-01-20T10:30:00Z' },
     { id: 'ds_002', name: 'customers.csv', rows: 50_000, cols: 15, updatedAt: '2025-01-19T14:22:00Z' },
@@ -31,26 +42,41 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
 }
 
 // Mock fallback used when fetch fails (dev/test without API)
+function makeReference(locator: string, kind: Reference['kind'] = 'figure'): Reference {
+  return { kind, locator };
+}
+
 function fallbackEDA(): EDAReport {
   return {
-    summary: { rows: 1_000_000, cols: 48, missingRate: 0.12, typeMix: { int: 20, float: 10, cat: 18 } },
-    issues: [
-      { severity: 'high', column: 'price', description: '欠損が多い（32%）', statistic: { missing: 0.32 } },
-      { severity: 'critical', column: 'date', description: '将来日付が含まれている', statistic: { future_dates: 45 } },
-      { severity: 'medium', column: 'category', description: '不明な値が存在', statistic: { unknown_values: 156 } },
-    ],
+    summary: { rows: 1_000_000, cols: 48, missing_rate: 0.12, type_mix: { int: 20, float: 10, cat: 18 } },
     distributions: [
-      { column: 'price', dtype: 'float', count: 1_000_000, missing: 320_000, histogram: [100, 200, 500, 800, 300] },
-      { column: 'quantity', dtype: 'int', count: 1_000_000, missing: 5000, histogram: [150, 400, 700, 600, 250] },
+      { column: 'price', dtype: 'float', count: 1_000_000, missing: 320_000, histogram: [100, 200, 500, 800, 300], source_ref: makeReference('fig:price_hist') },
+      { column: 'quantity', dtype: 'int', count: 1_000_000, missing: 5000, histogram: [150, 400, 700, 600, 250], source_ref: makeReference('fig:quantity_hist') },
     ],
-    keyFeatures: [
+    key_features: [
       'price × promotion_rate が強い関係（r=0.85）',
       'seasonal_index が売上に大きく影響',
       'customer_segment別の購買パターンが明確',
     ],
     outliers: [
-      { column: 'sales', indices: [12, 45, 156, 789] },
-      { column: 'discount', indices: [23, 67, 234] },
+      { column: 'sales', indices: [12, 45, 156, 789], evidence: makeReference('tbl:outliers_sales', 'table') },
+      { column: 'discount', indices: [23, 67, 234], evidence: makeReference('tbl:outliers_discount', 'table') },
+    ],
+    data_quality_report: {
+      issues: [
+        { severity: 'high', column: 'price', description: '欠損が多い（32%）', statistic: { missing_ratio: 0.32 }, evidence: makeReference('tbl:price_quality', 'table') },
+        { severity: 'critical', column: 'date', description: '将来日付が含まれている', statistic: { future_dates: 45 }, evidence: makeReference('tbl:date_future', 'table') },
+        { severity: 'medium', column: 'category', description: '不明な値が存在', statistic: { unknown_values: 156 }, evidence: makeReference('tbl:category_unknown', 'table') },
+      ],
+    },
+    next_actions: [
+      { title: 'price 列の欠損補完', impact: 0.9, effort: 0.3, confidence: 0.8, score: 2.4, reason: '重大な欠損により分析が阻害', dependencies: ['impute_price_mean'] },
+      { title: 'date 列の検証', impact: 0.8, effort: 0.4, confidence: 0.7, score: 1.4, reason: '未来日付がターゲットリークを誘発', dependencies: ['validate_date_source'] },
+    ],
+    references: [
+      makeReference('tbl:summary'),
+      makeReference('fig:price_hist'),
+      makeReference('fig:quantity_hist'),
     ],
   };
 }
@@ -89,7 +115,9 @@ export async function prioritizeActions(datasetId: string, next_actions: Priorit
   try {
     return await postJSON<PrioritizedAction[]>('/api/actions/prioritize', { dataset_id: datasetId, next_actions });
   } catch (_) {
-    return next_actions.map(a => ({ ...a, score: (a.impact / Math.max(1, a.effort)) * a.confidence })).sort((a, b) => b.score - a.score);
+    return next_actions
+      .map(a => ({ ...a, score: Number.isFinite(a.effort) && a.effort > 0 ? (a.impact / a.effort) * a.confidence : a.impact * a.confidence }))
+      .sort((a, b) => b.score - a.score);
   }
 }
 

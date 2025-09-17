@@ -21,6 +21,67 @@
         }
       }
     },
+    "/api/datasets/upload": {
+      "post": {
+        "summary": "Datasets Upload",
+        "operationId": "datasets_upload_api_datasets_upload_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_datasets_upload_api_datasets_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/datasets": {
+      "get": {
+        "summary": "Datasets List",
+        "operationId": "datasets_list_api_datasets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Datasets List Api Datasets Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/eda": {
       "post": {
         "summary": "Eda",
@@ -79,11 +140,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ChartCandidate"
-                  },
-                  "type": "array",
-                  "title": "Response Charts Suggest Api Charts Suggest Post"
+                  "$ref": "#/components/schemas/ChartsSuggestResponse"
                 }
               }
             }
@@ -121,11 +178,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/Answer"
-                  },
-                  "type": "array",
-                  "title": "Response Qna Api Qna Post"
+                  "$ref": "#/components/schemas/QnAResponse"
                 }
               }
             }
@@ -298,6 +351,44 @@
           }
         }
       }
+    },
+    "/api/recipes/export": {
+      "post": {
+        "summary": "Recipes Export",
+        "operationId": "recipes_export_api_recipes_export_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecipeEmitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeEmitResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -329,6 +420,20 @@
           "coverage"
         ],
         "title": "Answer"
+      },
+      "Body_datasets_upload_api_datasets_upload_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_datasets_upload_api_datasets_upload_post"
       },
       "ChartCandidate": {
         "properties": {
@@ -387,6 +492,83 @@
         ],
         "title": "ChartsSuggestRequest"
       },
+      "ChartsSuggestResponse": {
+        "properties": {
+          "charts": {
+            "items": {
+              "$ref": "#/components/schemas/ChartCandidate"
+            },
+            "type": "array",
+            "title": "Charts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "charts"
+        ],
+        "title": "ChartsSuggestResponse"
+      },
+      "DataQualityIssue": {
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ],
+            "title": "Severity"
+          },
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "statistic": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statistic"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/Reference"
+          }
+        },
+        "type": "object",
+        "required": [
+          "severity",
+          "column",
+          "description",
+          "evidence"
+        ],
+        "title": "DataQualityIssue"
+      },
+      "DataQualityReport": {
+        "properties": {
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/DataQualityIssue"
+            },
+            "type": "array",
+            "title": "Issues"
+          }
+        },
+        "type": "object",
+        "required": [
+          "issues"
+        ],
+        "title": "DataQualityReport"
+      },
       "Distribution": {
         "properties": {
           "column": {
@@ -438,13 +620,6 @@
           "summary": {
             "$ref": "#/components/schemas/Summary"
           },
-          "issues": {
-            "items": {
-              "$ref": "#/components/schemas/Issue"
-            },
-            "type": "array",
-            "title": "Issues"
-          },
           "distributions": {
             "items": {
               "$ref": "#/components/schemas/Distribution"
@@ -452,12 +627,12 @@
             "type": "array",
             "title": "Distributions"
           },
-          "keyFeatures": {
+          "key_features": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Keyfeatures"
+            "title": "Key Features"
           },
           "outliers": {
             "items": {
@@ -465,15 +640,34 @@
             },
             "type": "array",
             "title": "Outliers"
+          },
+          "data_quality_report": {
+            "$ref": "#/components/schemas/DataQualityReport"
+          },
+          "next_actions": {
+            "items": {
+              "$ref": "#/components/schemas/NextAction"
+            },
+            "type": "array",
+            "title": "Next Actions"
+          },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/Reference"
+            },
+            "type": "array",
+            "title": "References"
           }
         },
         "type": "object",
         "required": [
           "summary",
-          "issues",
           "distributions",
-          "keyFeatures",
-          "outliers"
+          "key_features",
+          "outliers",
+          "data_quality_report",
+          "next_actions",
+          "references"
         ],
         "title": "EDAReport"
       },
@@ -516,46 +710,6 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
-      "Issue": {
-        "properties": {
-          "severity": {
-            "type": "string",
-            "enum": [
-              "low",
-              "medium",
-              "high",
-              "critical"
-            ],
-            "title": "Severity"
-          },
-          "column": {
-            "type": "string",
-            "title": "Column"
-          },
-          "description": {
-            "type": "string",
-            "title": "Description"
-          },
-          "statistic": {
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Statistic"
-          }
-        },
-        "type": "object",
-        "required": [
-          "severity",
-          "column",
-          "description"
-        ],
-        "title": "Issue"
-      },
       "LeakageScanRequest": {
         "properties": {
           "dataset_id": {
@@ -593,6 +747,70 @@
         ],
         "title": "LeakageScanResult"
       },
+      "NextAction": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "impact": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Impact"
+          },
+          "effort": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Effort"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "dependencies": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependencies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "impact",
+          "effort",
+          "confidence",
+          "score"
+        ],
+        "title": "NextAction"
+      },
       "Outlier": {
         "properties": {
           "column": {
@@ -605,6 +823,16 @@
             },
             "type": "array",
             "title": "Indices"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Reference"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -694,12 +922,27 @@
             "type": "string",
             "title": "Title"
           },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
           "impact": {
             "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
             "title": "Impact"
           },
           "effort": {
             "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
             "title": "Effort"
           },
           "confidence": {
@@ -707,6 +950,20 @@
             "maximum": 1.0,
             "minimum": 0.0,
             "title": "Confidence"
+          },
+          "dependencies": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependencies"
           }
         },
         "type": "object",
@@ -724,21 +981,52 @@
             "type": "string",
             "title": "Title"
           },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
           "impact": {
             "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
             "title": "Impact"
           },
           "effort": {
             "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
             "title": "Effort"
           },
           "confidence": {
             "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
             "title": "Confidence"
           },
           "score": {
             "type": "number",
             "title": "Score"
+          },
+          "dependencies": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependencies"
           }
         },
         "type": "object",
@@ -768,6 +1056,30 @@
           "question"
         ],
         "title": "QnARequest"
+      },
+      "QnAResponse": {
+        "properties": {
+          "answers": {
+            "items": {
+              "$ref": "#/components/schemas/Answer"
+            },
+            "type": "array",
+            "title": "Answers"
+          },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/Reference"
+            },
+            "type": "array",
+            "title": "References",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "answers"
+        ],
+        "title": "QnAResponse"
       },
       "RecipeEmitRequest": {
         "properties": {
@@ -808,11 +1120,12 @@
           "kind": {
             "type": "string",
             "enum": [
-              "figure",
               "table",
+              "column",
+              "cell",
+              "figure",
               "query",
-              "doc",
-              "cell"
+              "doc"
             ],
             "title": "Kind",
             "default": "figure"
@@ -820,6 +1133,17 @@
           "locator": {
             "type": "string",
             "title": "Locator"
+          },
+          "evidence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Id"
           }
         },
         "type": "object",
@@ -838,25 +1162,39 @@
             "type": "integer",
             "title": "Cols"
           },
-          "missingRate": {
+          "missing_rate": {
             "type": "number",
             "maximum": 1.0,
             "minimum": 0.0,
-            "title": "Missingrate"
+            "title": "Missing Rate"
           },
-          "typeMix": {
+          "type_mix": {
+            "additionalProperties": true,
             "type": "object",
-            "title": "Typemix"
+            "title": "Type Mix"
           }
         },
         "type": "object",
         "required": [
           "rows",
           "cols",
-          "missingRate",
-          "typeMix"
+          "missing_rate",
+          "type_mix"
         ],
         "title": "Summary"
+      },
+      "UploadResponse": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id"
+        ],
+        "title": "UploadResponse"
       },
       "ValidationError": {
         "properties": {

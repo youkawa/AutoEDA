@@ -31,10 +31,12 @@ def check_models(comps: Dict[str, Any]) -> Tuple[List[str], List[str]]:
     exp: Dict[str, Dict[str, str]] = {
         "EDAReport": {
             "summary": "object",
-            "issues": "array",
             "distributions": "array",
-            "keyFeatures": "array",
+            "key_features": "array",
             "outliers": "array",
+            "data_quality_report": "object",
+            "next_actions": "array",
+            "references": "array",
         },
         "ChartsSuggestResponse": {
             "charts": "array",
@@ -57,10 +59,12 @@ def check_models(comps: Dict[str, Any]) -> Tuple[List[str], List[str]]:
         },
         "PrioritizedAction": {
             "title": "string",
+            "reason": "string",
             "impact": "number",
             "effort": "number",
             "confidence": "number",
             "score": "number",
+            "dependencies": "array",
         },
         "PIIScanResult": {
             "detected_fields": "array",
@@ -90,13 +94,23 @@ def check_models(comps: Dict[str, Any]) -> Tuple[List[str], List[str]]:
                 continue
             prop_schema = deref(defined[prop], comps)
             actual_type = prop_schema.get("type")
-            # arrays may be defined without type when $ref used; attempt to infer
-            if not actual_type and "$ref" in defined[prop]:
+            # optional fields may be expressed via anyOf/oneOf; attempt to resolve
+            candidate_types: List[str] = []
+            if actual_type:
+                candidate_types.append(actual_type)
+            for alt_key in ("anyOf", "oneOf"):
+                for alt in prop_schema.get(alt_key, []) or []:
+                    candidate_types.append(alt.get("type"))
+            if "$ref" in defined[prop]:
                 ref_schema = deref(defined[prop], comps)
-                actual_type = ref_schema.get("type")
-            if expected != "any" and actual_type != expected:
+                ref_type = ref_schema.get("type")
+                if ref_type:
+                    candidate_types.append(ref_type)
+
+            candidate_types = [c for c in candidate_types if c]
+            if expected != "any" and expected not in candidate_types:
                 prop_issues.append(
-                    f"type mismatch {model}.{prop}: expected {expected}, got {actual_type}"
+                    f"type mismatch {model}.{prop}: expected {expected}, got {actual_type or candidate_types or None}"
                 )
 
         # extra: quick enum checks for a couple models

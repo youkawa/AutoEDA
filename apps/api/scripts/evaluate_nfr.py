@@ -43,7 +43,7 @@ def main() -> None:
     p95_ms, data = measure(client, "POST", "/api/eda", {"dataset_id": "ds_001"})
     if p95_ms > 10_000:
         errors.append(f"A1 p95 too high: {p95_ms:.1f}ms > 10000ms")
-    for key in ("summary", "issues", "distributions", "keyFeatures", "outliers"):
+    for key in ("summary", "data_quality_report", "distributions", "key_features", "outliers", "next_actions", "references"):
         if key not in data:
             errors.append(f"A1 missing field: {key}")
 
@@ -73,8 +73,8 @@ def main() -> None:
 
     # B2: /api/actions/prioritize
     items = [
-        {"title": "欠損補完", "impact": 8, "effort": 3, "confidence": 0.8},
-        {"title": "特徴量追加", "impact": 6, "effort": 2, "confidence": 0.7},
+        {"title": "欠損補完", "impact": 0.9, "effort": 0.35, "confidence": 0.8},
+        {"title": "特徴量追加", "impact": 0.7, "effort": 0.5, "confidence": 0.7},
     ]
     p95_ms, ranked = measure(client, "POST", "/api/actions/prioritize", {"dataset_id": "ds_001", "next_actions": items})
     if p95_ms > 3000:

@@ -4,15 +4,21 @@ import type { PrioritizeItem, PrioritizedAction } from '@autoeda/schemas';
 export const handlers = [
   http.post('/api/eda', async () => {
     return HttpResponse.json({
-      summary: { rows: 100, cols: 5, missingRate: 0.1, typeMix: { int: 2, float: 1, cat: 2 } },
-      issues: [
-        { severity: 'high', column: 'price', description: '欠損が多い（32%）', statistic: { missing: 0.32 } },
-      ],
+      summary: { rows: 100, cols: 5, missing_rate: 0.1, type_mix: { int: 2, float: 1, cat: 2 } },
       distributions: [
-        { column: 'x', dtype: 'int', count: 100, missing: 0, histogram: [1,2,3] },
+        { column: 'x', dtype: 'int', count: 100, missing: 0, histogram: [1, 2, 3], source_ref: { kind: 'figure', locator: 'fig:x' } },
       ],
-      keyFeatures: ['a'],
+      key_features: ['MSW: 特徴A'],
       outliers: [],
+      data_quality_report: {
+        issues: [
+          { severity: 'high', column: 'price', description: '欠損が多い（32%）', statistic: { missing_ratio: 0.32 }, evidence: { kind: 'table', locator: 'tbl:price_quality' } },
+        ],
+      },
+      next_actions: [
+        { title: '欠損補完', reason: '高い欠損率', impact: 0.9, effort: 0.3, confidence: 0.8, score: 2.4 },
+      ],
+      references: [{ kind: 'table', locator: 'tbl:summary' }],
     });
   }),
   http.post('/api/charts/suggest', async () => {
@@ -29,7 +35,12 @@ export const handlers = [
     const body = (await request.json()) as { next_actions: PrioritizeItem[] };
     const items: PrioritizeItem[] = body?.next_actions ?? [];
     const ranked: PrioritizedAction[] = items
-      .map((a) => ({ ...a, score: (a.impact / Math.max(1, a.effort)) * a.confidence }))
+      .map((a) => {
+        const impact = Math.min(1, Math.max(0, a.impact));
+        const effort = Math.min(1, Math.max(0.01, a.effort));
+        const confidence = Math.min(1, Math.max(0, a.confidence));
+        return { ...a, score: (impact / effort) * confidence };
+      })
       .sort((a, b) => b.score - a.score);
     return HttpResponse.json(ranked);
   }),
