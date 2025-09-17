@@ -2,7 +2,7 @@ from datetime import datetime
 import time
 from typing import List, Literal, Optional
 
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from .services import tools
@@ -170,9 +170,19 @@ class UploadResponse(BaseModel):
 
 @app.post("/api/datasets/upload", response_model=UploadResponse)
 def datasets_upload(file: UploadFile = File(...)) -> UploadResponse:
-    dsid = tools.save_dataset(file)
+    try:
+        dsid = tools.save_dataset(file)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     log_event("DatasetUploaded", {"dataset_id": dsid, "filename": file.filename})
     return UploadResponse(dataset_id=dsid)
+
+
+@app.get("/api/datasets", response_model=List[dict])
+def datasets_list() -> List[dict]:
+    from .services.storage import list_datasets
+
+    return list_datasets()
 
 
 @app.post("/api/eda", response_model=EDAReport)
