@@ -46,6 +46,8 @@ def _ensure_chroma() -> Optional[Any]:
                 api_key=api_key,
                 model_name=os.getenv("AUTOEDA_EMBEDDING_MODEL", "text-embedding-3-small"),
             )
+        else:
+            return None
     if _collection is None:
         _collection = _chroma_client.get_or_create_collection(
             name=_DEFAULT_COLLECTION,
