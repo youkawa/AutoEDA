@@ -1,10 +1,12 @@
 from datetime import datetime
+import time
 from typing import List, Literal, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from .services import tools
+from .services import evaluator
 
 
 class Reference(BaseModel):
@@ -75,6 +77,15 @@ class Answer(BaseModel):
     text: str
     references: List[Reference]
     coverage: float = Field(ge=0, le=1)
+
+
+class ChartsSuggestResponse(BaseModel):
+    charts: List["ChartCandidate"]
+
+
+class QnAResponse(BaseModel):
+    answers: List["Answer"]
+    references: List["Reference"] = []
 
 
 class PrioritizeRequestItem(BaseModel):
@@ -152,28 +163,50 @@ def health():
     return {"status": "ok"}
 
 
+# --- Datasets Upload (A1 前段) ---
+class UploadResponse(BaseModel):
+    dataset_id: str
+
+
+@app.post("/api/datasets/upload", response_model=UploadResponse)
+def datasets_upload(file: UploadFile = File(...)) -> UploadResponse:
+    dsid = tools.save_dataset(file)
+    log_event("DatasetUploaded", {"dataset_id": dsid, "filename": file.filename})
+    return UploadResponse(dataset_id=dsid)
+
+
 @app.post("/api/eda", response_model=EDAReport)
 def eda(req: EDARequest) -> EDAReport:
+    t0 = time.perf_counter()
     raw = tools.profile_api(req.dataset_id, req.sample_ratio)
     report = EDAReport(**raw)
-    log_event("EDAReportGenerated", {"dataset_id": req.dataset_id, "sample_ratio": req.sample_ratio, "groundedness": 0.92})
+    dur = int((time.perf_counter() - t0) * 1000)
+    log_event("EDAReportGenerated", {"dataset_id": req.dataset_id, "sample_ratio": req.sample_ratio, "groundedness": 0.92, "duration_ms": dur})
     return report
 
 
-@app.post("/api/charts/suggest", response_model=List[ChartCandidate])
-def charts_suggest(req: ChartsSuggestRequest) -> List[ChartCandidate]:
-    charts = [ChartCandidate(**c) for c in tools.chart_api(req.dataset_id, req.k)]
-    log_event("ChartsSuggested", {"dataset_id": req.dataset_id, "k": req.k, "count": len(charts)})
-    return charts
+@app.post("/api/charts/suggest", response_model=ChartsSuggestResponse)
+def charts_suggest(req: ChartsSuggestRequest) -> ChartsSuggestResponse:
+    t0 = time.perf_counter()
+    raw = tools.chart_api(req.dataset_id, req.k)
+    filtered = [ChartCandidate(**c) for c in raw if evaluator.consistency_ok(c)]
+    dur = int((time.perf_counter() - t0) * 1000)
+    log_event("ChartsSuggested", {"dataset_id": req.dataset_id, "k": req.k, "count": len(filtered), "duration_ms": dur})
+    return ChartsSuggestResponse(charts=filtered)
 
 
-@app.post("/api/qna", response_model=List[Answer])
-def qna(req: QnARequest) -> List[Answer]:
+@app.post("/api/qna", response_model=QnAResponse)
+def qna(req: QnARequest) -> QnAResponse:
+    t0 = time.perf_counter()
     raw = tools.stats_qna(req.dataset_id, req.question)
     answers = [Answer(**a) for a in raw]
+    refs: List[Reference] = []
+    for a in answers:
+        refs.extend(a.references)
     cov = answers[0].coverage if answers else 0.0
-    log_event("EDAQueryAnswered", {"dataset_id": req.dataset_id, "coverage": cov})
-    return answers
+    dur = int((time.perf_counter() - t0) * 1000)
+    log_event("EDAQueryAnswered", {"dataset_id": req.dataset_id, "coverage": cov, "duration_ms": dur})
+    return QnAResponse(answers=answers, references=refs)
 
 
 @app.post("/api/actions/prioritize", response_model=List[PrioritizedAction])
@@ -205,3 +238,9 @@ def recipes_emit(req: RecipeEmitRequest) -> RecipeEmitResult:
     res = tools.recipe_emit(req.dataset_id)
     log_event("EDARecipeEmitted", {"artifact_hash": res["artifact_hash"], "files": res["files"]})
     return RecipeEmitResult(**res)
+
+
+@app.post("/api/recipes/export", response_model=RecipeEmitResult)
+def recipes_export(req: RecipeEmitRequest) -> RecipeEmitResult:
+    # 互換エンドポイント（設計上の想定パス）: 内部処理は同一
+    return recipes_emit(req)

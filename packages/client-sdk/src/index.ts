@@ -65,7 +65,9 @@ export async function getEDAReport(datasetId: string): Promise<EDAReport> {
 
 export async function suggestCharts(datasetId: string, k = 5): Promise<ChartCandidate[]> {
   try {
-    return await postJSON<ChartCandidate[]>('/api/charts/suggest', { dataset_id: datasetId, k });
+    const res = await postJSON<any>('/api/charts/suggest', { dataset_id: datasetId, k });
+    // サーバの設計準拠: { charts: ChartCandidate[] } に正規化（後方互換: 配列も許容）
+    return Array.isArray(res) ? (res as ChartCandidate[]) : (res?.charts ?? []);
   } catch (_) {
     return [
       { id: 'c1', type: 'bar', explanation: '売上の季節性を示すバーチャート', source_ref: { kind: 'figure', locator: 'fig:sales_seasonality' }, consistency_score: 0.97 },
@@ -75,7 +77,9 @@ export async function suggestCharts(datasetId: string, k = 5): Promise<ChartCand
 
 export async function askQnA(datasetId: string, question: string): Promise<Answer[]> {
   try {
-    return await postJSON<Answer[]>('/api/qna', { dataset_id: datasetId, question });
+    const res = await postJSON<any>('/api/qna', { dataset_id: datasetId, question });
+    // 設計準拠: { answers: Answer[], references: Reference[] }（後方互換: 配列も許容）
+    return Array.isArray(res) ? (res as Answer[]) : (res?.answers ?? []);
   } catch (_) {
     return [{ text: 'モック回答', references: [{ kind: 'figure', locator: 'fig:mock' }], coverage: 0.8 }];
   }

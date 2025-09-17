@@ -49,6 +49,18 @@ export const AnswerSchema = z.object({
 });
 export type Answer = z.infer<typeof AnswerSchema>;
 
+// --- Responses (server objects) ---
+export const ChartsSuggestResponseSchema = z.object({
+  charts: z.array(ChartCandidateSchema),
+});
+export type ChartsSuggestResponse = z.infer<typeof ChartsSuggestResponseSchema>;
+
+export const QnAResponseSchema = z.object({
+  answers: z.array(AnswerSchema),
+  references: z.array(ReferenceSchema).default([]),
+});
+export type QnAResponse = z.infer<typeof QnAResponseSchema>;
+
 // --- B2: Prioritize ---
 export const PrioritizeItemSchema = z.object({
   title: z.string(),
