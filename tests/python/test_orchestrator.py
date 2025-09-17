@@ -10,6 +10,8 @@ from apps.api.services import orchestrator
 def reset_env(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("AUTOEDA_LLM_MODEL", raising=False)
+    monkeypatch.setattr(orchestrator.rag, "load_default_corpus", lambda: None)
+    monkeypatch.setattr(orchestrator, "_rag_seeded", True)
 
 
 def fake_profile_report():
@@ -34,6 +36,7 @@ def patch_tools(monkeypatch):
     monkeypatch.setattr(orchestrator.tools, "profile_api", lambda *args, **kwargs: fake_profile_report())
     monkeypatch.setattr(orchestrator.tools, "pii_scan", lambda *args, **kwargs: {"detected_fields": ["email"], "mask_policy": "MASK"})
     monkeypatch.setattr(orchestrator.tools, "leakage_scan", lambda *args, **kwargs: {"flagged_columns": ["target_next_month"], "rules_matched": ["time_causality"]})
+    monkeypatch.setattr(orchestrator, "_retrieve_context", lambda report: [])
 
 
 def test_generate_eda_report_fallback(monkeypatch, patch_tools):
@@ -49,6 +52,9 @@ def test_generate_eda_report_fallback(monkeypatch, patch_tools):
 
 
 def test_generate_eda_report_with_llm(monkeypatch, patch_tools):
+    context_docs = [{"id": "doc:req", "text": "EDA 要件", "metadata": {"source": "requirements.md"}}]
+    monkeypatch.setattr(orchestrator, "_retrieve_context", lambda report: context_docs)
+
     class DummyResponses:
         def create(self, **kwargs):
             payload = {
@@ -75,4 +81,3 @@ def test_generate_eda_report_with_llm(monkeypatch, patch_tools):
     assert report["key_features"] == ["LLM 派生の洞察"]
     assert report["next_actions"][0]["title"] == "LLM Action"
     assert any(ref["locator"] == "llm:analysis" for ref in report["references"])
-

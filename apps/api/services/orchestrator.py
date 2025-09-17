@@ -13,7 +13,7 @@ import os
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-from . import tools
+from . import rag, tools
 
 try:
     from openai import OpenAI  # type: ignore
@@ -35,9 +35,16 @@ _REQUIRED_KEYS: Tuple[str, ...] = (
 
 OrchestrationResult = Tuple[Dict[str, Any], Dict[str, Any]]
 
+_rag_seeded = False
+
 
 def generate_eda_report(dataset_id: str, sample_ratio: Optional[float] = None) -> OrchestrationResult:
     """Compose the high-level EDA report required by A1 with RAG/LLM support."""
+
+    global _rag_seeded
+    if not _rag_seeded:
+        rag.load_default_corpus()
+        _rag_seeded = True
 
     profile = tools.profile_api(dataset_id, sample_ratio)
     pii = _safe_tool_call(lambda: tools.pii_scan(dataset_id))
@@ -52,7 +59,8 @@ def generate_eda_report(dataset_id: str, sample_ratio: Optional[float] = None) -
 
     try:
         t0 = time.perf_counter()
-        llm_payload = _invoke_llm_agent(dataset_id, report, pii, leakage)
+        context_docs = _retrieve_context(report)
+        llm_payload = _invoke_llm_agent(dataset_id, report, pii, leakage, context_docs)
         llm_latency_ms = int((time.perf_counter() - t0) * 1000)
         if llm_payload:
             report = _merge_llm_payload(report, llm_payload)
@@ -103,6 +111,19 @@ def _ensure_defaults(report: Dict[str, Any]) -> Dict[str, Any]:
     return data
 
 
+def _retrieve_context(report: Dict[str, Any]) -> List[Dict[str, Any]]:
+    summary = report.get("summary", {})
+    issues = report.get("data_quality_report", {}).get("issues", [])
+    query_terms = [
+        f"rows {summary.get('rows')}",
+        f"cols {summary.get('cols')}",
+    ]
+    for issue in issues[:5]:
+        query_terms.append(f"issue {issue.get('column')} {issue.get('description')}")
+    query = " ".join(filter(None, query_terms)) or "autoeda requirements"
+    return rag.retrieve(query, top_k=5)
+
+
 def _enrich_references(report: Dict[str, Any], pii: Optional[Dict[str, Any]], leakage: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     refs = list(report.get("references", []))
     for issue in report.get("data_quality_report", {}).get("issues", []):
@@ -122,6 +143,7 @@ def _invoke_llm_agent(
     report: Dict[str, Any],
     pii: Optional[Dict[str, Any]],
     leakage: Optional[Dict[str, Any]],
+    context_docs: List[Dict[str, Any]],
 ) -> Optional[Dict[str, Any]]:
     """Invoke LLM to synthesize insights. Falls back silently if not configured."""
 
@@ -132,7 +154,7 @@ def _invoke_llm_agent(
         raise RuntimeError("LLM client not configured")
 
     client = OpenAI(api_key=api_key)
-    prompt = _build_system_prompt(dataset_id, report, pii, leakage)
+    prompt = _build_system_prompt(dataset_id, report, pii, leakage, context_docs)
     response = client.responses.create(
         model=model,
         input=[
@@ -161,7 +183,13 @@ def _invoke_llm_agent(
     return payload
 
 
-def _build_system_prompt(dataset_id: str, report: Dict[str, Any], pii: Optional[Dict[str, Any]], leakage: Optional[Dict[str, Any]]) -> Dict[str, str]:
+def _build_system_prompt(
+    dataset_id: str,
+    report: Dict[str, Any],
+    pii: Optional[Dict[str, Any]],
+    leakage: Optional[Dict[str, Any]],
+    context_docs: List[Dict[str, Any]],
+) -> Dict[str, str]:
     issues = report.get("data_quality_report", {}).get("issues", [])
     summary = report.get("summary", {})
     context_parts = [
@@ -173,13 +201,22 @@ def _build_system_prompt(dataset_id: str, report: Dict[str, Any], pii: Optional[
         f"pii: {json.dumps(pii, ensure_ascii=False)}",
         f"leakage: {json.dumps(leakage, ensure_ascii=False)}",
     ]
+    context_excerpt = "\n".join(
+        f"- {doc.get('text', '')[:400]}" for doc in context_docs
+        if doc.get("text")
+    )
     system_prompt = (
         "あなたはAutoEDAアシスタントです。data_quality_reportや統計ツールの出力を基に、"
         "事実に基づいた key_features と next_actions を JSON で返します。引用は tools の evidence_id を参照し、"
         "impact/effort/confidence は 0..1 の数値に正規化してください。 hallucination を避け、"
         "不確実な場合は 'reason' に明記しなさい。"
     )
-    user_prompt = "\n".join(context_parts) + "\n期待するJSONスキーマ: {\"key_features\": string[], \"next_actions\": [{title, reason, impact, effort, confidence, score, dependencies?}], \"references\": Reference[]}"
+    user_prompt = (
+        "\n".join(context_parts)
+        + "\n関連ドキュメント:\n"
+        + context_excerpt
+        + "\n期待するJSONスキーマ: {\"key_features\": string[], \"next_actions\": [{title, reason, impact, effort, confidence, score, dependencies?}], \"references\": Reference[]}"
+    )
     return {"system": system_prompt, "user": user_prompt}
 
 
@@ -216,6 +253,12 @@ def _tool_only_enrichment(report: Dict[str, Any], pii: Optional[Dict[str, Any]],
         report["key_features"] = _derive_key_features(report)
     if not report.get("next_actions"):
         report["next_actions"] = _derive_actions_from_issues(report, pii, leakage)
+    rag_refs = [
+        {"kind": "doc", "locator": doc.get("metadata", {}).get("source", doc.get("id"))}
+        for doc in _retrieve_context(report)
+    ]
+    if rag_refs:
+        report["references"] = _dedup_references(report.get("references", []) + rag_refs)
     return report
 
 
