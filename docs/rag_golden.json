@@ -1,0 +1,12 @@
+[
+  {
+    "id": "coverage",
+    "query": "引用被覆率 0.8",
+    "expects": ["requirements.md"]
+  },
+  {
+    "id": "consistency",
+    "query": "整合性 0.95",
+    "expects": ["design.md"]
+  }
+]

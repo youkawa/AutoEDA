@@ -1,4 +1,7 @@
+import json
+
 from apps.api.services import rag
+from apps.api.scripts import check_rag
 
 
 def test_rag_in_memory_retrieve(monkeypatch):
@@ -61,3 +64,47 @@ def test_rag_golden_queries(monkeypatch, tmp_path):
     ])
 
     assert failure["missing"] == ["absent"]
+
+
+def test_check_rag_main_success(monkeypatch, tmp_path):
+    queries = tmp_path / "golden.json"
+    queries.write_text(
+        json.dumps([
+            {"id": "q1", "query": "A", "expects": ["docA"]},
+        ]),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("AUTOEDA_RAG_GOLDEN_PATH", str(queries))
+    monkeypatch.setattr(rag, "_in_memory_store", [])
+    monkeypatch.setattr(rag, "_collection", None)
+    monkeypatch.setattr(rag, "_chroma_client", None)
+
+    def fake_load_default():
+        rag.ingest([
+            {"id": "doc:req", "text": "A", "metadata": {"source": "docA"}},
+        ])
+
+    monkeypatch.setattr(rag, "load_default_corpus", fake_load_default)
+
+    exit_code = check_rag.main([str(queries)])
+    assert exit_code == 0
+
+
+def test_check_rag_main_failure(monkeypatch, tmp_path):
+    queries = tmp_path / "golden.json"
+    queries.write_text(
+        json.dumps([
+            {"id": "q1", "query": "B", "expects": ["docB"]},
+        ]),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("AUTOEDA_RAG_GOLDEN_PATH", str(queries))
+    monkeypatch.setattr(rag, "_in_memory_store", [])
+    monkeypatch.setattr(rag, "_collection", None)
+    monkeypatch.setattr(rag, "_chroma_client", None)
+    monkeypatch.setattr(rag, "load_default_corpus", lambda: rag.ingest([]))
+
+    exit_code = check_rag.main([str(queries)])
+    assert exit_code == 1
