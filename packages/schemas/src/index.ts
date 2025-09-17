@@ -1,8 +1,17 @@
 import { z } from 'zod';
 
 export const ReferenceSchema = z.object({
-  kind: z.enum(['figure', 'table', 'query', 'doc', 'cell']).default('figure'),
+  kind: z.enum(['table', 'column', 'cell', 'figure', 'query', 'doc']).default('figure'),
   locator: z.string(),
+  evidence_id: z.string().optional(),
+});
+export type Reference = z.infer<typeof ReferenceSchema>;
+
+export const SummarySchema = z.object({
+  rows: z.number().int().nonnegative(),
+  cols: z.number().int().nonnegative(),
+  missing_rate: z.number().min(0).max(1),
+  type_mix: z.record(z.string(), z.number()),
 });
 
 export const DistributionSchema = z.object({
@@ -14,19 +23,42 @@ export const DistributionSchema = z.object({
   source_ref: ReferenceSchema.optional(),
 });
 
-export const IssueSchema = z.object({
+export const DataQualityIssueSchema = z.object({
   severity: z.enum(['low', 'medium', 'high', 'critical']),
   column: z.string(),
   description: z.string(),
-  statistic: z.record(z.any()).optional(),
+  statistic: z.record(z.string(), z.any()).optional(),
+  evidence: ReferenceSchema,
+});
+
+export const DataQualityReportSchema = z.object({
+  issues: z.array(DataQualityIssueSchema),
+});
+
+export const OutlierSchema = z.object({
+  column: z.string(),
+  indices: z.array(z.number().int()),
+  evidence: ReferenceSchema.optional(),
+});
+
+export const NextActionSchema = z.object({
+  title: z.string(),
+  reason: z.string().optional(),
+  impact: z.number().min(0).max(1),
+  effort: z.number().min(0).max(1),
+  confidence: z.number().min(0).max(1),
+  score: z.number(),
+  dependencies: z.array(z.string()).optional(),
 });
 
 export const EDAReportSchema = z.object({
-  summary: z.object({ rows: z.number().int(), cols: z.number().int(), missingRate: z.number().min(0).max(1), typeMix: z.record(z.number()) }),
-  issues: z.array(IssueSchema),
+  summary: SummarySchema,
   distributions: z.array(DistributionSchema),
-  keyFeatures: z.array(z.string()),
-  outliers: z.array(z.object({ column: z.string(), indices: z.array(z.number().int()) })),
+  key_features: z.array(z.string()),
+  outliers: z.array(OutlierSchema),
+  data_quality_report: DataQualityReportSchema,
+  next_actions: z.array(NextActionSchema),
+  references: z.array(ReferenceSchema),
 });
 
 export type EDAReport = z.infer<typeof EDAReportSchema>;
@@ -64,18 +96,22 @@ export type QnAResponse = z.infer<typeof QnAResponseSchema>;
 // --- B2: Prioritize ---
 export const PrioritizeItemSchema = z.object({
   title: z.string(),
-  impact: z.number(),
-  effort: z.number(),
+  reason: z.string().optional(),
+  impact: z.number().min(0).max(1),
+  effort: z.number().min(0).max(1),
   confidence: z.number().min(0).max(1),
+  dependencies: z.array(z.string()).optional(),
 });
 export type PrioritizeItem = z.infer<typeof PrioritizeItemSchema>;
 
 export const PrioritizedActionSchema = z.object({
   title: z.string(),
-  impact: z.number(),
-  effort: z.number(),
-  confidence: z.number(),
+  reason: z.string().optional(),
+  impact: z.number().min(0).max(1),
+  effort: z.number().min(0).max(1),
+  confidence: z.number().min(0).max(1),
   score: z.number(),
+  dependencies: z.array(z.string()).optional(),
 });
 export type PrioritizedAction = z.infer<typeof PrioritizedActionSchema>;
 

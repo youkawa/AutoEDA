@@ -7,11 +7,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from .services import tools
 from .services import evaluator
+from .services import orchestrator
 
 
 class Reference(BaseModel):
-    kind: Literal["figure", "table", "query", "doc", "cell"] = "figure"
+    kind: Literal["table", "column", "cell", "figure", "query", "doc"] = "figure"
     locator: str
+    evidence_id: Optional[str] = None
 
 
 class Distribution(BaseModel):
@@ -23,31 +25,55 @@ class Distribution(BaseModel):
     source_ref: Optional[Reference] = None
 
 
-class Issue(BaseModel):
+class DataQualityIssue(BaseModel):
     severity: Literal["low", "medium", "high", "critical"]
     column: str
     description: str
     statistic: Optional[dict] = None
+    evidence: Reference
+
+
+class DataQualityReport(BaseModel):
+    issues: List[DataQualityIssue]
+
+
+class NextAction(BaseModel):
+    title: str
+    reason: Optional[str] = None
+    impact: float = Field(ge=0, le=1)
+    effort: float = Field(ge=0, le=1)
+    confidence: float = Field(ge=0, le=1)
+    score: float
+    dependencies: Optional[List[str]] = None
 
 
 class Summary(BaseModel):
     rows: int
     cols: int
-    missingRate: float = Field(ge=0.0, le=1.0)
-    typeMix: dict
+    missing_rate: float = Field(alias="missing_rate", ge=0.0, le=1.0)
+    type_mix: dict = Field(alias="type_mix")
+
+    class Config:
+        allow_population_by_field_name = True
 
 
 class Outlier(BaseModel):
     column: str
     indices: List[int]
+    evidence: Optional[Reference] = None
 
 
 class EDAReport(BaseModel):
     summary: Summary
-    issues: List[Issue]
     distributions: List[Distribution]
-    keyFeatures: List[str]
+    key_features: List[str]
     outliers: List[Outlier]
+    data_quality_report: DataQualityReport
+    next_actions: List[NextAction]
+    references: List[Reference]
+
+    class Config:
+        allow_population_by_field_name = True
 
 
 class EDARequest(BaseModel):
@@ -90,9 +116,11 @@ class QnAResponse(BaseModel):
 
 class PrioritizeRequestItem(BaseModel):
     title: str
-    impact: float
-    effort: float
+    reason: Optional[str] = None
+    impact: float = Field(ge=0, le=1)
+    effort: float = Field(ge=0, le=1)
     confidence: float = Field(ge=0, le=1)
+    dependencies: Optional[List[str]] = None
 
 
 class PrioritizeRequest(BaseModel):
@@ -102,10 +130,12 @@ class PrioritizeRequest(BaseModel):
 
 class PrioritizedAction(BaseModel):
     title: str
-    impact: float
-    effort: float
-    confidence: float
+    reason: Optional[str] = None
+    impact: float = Field(ge=0, le=1)
+    effort: float = Field(ge=0, le=1)
+    confidence: float = Field(ge=0, le=1)
     score: float
+    dependencies: Optional[List[str]] = None
 
 
 class PIIScanRequest(BaseModel):
@@ -190,10 +220,20 @@ def datasets_list() -> List[dict]:
 @app.post("/api/eda", response_model=EDAReport)
 def eda(req: EDARequest) -> EDAReport:
     t0 = time.perf_counter()
-    raw = tools.profile_api(req.dataset_id, req.sample_ratio)
+    raw = orchestrator.generate_eda_report(req.dataset_id, req.sample_ratio)
     report = EDAReport(**raw)
     dur = int((time.perf_counter() - t0) * 1000)
-    log_event("EDAReportGenerated", {"dataset_id": req.dataset_id, "sample_ratio": req.sample_ratio, "groundedness": 0.92, "duration_ms": dur})
+    log_event(
+        "EDAReportGenerated",
+        {
+            "dataset_id": req.dataset_id,
+            "sample_ratio": req.sample_ratio,
+            "groundedness": 0.92,
+            "issues": len(report.data_quality_report.issues),
+            "next_actions": len(report.next_actions),
+            "duration_ms": dur,
+        },
+    )
     return report
 
 

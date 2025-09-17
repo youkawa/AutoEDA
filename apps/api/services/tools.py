@@ -6,19 +6,37 @@ from collections import Counter
 import csv
 
 
+def make_reference(locator: str, kind: str = "table", evidence_id: Optional[str] = None) -> Dict[str, Any]:
+    ref: Dict[str, Any] = {"kind": kind, "locator": locator}
+    if evidence_id:
+        ref["evidence_id"] = evidence_id
+    return ref
+
+
 def _mock_report() -> Dict[str, Any]:
     return {
-        "summary": {"rows": 1_000_000, "cols": 48, "missingRate": 0.12, "typeMix": {"int": 20, "float": 10, "cat": 18}},
-        "issues": [
-            {"severity": "high", "column": "price", "description": "欠損が多い（32%）", "statistic": {"missing": 0.32}},
-            {"severity": "critical", "column": "date", "description": "将来日付が含まれている", "statistic": {"future_dates": 45}},
-        ],
+        "summary": {"rows": 1_000_000, "cols": 48, "missing_rate": 0.12, "type_mix": {"int": 20, "float": 10, "cat": 18}},
         "distributions": [
-            {"column": "price", "dtype": "float", "count": 1_000_000, "missing": 320_000, "histogram": [100, 200, 500, 800, 300]},
-            {"column": "quantity", "dtype": "int", "count": 1_000_000, "missing": 5000, "histogram": [150, 400, 700, 600, 250]},
+            {"column": "price", "dtype": "float", "count": 1_000_000, "missing": 320_000, "histogram": [100, 200, 500, 800, 300], "source_ref": make_reference("fig:price_hist", "figure")},
+            {"column": "quantity", "dtype": "int", "count": 1_000_000, "missing": 5000, "histogram": [150, 400, 700, 600, 250], "source_ref": make_reference("fig:quantity_hist", "figure")},
         ],
-        "keyFeatures": ["price × promotion_rate が強い関係（r=0.85）", "seasonal_index が売上に大きく影響"],
-        "outliers": [{"column": "sales", "indices": [12, 45, 156, 789]}],
+        "key_features": ["price × promotion_rate が強い関係（r=0.85）", "seasonal_index が売上に大きく影響"],
+        "outliers": [{"column": "sales", "indices": [12, 45, 156, 789], "evidence": make_reference("tbl:outliers_sales", "table", "mock:sales")}],
+        "data_quality_report": {
+            "issues": [
+                {"severity": "high", "column": "price", "description": "欠損が多い（32%）", "statistic": {"missing_ratio": 0.32}, "evidence": make_reference("tbl:price_quality", "table", "mock:price")},
+                {"severity": "critical", "column": "date", "description": "将来日付が含まれている", "statistic": {"future_dates": 45}, "evidence": make_reference("tbl:date_future", "table", "mock:date")},
+            ]
+        },
+        "next_actions": [
+            {"title": "price 列の欠損補完", "reason": "重大な欠損率を是正", "impact": 0.9, "effort": 0.3, "confidence": 0.8, "score": 2.4, "dependencies": ["impute_price_mean"]},
+            {"title": "date 列の異常値修正", "reason": "未来日付がリークリスク", "impact": 0.85, "effort": 0.4, "confidence": 0.7, "score": 1.4875, "dependencies": ["validate_date_source"]},
+        ],
+        "references": [
+            make_reference("tbl:summary"),
+            make_reference("fig:price_hist", "figure"),
+            make_reference("fig:quantity_hist", "figure"),
+        ],
     }
 
 
@@ -53,7 +71,13 @@ def profile_api(dataset_id: str, sample_ratio: Optional[float] = None) -> Dict[s
             for col in df.columns:
                 miss = int(df[col].isna().sum())
                 if rows and miss / rows > 0.3:
-                    issues.append({"severity": "high", "column": col, "description": "欠損が多い", "statistic": {"missing": round(miss/rows, 2)}})
+                    issues.append({
+                        "severity": "high",
+                        "column": col,
+                        "description": "欠損が多い",
+                        "statistic": {"missing_ratio": round(miss/rows, 2)},
+                        "evidence": make_reference(f"tbl:{col}_missing", "table", f"{dataset_id}:{col}:missing")
+                    })
             # 未来日付
             for col in df.columns:
                 if df[col].dtype == "object":
@@ -61,7 +85,13 @@ def profile_api(dataset_id: str, sample_ratio: Optional[float] = None) -> Dict[s
                         dt = pd.to_datetime(df[col], errors="coerce")
                         future = int((dt > pd.Timestamp.now()).sum())
                         if future > 0:
-                            issues.append({"severity": "critical", "column": col, "description": "将来日付が含まれている", "statistic": {"future_dates": future}})
+                            issues.append({
+                                "severity": "critical",
+                                "column": col,
+                                "description": "将来日付が含まれている",
+                                "statistic": {"future_dates": future},
+                                "evidence": make_reference(f"tbl:{col}_future_dates", "table", f"{dataset_id}:{col}:future")
+                            })
                     except Exception:
                         pass
             # 分布（最大2列、数値のみ）
@@ -70,7 +100,14 @@ def profile_api(dataset_id: str, sample_ratio: Optional[float] = None) -> Dict[s
             for col in num_cols[:2]:
                 s = df[col].dropna()
                 hist, _ = np.histogram(s, bins=5) if not s.empty else (np.zeros(5, dtype=int), [])
-                dists.append({"column": col, "dtype": str(df[col].dtype), "count": rows, "missing": int(df[col].isna().sum()), "histogram": [int(x) for x in hist.tolist()]})
+                dists.append({
+                    "column": col,
+                    "dtype": str(df[col].dtype),
+                    "count": rows,
+                    "missing": int(df[col].isna().sum()),
+                    "histogram": [int(x) for x in hist.tolist()],
+                    "source_ref": make_reference(f"fig:{col}_hist", "figure", f"{dataset_id}:{col}:hist")
+                })
             # 外れ値（IQRベース、先頭1列のみ）
             outliers: List[Dict[str, Any]] = []
             if num_cols:
@@ -80,13 +117,50 @@ def profile_api(dataset_id: str, sample_ratio: Optional[float] = None) -> Dict[s
                     iqr = q3 - q1
                     lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
                     idx = df.index[(df[num_cols[0]] < lo) | (df[num_cols[0]] > hi)].tolist()[:10]
-                    outliers.append({"column": num_cols[0], "indices": [int(i) for i in idx]})
+                    outliers.append({
+                        "column": num_cols[0],
+                        "indices": [int(i) for i in idx],
+                        "evidence": make_reference(f"tbl:{num_cols[0]}_outliers", "table", f"{dataset_id}:{num_cols[0]}:outliers")
+                    })
+
+            references = [make_reference("tbl:summary", "table", dataset_id)]
+            references.extend(ref for ref in (dist.get("source_ref") for dist in dists) if ref)
+            for issue in issues:
+                references.append(issue["evidence"])
+            for out in outliers:
+                if out.get("evidence"):
+                    references.append(out["evidence"])
+
+            def calc_score(impact: float, effort: float, confidence: float) -> float:
+                eff = effort if effort > 0 else 0.1
+                return round((impact / eff) * confidence, 4)
+
+            next_actions = []
+            severity_map = {"critical": 0.95, "high": 0.9, "medium": 0.7, "low": 0.5}
+            for issue in issues:
+                impact = severity_map.get(issue["severity"], 0.6)
+                effort = 0.35 if issue["severity"] in {"critical", "high"} else 0.45
+                confidence = 0.75 if issue["severity"] == "medium" else 0.85
+                next_actions.append({
+                    "title": f"{issue['column']} の改善",
+                    "reason": issue["description"],
+                    "impact": round(min(1.0, impact), 2),
+                    "effort": round(min(1.0, effort), 2),
+                    "confidence": round(min(1.0, confidence), 2),
+                    "score": calc_score(impact, effort, confidence),
+                    "dependencies": [f"remediate_{issue['column']}"]
+                })
+
+            key_features: List[str] = []
+
             return {
-                "summary": {"rows": rows, "cols": cols, "missingRate": round(missing_rate, 4), "typeMix": dict(type_mix)},
-                "issues": issues,
+                "summary": {"rows": rows, "cols": cols, "missing_rate": round(missing_rate, 4), "type_mix": dict(type_mix)},
                 "distributions": dists,
-                "keyFeatures": [],
+                "key_features": key_features,
                 "outliers": outliers,
+                "data_quality_report": {"issues": issues},
+                "next_actions": next_actions,
+                "references": references,
             }
         except Exception:
             # pandas不在や失敗時: 軽量CSVで概算
@@ -176,14 +250,24 @@ def profile_api(dataset_id: str, sample_ratio: Optional[float] = None) -> Dict[s
             issues = []
             for name, miss in missing_counts.items():
                 if rows and miss / rows > 0.3:
-                    issues.append({"severity": "high", "column": name, "description": "欠損が多い", "statistic": {"missing": round(miss/rows, 2)}})
+                    issues.append({
+                        "severity": "high",
+                        "column": name,
+                        "description": "欠損が多い",
+                        "statistic": {"missing_ratio": round(miss/rows, 2)},
+                        "evidence": make_reference(f"tbl:{name}_missing", "table", f"{dataset_id}:{name}:missing")
+                    })
 
             return {
-                "summary": {"rows": rows, "cols": cols, "missingRate": round(missing_rate, 4), "typeMix": type_mix},
-                "issues": issues,
+                "summary": {"rows": rows, "cols": cols, "missing_rate": round(missing_rate, 4), "type_mix": type_mix},
                 "distributions": dists,
-                "keyFeatures": [],
+                "key_features": [],
                 "outliers": [],
+                "data_quality_report": {"issues": issues},
+                "next_actions": [
+                    {"title": "欠損補完", "reason": "高い欠損率を解消", "impact": 0.85, "effort": 0.4, "confidence": 0.75, "score": 1.5938, "dependencies": ["remediate_missing"]}
+                ],
+                "references": [make_reference("tbl:summary", "table", dataset_id)],
             }
     except Exception:
         return _mock_report()
@@ -213,16 +297,20 @@ def stats_qna(dataset_id: str, question: str) -> List[Dict[str, Any]]:
 
 def prioritize_actions(dataset_id: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     def calc_score(it: Dict[str, Any]) -> float:
-        denom = it.get("effort", 0) or 1.0
-        return (it.get("impact", 0) / denom) * it.get("confidence", 0)
+        impact = min(1.0, max(0.0, float(it.get("impact", 0))))
+        effort = min(1.0, max(0.01, float(it.get("effort", 0))))
+        confidence = min(1.0, max(0.0, float(it.get("confidence", 0))))
+        return round((impact / effort) * confidence, 4)
 
     ranked = [
         {
             "title": it["title"],
-            "impact": it["impact"],
-            "effort": it["effort"],
-            "confidence": it["confidence"],
-            "score": round(calc_score(it), 4),
+            "reason": it.get("reason"),
+            "impact": min(1.0, max(0.0, float(it.get("impact", 0)))),
+            "effort": min(1.0, max(0.0, float(it.get("effort", 0)))),
+            "confidence": min(1.0, max(0.0, float(it.get("confidence", 0)))),
+            "score": calc_score(it),
+            "dependencies": it.get("dependencies", []),
         }
         for it in items
     ]

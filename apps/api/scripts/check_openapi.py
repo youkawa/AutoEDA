@@ -31,10 +31,12 @@ def check_models(comps: Dict[str, Any]) -> Tuple[List[str], List[str]]:
     exp: Dict[str, Dict[str, str]] = {
         "EDAReport": {
             "summary": "object",
-            "issues": "array",
             "distributions": "array",
-            "keyFeatures": "array",
+            "key_features": "array",
             "outliers": "array",
+            "data_quality_report": "object",
+            "next_actions": "array",
+            "references": "array",
         },
         "ChartsSuggestResponse": {
             "charts": "array",
@@ -57,10 +59,12 @@ def check_models(comps: Dict[str, Any]) -> Tuple[List[str], List[str]]:
         },
         "PrioritizedAction": {
             "title": "string",
+            "reason": "string",
             "impact": "number",
             "effort": "number",
             "confidence": "number",
             "score": "number",
+            "dependencies": "array",
         },
         "PIIScanResult": {
             "detected_fields": "array",
