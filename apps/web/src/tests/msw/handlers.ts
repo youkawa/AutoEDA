@@ -123,4 +123,15 @@ export const handlers = [
       measured_summary: { rows: 100, cols: 5, missing_rate: 0.1 },
     });
   }),
+  http.get('/api/credentials/llm', async () =>
+    HttpResponse.json({
+      provider: 'openai',
+      configured: false,
+      providers: {
+        openai: { configured: false },
+        gemini: { configured: false },
+      },
+    }),
+  ),
+  http.post('/api/credentials/llm', async () => new HttpResponse(null, { status: 204 })),
 ];

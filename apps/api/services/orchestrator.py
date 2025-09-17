@@ -22,6 +22,11 @@ try:
 except ImportError:  # pragma: no cover
     OpenAI = None  # type: ignore
 
+try:  # pragma: no cover - optional dependency
+    import google.generativeai as genai  # type: ignore
+except ImportError:  # pragma: no cover
+    genai = None  # type: ignore
+
 LOGGER = logging.getLogger(__name__)
 
 _REQUIRED_KEYS: Tuple[str, ...] = (
@@ -152,35 +157,56 @@ def _invoke_llm_agent(
 ) -> Optional[Dict[str, Any]]:
     """Invoke LLM to synthesize insights. Falls back silently if not configured."""
 
-    model = os.getenv("AUTOEDA_LLM_MODEL", "gpt-4o-mini")
-
-    try:
-        api_key = config.get_openai_api_key()
-    except config.CredentialsError as exc:
-        raise RuntimeError(str(exc))
-
-    if OpenAI is None:
-        raise RuntimeError("LLM client not configured")
-
-    client = OpenAI(api_key=api_key)
+    provider = config.get_llm_provider()
     prompt = _build_system_prompt(dataset_id, report, pii, leakage, context_docs)
-    response = client.responses.create(
-        model=model,
-        input=[
-            {
-                "role": "system",
-                "content": prompt["system"],
-            },
-            {
-                "role": "user",
-                "content": prompt["user"],
-            },
-        ],
-        temperature=0.3,
-        max_output_tokens=1200,
-    )
 
-    text = _extract_text(response)
+    if provider == "gemini":
+        try:
+            api_key = config.get_gemini_api_key()
+        except config.CredentialsError as exc:
+            raise RuntimeError(str(exc))
+        if genai is None:
+            raise RuntimeError("Gemini client library not installed")
+
+        genai.configure(api_key=api_key)
+        model_name = os.getenv("AUTOEDA_GEMINI_MODEL", "gemini-1.5-flash")
+        generation_config = {
+            "temperature": 0.3,
+            "max_output_tokens": 1200,
+        }
+        model = genai.GenerativeModel(model_name, system_instruction=prompt["system"])
+        response = model.generate_content(
+            prompt["user"],
+            generation_config=generation_config,
+        )
+        text = getattr(response, "text", None)
+    else:
+        model_name = os.getenv("AUTOEDA_LLM_MODEL", "gpt-4o-mini")
+        try:
+            api_key = config.get_openai_api_key()
+        except config.CredentialsError as exc:
+            raise RuntimeError(str(exc))
+        if OpenAI is None:
+            raise RuntimeError("OpenAI client library not installed")
+
+        client = OpenAI(api_key=api_key)
+        response = client.responses.create(
+            model=model_name,
+            input=[
+                {
+                    "role": "system",
+                    "content": prompt["system"],
+                },
+                {
+                    "role": "user",
+                    "content": prompt["user"],
+                },
+            ],
+            temperature=0.3,
+            max_output_tokens=1200,
+        )
+        text = _extract_text(response)
+
     if not text:
         raise RuntimeError("empty response from LLM")
 

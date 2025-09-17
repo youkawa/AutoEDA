@@ -4,7 +4,7 @@ from typing import List, Literal, Optional, Dict, Any
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, root_validator
 from .services import tools
 from .services import evaluator
 from .services import orchestrator
@@ -203,12 +203,31 @@ class LeakageResolveRequest(BaseModel):
     columns: List[str]
 
 
-class CredentialStatus(BaseModel):
+class ProviderState(BaseModel):
     configured: bool
 
 
+class CredentialStatus(BaseModel):
+    provider: Literal["openai", "gemini"]
+    configured: bool
+    providers: Dict[str, ProviderState]
+
+
 class CredentialUpdateRequest(BaseModel):
-    openai_api_key: str = Field(min_length=10)
+    provider: Literal["openai", "gemini"] = "openai"
+    api_key: Optional[str] = Field(default=None, min_length=8)
+    openai_api_key: Optional[str] = Field(default=None, alias="openai_api_key")
+
+    @root_validator(skip_on_failure=True)
+    def _ensure_api_key(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        key = values.get("api_key") or values.get("openai_api_key")
+        if not key or not str(key).strip():
+            raise ValueError("api_key is required")
+        values["api_key"] = str(key).strip()
+        return values
+
+    class Config:
+        allow_population_by_field_name = True
 
 
 def log_event(event_name: str, properties: dict) -> None:
@@ -401,18 +420,20 @@ def recipes_export(req: RecipeEmitRequest) -> RecipeEmitResult:
 
 @app.get("/api/credentials/llm", response_model=CredentialStatus)
 def credentials_llm_status() -> CredentialStatus:
-    try:
-        app_config.get_openai_api_key()
-    except app_config.CredentialsError:
-        return CredentialStatus(configured=False)
-    return CredentialStatus(configured=True)
+    provider = app_config.get_llm_provider()
+    provider_states = {
+        name: ProviderState(configured=app_config.is_provider_configured(name))
+        for name in sorted(app_config.SUPPORTED_PROVIDERS)
+    }
+    configured = provider_states.get(provider, ProviderState(configured=False)).configured
+    return CredentialStatus(provider=provider, configured=configured, providers=provider_states)
 
 
 @app.post("/api/credentials/llm", status_code=status.HTTP_204_NO_CONTENT)
 def credentials_llm_update(req: CredentialUpdateRequest) -> None:
     try:
-        app_config.set_openai_api_key(req.openai_api_key)
+        app_config.set_llm_credentials(req.provider, req.api_key)
     except app_config.CredentialsError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
-    log_event("LLMCredentialsUpdated", {"configured": True})
+    log_event("LLMCredentialsUpdated", {"provider": req.provider, "configured": True})

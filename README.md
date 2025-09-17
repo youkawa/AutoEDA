@@ -45,11 +45,12 @@ repo/
 
 #### 資格情報の設定
 
-LLM 連携を行う場合は、以下の手順で OpenAI API Key を登録します。
+LLM 連携を行う場合は、以下の手順で OpenAI / Google Gemini いずれか（または両方）の API Key を登録します。
 
 1. `config/credentials.example.json` をコピーして `config/credentials.json` を作成。
-2. `"llm.openai_api_key"` に実際のキーを設定。
-3. CI や別環境でファイルパスを切り替える場合は、環境変数 `AUTOEDA_CREDENTIALS_FILE` で JSON のパスを指定。
+2. `"llm.provider"` に既定で使用したいプロバイダ（`"openai"` または `"gemini"`）を設定。
+3. `"llm.openai.api_key"` や `"llm.gemini.api_key"` に実際のキーを設定（どちらか一方でも可、両方を保存しておくと UI で簡単に切り替え可能）。
+4. CI や別環境でファイルパスを切り替える場合は、環境変数 `AUTOEDA_CREDENTIALS_FILE` で JSON のパスを指定。
 
 ```bash
 cp config/credentials.example.json config/credentials.json
@@ -59,10 +60,12 @@ $EDITOR config/credentials.json  # <REPLACE_WITH_REAL_KEY> を更新
 `config/credentials.json` は `.gitignore` に登録済みのため、実際のキーをコミットする心配はありません（リポジトリ外へ持ち出す場合は手動で保護してください）。
 
 ```jsonc
-// config/credentials.json の最小構成例
+// config/credentials.json の例
 {
   "llm": {
-    "openai_api_key": "sk-..."
+    "provider": "openai",
+    "openai": { "api_key": "sk-..." },
+    "gemini": { "api_key": "gm-..." }
   }
 }
 ```
@@ -71,7 +74,7 @@ $EDITOR config/credentials.json  # <REPLACE_WITH_REAL_KEY> を更新
 
 ```bash
 # 例: GitHub Actions で secrets から生成する場合
-echo "${{ secrets.AUTOEDA_OPENAI_KEY_JSON }}" > $RUNNER_TEMP/autoeda_credentials.json
+echo "${{ secrets.AUTOEDA_LLM_CREDENTIALS_JSON }}" > $RUNNER_TEMP/autoeda_credentials.json
 export AUTOEDA_CREDENTIALS_FILE="$RUNNER_TEMP/autoeda_credentials.json"
 python -m pytest tests/python
 ```
@@ -126,7 +129,7 @@ uvicorn main:app --reload
 
 ブラウザで http://localhost:5173 を開き、サイドメニューからストーリー別の画面を操作できます。UI 上のリクエストは `VITE_API_BASE` で指定した API に送信されます（未設定の場合は同一オリジンに送信されるため注意）。
 
-OpenAI API Key は http://localhost:5173/settings の「Settings」画面から入力して登録することもできます（内部的には `config/credentials.json` に保存されます）。ローカルでの初回セットアップ時はこの画面を利用すると差し替えが容易です。
+LLM プロバイダ／API Key は http://localhost:5173/settings の「Settings」画面から登録・切り替えできます（内部的には `config/credentials.json` に保存されます）。ローカルでの初回セットアップ時はこの画面を利用すると差し替えが容易です。
 
 ### テストスイート
 

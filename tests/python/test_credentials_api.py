@@ -1,10 +1,15 @@
-from fastapi.testclient import TestClient
 import json
 import os
 from pathlib import Path
+from typing import Any, Dict
 
-from apps.api import main as api
+from fastapi.testclient import TestClient
+
 from apps.api import config as app_config
+from apps.api import main as api
+
+
+SUPPORTED = {"openai", "gemini"}
 
 
 def create_client(tmp_path: Path) -> TestClient:
@@ -15,26 +20,69 @@ def create_client(tmp_path: Path) -> TestClient:
     return TestClient(api.app)
 
 
-def test_get_status_without_credentials(tmp_path):
+def read_credentials_file() -> Dict[str, Any]:
+    file_path = Path(os.environ["AUTOEDA_CREDENTIALS_FILE"])
+    return json.loads(file_path.read_text(encoding="utf-8"))
+
+
+def test_get_status_defaults_to_openai(tmp_path):
     client = create_client(tmp_path)
     response = client.get("/api/credentials/llm")
     assert response.status_code == 200
-    assert response.json() == {"configured": False}
+    body = response.json()
+    assert body["provider"] == "openai"
+    assert body["configured"] is False
+    assert set(body["providers"].keys()) == SUPPORTED
 
 
-def test_set_credentials_and_persist(tmp_path):
+def test_set_openai_credentials_and_status(tmp_path):
     client = create_client(tmp_path)
 
-    response = client.post(
+    res = client.post(
         "/api/credentials/llm",
-        json={"openai_api_key": "sk-test-1234567890"},
+        json={"provider": "openai", "api_key": "sk-openai-1234567890"},
     )
-    assert response.status_code == 204
+    assert res.status_code == 204
 
-    file_path = Path(os.environ["AUTOEDA_CREDENTIALS_FILE"])
-    data = json.loads(file_path.read_text(encoding="utf-8"))
-    assert data["llm"]["openai_api_key"] == "sk-test-1234567890"
+    data = read_credentials_file()
+    assert data["llm"]["provider"] == "openai"
+    assert data["llm"]["openai"]["api_key"] == "sk-openai-1234567890"
 
-    status_response = client.get("/api/credentials/llm")
-    assert status_response.status_code == 200
-    assert status_response.json() == {"configured": True}
+    status = client.get("/api/credentials/llm").json()
+    assert status["provider"] == "openai"
+    assert status["configured"] is True
+    assert status["providers"]["openai"]["configured"] is True
+    assert status["providers"]["gemini"]["configured"] is False
+
+
+def test_set_gemini_credentials_switches_provider(tmp_path):
+    client = create_client(tmp_path)
+
+    res = client.post(
+        "/api/credentials/llm",
+        json={"provider": "gemini", "api_key": "gm-test-abcdef"},
+    )
+    assert res.status_code == 204
+
+    data = read_credentials_file()
+    assert data["llm"]["provider"] == "gemini"
+    assert data["llm"]["gemini"]["api_key"] == "gm-test-abcdef"
+
+    status = client.get("/api/credentials/llm").json()
+    assert status["provider"] == "gemini"
+    assert status["configured"] is True
+    assert status["providers"]["gemini"]["configured"] is True
+    assert status["providers"]["openai"]["configured"] is False
+
+
+def test_legacy_payload_is_supported(tmp_path):
+    client = create_client(tmp_path)
+
+    res = client.post(
+        "/api/credentials/llm",
+        json={"openai_api_key": "sk-openai-legacy"},
+    )
+    assert res.status_code == 204
+
+    data = read_credentials_file()
+    assert data["llm"]["openai"]["api_key"] == "sk-openai-legacy"
