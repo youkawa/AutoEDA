@@ -63,6 +63,10 @@ def check_models(comps: Dict[str, Any]) -> Tuple[List[str], List[str]]:
             "flagged_columns": "array",
             "rules_matched": "array",
         },
+        "RecipeEmitResult": {
+            "artifact_hash": "string",
+            "files": "array",
+        },
     }
 
     missing_models = [m for m in exp if m not in comps]

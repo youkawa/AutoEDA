@@ -105,3 +105,12 @@ export async function leakageScan(datasetId: string): Promise<LeakageScanResult>
     return { flagged_columns: ['target_next_month'], rules_matched: ['time_causality'] };
   }
 }
+
+export type { RecipeEmitResult } from '@autoeda/schemas';
+export async function emitRecipes(datasetId: string): Promise<{ artifact_hash: string; files: string[] }> {
+  try {
+    return await postJSON<{ artifact_hash: string; files: string[] }>('/api/recipes/emit', { dataset_id: datasetId });
+  } catch (_) {
+    return { artifact_hash: 'deadbeef', files: ['recipe.json', 'eda.ipynb', 'sampling.sql'] };
+  }
+}

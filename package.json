@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "scripts": {
+    "prepare": "husky install",
     "dev:web": "npm run -w @autoeda/web dev",
     "build:web": "npm run -w @autoeda/web build",
     "lint:web": "npm run -w @autoeda/web lint",
@@ -18,6 +19,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.47.2",
+    "husky": "^9.1.6",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.3",
     "zod-to-json-schema": "^3.23.5",

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Block direct push to main per AGENTS.md §6
+branch=$(git rev-parse --abbrev-ref HEAD)
+if [ "$branch" = "main" ]; then
+  echo "[pre-push] Pushing to main is prohibited. Create a feature branch and open a PR." 1>&2
+  echo "Hint: git checkout -b feat/your-change && git push -u origin feat/your-change" 1>&2
+  exit 1
+fi
+exit 0
+
