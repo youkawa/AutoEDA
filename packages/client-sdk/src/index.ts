@@ -5,6 +5,7 @@ import type {
   PrioritizeItem,
   PrioritizedAction,
   PIIScanResult,
+  PIIApplyResult,
   LeakageScanResult,
   Reference,
 } from '@autoeda/schemas';
@@ -157,7 +158,7 @@ export async function piiScan(datasetId: string, columns: string[]): Promise<PII
     return await postJSON<PIIScanResult>('/api/pii/scan', { dataset_id: datasetId, columns });
   } catch (_) {
     const detected = columns.filter(c => ['email', 'phone', 'ssn'].includes(c));
-    return { detected_fields: detected, mask_policy: 'MASK' };
+    return { detected_fields: detected, mask_policy: 'MASK', masked_fields: detected, updated_at: new Date().toISOString() };
   }
 }
 
@@ -175,5 +176,18 @@ export async function emitRecipes(datasetId: string): Promise<{ artifact_hash: s
     return await postJSON<{ artifact_hash: string; files: string[] }>('/api/recipes/emit', { dataset_id: datasetId });
   } catch (_) {
     return { artifact_hash: 'deadbeef', files: ['recipe.json', 'eda.ipynb', 'sampling.sql'] };
+  }
+}
+
+export async function applyPiiPolicy(datasetId: string, mask_policy: 'MASK' | 'HASH' | 'DROP', columns: string[]): Promise<PIIApplyResult> {
+  try {
+    return await postJSON<PIIApplyResult>('/api/pii/apply', { dataset_id: datasetId, mask_policy, columns });
+  } catch (_) {
+    return {
+      dataset_id: datasetId,
+      mask_policy,
+      masked_fields: columns,
+      updated_at: new Date().toISOString(),
+    };
   }
 }

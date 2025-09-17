@@ -64,7 +64,16 @@ export const handlers = [
     return HttpResponse.json(ranked);
   }),
   http.post('/api/pii/scan', async () => {
-    return HttpResponse.json({ detected_fields: ['email'], mask_policy: 'MASK' });
+    return HttpResponse.json({ detected_fields: ['email', 'phone'], mask_policy: 'MASK', masked_fields: ['email'], updated_at: new Date().toISOString() });
+  }),
+  http.post('/api/pii/apply', async ({ request }) => {
+    const body = await request.json() as { dataset_id: string; mask_policy: 'MASK' | 'HASH' | 'DROP'; columns: string[] };
+    return HttpResponse.json({
+      dataset_id: body.dataset_id,
+      mask_policy: body.mask_policy,
+      masked_fields: body.columns,
+      updated_at: new Date().toISOString(),
+    });
   }),
   http.post('/api/leakage/scan', async () => {
     return HttpResponse.json({ flagged_columns: ['target_next_month'], rules_matched: ['time_causality'] });

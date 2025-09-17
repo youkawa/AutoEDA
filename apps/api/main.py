@@ -150,6 +150,8 @@ class PIIScanRequest(BaseModel):
 class PIIScanResult(BaseModel):
     detected_fields: List[str]
     mask_policy: Literal["MASK", "HASH", "DROP"] = "MASK"
+    masked_fields: List[str] = []
+    updated_at: Optional[str] = None
 
 
 class LeakageScanRequest(BaseModel):
@@ -168,6 +170,19 @@ class RecipeEmitRequest(BaseModel):
 class RecipeEmitResult(BaseModel):
     artifact_hash: str
     files: List[str]
+
+
+class PIIApplyRequest(BaseModel):
+    dataset_id: str
+    mask_policy: Literal["MASK", "HASH", "DROP"] = "MASK"
+    columns: List[str] = []
+
+
+class PIIApplyResult(BaseModel):
+    dataset_id: str
+    mask_policy: Literal["MASK", "HASH", "DROP"]
+    masked_fields: List[str]
+    updated_at: str
 
 
 def log_event(event_name: str, properties: dict) -> None:
@@ -281,6 +296,20 @@ def pii_scan(req: PIIScanRequest) -> PIIScanResult:
     res = PIIScanResult(**raw)
     log_event("PIIMasked", {"dataset_id": req.dataset_id, "detected_fields": res.detected_fields, "mask_policy": res.mask_policy})
     return res
+
+
+@app.post("/api/pii/apply", response_model=PIIApplyResult)
+def pii_apply(req: PIIApplyRequest) -> PIIApplyResult:
+    result = tools.apply_pii_policy(req.dataset_id, req.mask_policy, req.columns)
+    log_event(
+        "PIIPolicyApplied",
+        {
+            "dataset_id": req.dataset_id,
+            "mask_policy": result["mask_policy"],
+            "masked_fields": result["masked_fields"],
+        },
+    )
+    return PIIApplyResult(**result)
 
 
 @app.post("/api/leakage/scan", response_model=LeakageScanResult)

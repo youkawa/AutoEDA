@@ -123,8 +123,25 @@ export type PrioritizedAction = z.infer<typeof PrioritizedActionSchema>;
 export const PIIScanResultSchema = z.object({
   detected_fields: z.array(z.string()),
   mask_policy: z.enum(['MASK', 'HASH', 'DROP']).default('MASK'),
+  masked_fields: z.array(z.string()).default([]),
+  updated_at: z.string().optional(),
 });
 export type PIIScanResult = z.infer<typeof PIIScanResultSchema>;
+
+export const PIIApplyRequestSchema = z.object({
+  dataset_id: z.string(),
+  mask_policy: z.enum(['MASK', 'HASH', 'DROP']).default('MASK'),
+  columns: z.array(z.string()).default([]),
+});
+export type PIIApplyRequest = z.infer<typeof PIIApplyRequestSchema>;
+
+export const PIIApplyResultSchema = z.object({
+  dataset_id: z.string(),
+  mask_policy: z.enum(['MASK', 'HASH', 'DROP']),
+  masked_fields: z.array(z.string()),
+  updated_at: z.string(),
+});
+export type PIIApplyResult = z.infer<typeof PIIApplyResultSchema>;
 
 // --- C2: Leakage Scan ---
 export const LeakageScanResultSchema = z.object({

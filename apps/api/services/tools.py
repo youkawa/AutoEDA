@@ -643,12 +643,25 @@ def prioritize_actions(dataset_id: str, items: List[Dict[str, Any]]) -> List[Dic
 def pii_scan(dataset_id: str, columns: Optional[List[str]] = None) -> Dict[str, Any]:
     # 互換: columns 指定時は名前ベース。未指定時は内容ベースで簡易検出。
     candidates = {"email", "phone", "ssn"}
+    meta = storage.load_metadata(dataset_id).get("pii", {})
+    masked_fields: List[str] = list(meta.get("masked_fields", []))
+    mask_policy = meta.get("mask_policy", "MASK")
     if columns:
         detected = sorted(list(candidates.intersection(set(columns or []))))
-        return {"detected_fields": detected, "mask_policy": "MASK"}
+        return {
+            "detected_fields": detected,
+            "mask_policy": mask_policy,
+            "masked_fields": masked_fields,
+            "updated_at": meta.get("updated_at"),
+        }
     path = storage.dataset_path(dataset_id)
     if not path.exists():
-        return {"detected_fields": [], "mask_policy": "MASK"}
+        return {
+            "detected_fields": [],
+            "mask_policy": mask_policy,
+            "masked_fields": masked_fields,
+            "updated_at": meta.get("updated_at"),
+        }
     email_re = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
     phone_re = re.compile(r"\+?\d[\d\s\-()]{8,}")
     ssn_re = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
@@ -666,9 +679,31 @@ def pii_scan(dataset_id: str, columns: Optional[List[str]] = None) -> Dict[str, 
             if ssn_re.search(sample):
                 hits["ssn"].add(col)
         detected = sorted({k for k, v in hits.items() if v})
-        return {"detected_fields": detected, "mask_policy": "MASK"}
+        return {
+            "detected_fields": detected,
+            "mask_policy": mask_policy,
+            "masked_fields": masked_fields,
+            "updated_at": meta.get("updated_at"),
+        }
     except Exception:
-        return {"detected_fields": [], "mask_policy": "MASK"}
+        return {
+            "detected_fields": [],
+            "mask_policy": mask_policy,
+            "masked_fields": masked_fields,
+            "updated_at": meta.get("updated_at"),
+        }
+
+
+def apply_pii_policy(dataset_id: str, mask_policy: str, columns: Optional[List[str]]) -> Dict[str, Any]:
+    safe_policy = mask_policy if mask_policy in {"MASK", "HASH", "DROP"} else "MASK"
+    masked = sorted(columns or [])
+    meta = storage.update_pii_metadata(dataset_id, masked_fields=masked, mask_policy=safe_policy)
+    return {
+        "dataset_id": dataset_id,
+        "mask_policy": safe_policy,
+        "masked_fields": meta["pii"].get("masked_fields", []),
+        "updated_at": meta["pii"].get("updated_at"),
+    }
 
 
 def leakage_scan(dataset_id: str) -> Dict[str, Any]:
