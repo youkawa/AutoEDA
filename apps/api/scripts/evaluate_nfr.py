@@ -51,20 +51,24 @@ def main() -> None:
     p95_ms, charts = measure(client, "POST", "/api/charts/suggest", {"dataset_id": "ds_001", "k": 5})
     if p95_ms > 6000:
         errors.append(f"A2 p95 too high: {p95_ms:.1f}ms > 6000ms")
-    if not isinstance(charts, list) or not charts:
+    # Accept both legacy list and new object shape { charts: [...] }
+    charts_list = charts if isinstance(charts, list) else charts.get("charts") if isinstance(charts, dict) else None
+    if not isinstance(charts_list, list) or not charts_list:
         errors.append("A2 charts response invalid")
     else:
-        if charts[0].get("consistency_score", 0) < 0.95:
+        if charts_list[0].get("consistency_score", 0) < 0.95:
             errors.append("A2 top chart consistency_score < 0.95")
 
     # B1: /api/qna
     p95_ms, answers = measure(client, "POST", "/api/qna", {"dataset_id": "ds_001", "question": "売上のトレンドは？"})
     if p95_ms > 4000:
         errors.append(f"B1 p95 too high: {p95_ms:.1f}ms > 4000ms")
-    if not isinstance(answers, list) or not answers:
+    # Accept both legacy list and new object shape { answers: [...] }
+    answers_list = answers if isinstance(answers, list) else answers.get("answers") if isinstance(answers, dict) else None
+    if not isinstance(answers_list, list) or not answers_list:
         errors.append("B1 answers response invalid")
     else:
-        if answers[0].get("coverage", 0) < 0.8:
+        if answers_list[0].get("coverage", 0) < 0.8:
             errors.append("B1 coverage < 0.8")
 
     # B2: /api/actions/prioritize

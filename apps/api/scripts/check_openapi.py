@@ -36,6 +36,13 @@ def check_models(comps: Dict[str, Any]) -> Tuple[List[str], List[str]]:
             "keyFeatures": "array",
             "outliers": "array",
         },
+        "ChartsSuggestResponse": {
+            "charts": "array",
+        },
+        "QnAResponse": {
+            "answers": "array",
+            "references": "array",
+        },
         "ChartCandidate": {
             "id": "string",
             "type": "string",
