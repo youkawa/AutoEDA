@@ -227,14 +227,53 @@ export async function emitRecipes(datasetId: string): Promise<RecipeEmitResult> 
 }
 
 export async function applyPiiPolicy(datasetId: string, mask_policy: 'MASK' | 'HASH' | 'DROP', columns: string[]): Promise<PIIApplyResult> {
+    try {
+        return await postJSON<PIIApplyResult>('/api/pii/apply', { dataset_id: datasetId, mask_policy, columns });
+    } catch (_) {
+        return {
+            dataset_id: datasetId,
+            mask_policy,
+            masked_fields: columns,
+            updated_at: new Date().toISOString(),
+        };
+    }
+}
+
+export type LlmCredentialStatus = {
+  configured: boolean;
+};
+
+export async function getLlmCredentialStatus(): Promise<LlmCredentialStatus> {
   try {
-    return await postJSON<PIIApplyResult>('/api/pii/apply', { dataset_id: datasetId, mask_policy, columns });
+    const res = await fetch(`${API_BASE ?? ''}/api/credentials/llm`, {
+      method: 'GET',
+      headers: { 'accept': 'application/json' },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return (await res.json()) as LlmCredentialStatus;
   } catch (_) {
-    return {
-      dataset_id: datasetId,
-      mask_policy,
-      masked_fields: columns,
-      updated_at: new Date().toISOString(),
-    };
+    return { configured: false };
+  }
+}
+
+export async function setOpenAIApiKey(openaiApiKey: string): Promise<void> {
+  const trimmed = openaiApiKey.trim();
+  if (!trimmed) {
+    throw new Error('API key must not be empty');
+  }
+  const res = await fetch(`${API_BASE ?? ''}/api/credentials/llm`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ openai_api_key: trimmed }),
+  });
+  if (!res.ok) {
+    let detail = 'Failed to update API key';
+    try {
+      const payload = (await res.json()) as { detail?: string };
+      if (payload?.detail) detail = payload.detail;
+    } catch (_) {
+      // ignore JSON parse errors
+    }
+    throw new Error(detail);
   }
 }

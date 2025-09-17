@@ -11,6 +11,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
+from apps.api import config
+
 try:  # pragma: no cover - optional dependency import
     import chromadb
     from chromadb.utils import embedding_functions
@@ -40,7 +42,10 @@ def _ensure_chroma() -> Optional[Any]:
         _DATA_DIR.mkdir(parents=True, exist_ok=True)
         _chroma_client = chromadb.PersistentClient(path=str(_DATA_DIR))
     if _embedding_fn is None:
-        api_key = os.getenv("OPENAI_API_KEY")
+        try:
+            api_key = config.get_openai_api_key()
+        except config.CredentialsError:
+            api_key = None
         if api_key and embedding_functions is not None:
             _embedding_fn = embedding_functions.OpenAIEmbeddingFunction(
                 api_key=api_key,

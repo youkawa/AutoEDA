@@ -44,3 +44,4 @@ test-results
 *.sw?
 .env
 reports/
+config/credentials.json

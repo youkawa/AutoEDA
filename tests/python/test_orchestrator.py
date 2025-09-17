@@ -3,15 +3,29 @@ from types import SimpleNamespace
 
 import pytest
 
+from apps.api import config as app_config
 from apps.api.services import orchestrator
 
 
 @pytest.fixture(autouse=True)
-def reset_env(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+def reset_config(monkeypatch):
     monkeypatch.delenv("AUTOEDA_LLM_MODEL", raising=False)
+    monkeypatch.delenv("AUTOEDA_CREDENTIALS_FILE", raising=False)
+    app_config.reset_cache()
     monkeypatch.setattr(orchestrator.rag, "load_default_corpus", lambda: None)
     monkeypatch.setattr(orchestrator, "_rag_seeded", True)
+    yield
+    app_config.reset_cache()
+
+
+@pytest.fixture
+def credentials_file(tmp_path, monkeypatch):
+    path = tmp_path / "credentials.json"
+    path.write_text(json.dumps({"llm": {"openai_api_key": "dummy"}}), encoding="utf-8")
+    monkeypatch.setenv("AUTOEDA_CREDENTIALS_FILE", str(path))
+    app_config.reset_cache()
+    yield
+    app_config.reset_cache()
 
 
 def fake_profile_report():
@@ -53,7 +67,7 @@ def test_generate_eda_report_fallback(monkeypatch, patch_tools):
     assert "policy:leakage" in locators
 
 
-def test_generate_eda_report_with_llm(monkeypatch, patch_tools):
+def test_generate_eda_report_with_llm(monkeypatch, patch_tools, credentials_file):
     context_docs = [{"id": "doc:req", "text": "EDA 要件", "metadata": {"source": "requirements.md"}}]
     monkeypatch.setattr(orchestrator, "_retrieve_context", lambda report: context_docs)
 
@@ -82,7 +96,6 @@ def test_generate_eda_report_with_llm(monkeypatch, patch_tools):
         def __init__(self, *args, **kwargs):
             self.responses = DummyResponses()
 
-    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
     monkeypatch.setattr(orchestrator, "OpenAI", DummyOpenAI)
 
     report, evaluation = orchestrator.generate_eda_report("ds_llm")

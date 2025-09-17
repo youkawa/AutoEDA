@@ -13,6 +13,8 @@ import os
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
+from apps.api import config
+
 from . import rag, tools
 
 try:
@@ -150,10 +152,14 @@ def _invoke_llm_agent(
 ) -> Optional[Dict[str, Any]]:
     """Invoke LLM to synthesize insights. Falls back silently if not configured."""
 
-    api_key = os.getenv("OPENAI_API_KEY")
     model = os.getenv("AUTOEDA_LLM_MODEL", "gpt-4o-mini")
 
-    if not api_key or OpenAI is None:
+    try:
+        api_key = config.get_openai_api_key()
+    except config.CredentialsError as exc:
+        raise RuntimeError(str(exc))
+
+    if OpenAI is None:
         raise RuntimeError("LLM client not configured")
 
     client = OpenAI(api_key=api_key)

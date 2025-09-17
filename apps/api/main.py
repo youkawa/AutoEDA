@@ -9,6 +9,7 @@ from .services import tools
 from .services import evaluator
 from .services import orchestrator
 from .services import metrics
+from . import config as app_config
 
 
 class Reference(BaseModel):
@@ -202,6 +203,14 @@ class LeakageResolveRequest(BaseModel):
     columns: List[str]
 
 
+class CredentialStatus(BaseModel):
+    configured: bool
+
+
+class CredentialUpdateRequest(BaseModel):
+    openai_api_key: str = Field(min_length=10)
+
+
 def log_event(event_name: str, properties: dict) -> None:
     # 簡易な観測イベント出力（JSON）
     payload = {
@@ -388,3 +397,22 @@ def recipes_emit(req: RecipeEmitRequest) -> RecipeEmitResult:
 def recipes_export(req: RecipeEmitRequest) -> RecipeEmitResult:
     # 互換エンドポイント（設計上の想定パス）: 内部処理は同一
     return recipes_emit(req)
+
+
+@app.get("/api/credentials/llm", response_model=CredentialStatus)
+def credentials_llm_status() -> CredentialStatus:
+    try:
+        app_config.get_openai_api_key()
+    except app_config.CredentialsError:
+        return CredentialStatus(configured=False)
+    return CredentialStatus(configured=True)
+
+
+@app.post("/api/credentials/llm", status_code=status.HTTP_204_NO_CONTENT)
+def credentials_llm_update(req: CredentialUpdateRequest) -> None:
+    try:
+        app_config.set_openai_api_key(req.openai_api_key)
+    except app_config.CredentialsError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    log_event("LLMCredentialsUpdated", {"configured": True})
