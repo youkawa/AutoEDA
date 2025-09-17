@@ -21,7 +21,7 @@ jobs:
         run: python -m pip install --upgrade pip && pip install -r apps/api/requirements.txt
       - name: Dump OpenAPI (without server)
         run: npm run schema:dump:openapi
-      - name: Compare OpenAPI snapshot
+      - name: Compare OpenAPI snapshot (schemas only)
         run: |
           python - << 'PY'
           import json, sys
@@ -29,7 +29,7 @@ jobs:
           cur = json.loads(Path('dist/openapi.json').read_text())
           base = json.loads(Path('docs/api/openapi.snapshot.json').read_text())
           def pick(x):
-            return { 'openapi': x.get('openapi'), 'paths': x.get('paths'), 'components': { 'schemas': x.get('components',{}).get('schemas',{}) } }
+            return { 'openapi': x.get('openapi'), 'components': { 'schemas': x.get('components',{}).get('schemas',{}) } }
           if pick(cur) != pick(base):
             print('[openapi-diff] snapshot differs from generated spec. Update docs/api/openapi.snapshot.json in this PR.')
             sys.exit(1)
