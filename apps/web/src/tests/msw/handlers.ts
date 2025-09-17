@@ -39,4 +39,7 @@ export const handlers = [
   http.post('/api/leakage/scan', async () => {
     return HttpResponse.json({ flagged_columns: ['target_next_month'], rules_matched: ['time_causality'] });
   }),
+  http.post('/api/recipes/emit', async () => {
+    return HttpResponse.json({ artifact_hash: 'cafebabe', files: ['recipe.json','eda.ipynb','sampling.sql'] });
+  }),
 ];

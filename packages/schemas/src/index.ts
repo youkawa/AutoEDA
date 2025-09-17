@@ -80,3 +80,10 @@ export const LeakageScanResultSchema = z.object({
   rules_matched: z.array(z.string()),
 });
 export type LeakageScanResult = z.infer<typeof LeakageScanResultSchema>;
+
+// --- D1: Recipe Emit ---
+export const RecipeEmitResultSchema = z.object({
+  artifact_hash: z.string(),
+  files: z.array(z.string()),
+});
+export type RecipeEmitResult = z.infer<typeof RecipeEmitResultSchema>;

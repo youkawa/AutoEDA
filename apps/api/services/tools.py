@@ -68,3 +68,10 @@ def leakage_scan(dataset_id: str) -> Dict[str, Any]:
     flagged = ["target_next_month", "rolling_mean_7d", "leak_feature"]
     rules = ["time_causality", "aggregation_trace"]
     return {"flagged_columns": flagged, "rules_matched": rules}
+
+
+def recipe_emit(dataset_id: str) -> Dict[str, Any]:
+    # Deterministic artifact hash for demo purposes
+    digest = f"{hash(dataset_id) & 0xFFFFFFFF:08x}"
+    files = ["recipe.json", "eda.ipynb", "sampling.sql"]
+    return {"artifact_hash": digest, "files": files}

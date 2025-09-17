@@ -91,6 +91,18 @@ def main() -> None:
     if not isinstance(leak, dict) or "flagged_columns" not in leak:
         errors.append("C2 invalid leakage result")
 
+    # D1: /api/recipes/emit
+    p95_ms, recipe = measure(client, "POST", "/api/recipes/emit", {"dataset_id": "ds_001"})
+    if p95_ms > 8000:
+        errors.append(f"D1 p95 too high: {p95_ms:.1f}ms > 8000ms")
+    if not isinstance(recipe, dict) or set(["artifact_hash", "files"]) - set(recipe.keys()):
+        errors.append("D1 invalid recipe result structure")
+    else:
+        files = set(recipe.get("files", []))
+        expected = {"recipe.json", "eda.ipynb", "sampling.sql"}
+        if not expected.issubset(files):
+            errors.append("D1 missing expected files")
+
     if errors:
         for e in errors:
             print(f"[nfr] {e}")

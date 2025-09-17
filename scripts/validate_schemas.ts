@@ -8,6 +8,7 @@ import {
   PrioritizedActionSchema,
   PIIScanResultSchema,
   LeakageScanResultSchema,
+  RecipeEmitResultSchema,
 } from '../packages/schemas/src/index';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
@@ -27,6 +28,7 @@ function buildZodSchemas(): Record<string, JsonSchema> {
     ['PrioritizedAction', PrioritizedActionSchema],
     ['PIIScanResult', PIIScanResultSchema],
     ['LeakageScanResult', LeakageScanResultSchema],
+    ['RecipeEmitResult', RecipeEmitResultSchema],
   ] as const;
   const out: Record<string, JsonSchema> = {};
   for (const [name, schema] of pairs) out[name] = zodToJsonSchema(schema, name) as JsonSchema;
@@ -70,4 +72,3 @@ function compare(zodSchemas: Record<string, JsonSchema>, openapi: any) {
 const openapi = loadOpenAPI();
 const zodSchemas = buildZodSchemas();
 compare(zodSchemas, openapi);
-

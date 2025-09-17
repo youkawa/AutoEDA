@@ -116,6 +116,15 @@ class LeakageScanResult(BaseModel):
     rules_matched: List[str]
 
 
+class RecipeEmitRequest(BaseModel):
+    dataset_id: str
+
+
+class RecipeEmitResult(BaseModel):
+    artifact_hash: str
+    files: List[str]
+
+
 def log_event(event_name: str, properties: dict) -> None:
     # 簡易な観測イベント出力（JSON）
     payload = {
@@ -189,3 +198,10 @@ def leakage_scan(req: LeakageScanRequest) -> LeakageScanResult:
     res = LeakageScanResult(**raw)
     log_event("LeakageRiskFlagged", {"dataset_id": req.dataset_id, "flagged": res.flagged_columns, "rules_matched": res.rules_matched})
     return res
+
+
+@app.post("/api/recipes/emit", response_model=RecipeEmitResult)
+def recipes_emit(req: RecipeEmitRequest) -> RecipeEmitResult:
+    res = tools.recipe_emit(req.dataset_id)
+    log_event("EDARecipeEmitted", {"artifact_hash": res["artifact_hash"], "files": res["files"]})
+    return RecipeEmitResult(**res)
