@@ -173,7 +173,9 @@ def datasets_upload(file: UploadFile = File(...)) -> UploadResponse:
     try:
         dsid = tools.save_dataset(file)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        msg = str(e)
+        code = status.HTTP_413_REQUEST_ENTITY_TOO_LARGE if "too large" in msg else status.HTTP_400_BAD_REQUEST
+        raise HTTPException(status_code=code, detail=msg)
     log_event("DatasetUploaded", {"dataset_id": dsid, "filename": file.filename})
     return UploadResponse(dataset_id=dsid)
 

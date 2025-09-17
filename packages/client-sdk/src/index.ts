@@ -8,9 +8,19 @@ import type {
   LeakageScanResult,
 } from '@autoeda/schemas';
 
-export type Dataset = { id: string; name: string; rows: number; cols: number; updatedAt: string };
+export type Dataset = { id: string; name: string; rows: number; cols: number; updatedAt?: string };
 
 export async function listDatasets(): Promise<Dataset[]> {
+  try {
+    const res = await fetch(`${API_BASE ?? ''}/api/datasets`);
+    if (res.ok) {
+      const data = (await res.json()) as Dataset[];
+      if (Array.isArray(data) && data.length > 0) return data;
+    }
+  } catch (_) {
+    // fall through
+  }
+  // Fallback (dev/test)
   return [
     { id: 'ds_001', name: 'sales.csv', rows: 1_000_000, cols: 48, updatedAt: '2025-01-20T10:30:00Z' },
     { id: 'ds_002', name: 'customers.csv', rows: 50_000, cols: 15, updatedAt: '2025-01-19T14:22:00Z' },

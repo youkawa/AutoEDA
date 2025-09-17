@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from fastapi import UploadFile
 from . import storage
 import re
@@ -91,41 +91,93 @@ def profile_api(dataset_id: str, sample_ratio: Optional[float] = None) -> Dict[s
         except Exception:
             # pandas不在や失敗時: 軽量CSVで概算
             rows = 0
-            cols = 0
             missing_counts: Dict[str, int] = {}
-            type_mix: Dict[str, int] = {"int": 0, "float": 0, "cat": 0}
+            # 型推定（列ごとに最初の非空100件で判定）
+            dtype_votes: Dict[str, Dict[str, int]] = {}
+            # 数値列のサンプル（最大1000件/列）で簡易ヒストグラム
+            numeric_samples: Dict[str, List[float]] = {}
+
+            def cast_kind(val: str) -> Tuple[str, Optional[float]]:
+                try:
+                    iv = int(val)
+                    return "int", float(iv)
+                except Exception:
+                    try:
+                        fv = float(val)
+                        return "float", fv
+                    except Exception:
+                        return "cat", None
+
             with path.open("r", newline="") as f:
                 reader = csv.DictReader(f)
                 fieldnames = reader.fieldnames or []
                 cols = len(fieldnames)
                 for name in fieldnames:
                     missing_counts[name] = 0
+                    dtype_votes[name] = {"int": 0, "float": 0, "cat": 0}
+                    numeric_samples[name] = []
                 for row in reader:
                     rows += 1
                     for k, v in row.items():
                         if v is None or v == "":
                             missing_counts[k] += 1
                         else:
-                            try:
-                                int(v); type_mix["int"] += 1
-                            except Exception:
-                                try:
-                                    float(v); type_mix["float"] += 1
-                                except Exception:
-                                    type_mix["cat"] += 1
-                    if sample_ratio and rows > int((1.0 - sample_ratio) * 10_000):
+                            kind, num = cast_kind(v)
+                            dtype_votes[k][kind] += 1
+                            if num is not None and len(numeric_samples[k]) < 1000:
+                                numeric_samples[k].append(num)
+                    if sample_ratio and rows > int((1.0 - sample_ratio) * 50_000):
                         break
+
+            def pick_dtype(name: str) -> str:
+                votes = dtype_votes.get(name, {})
+                if not votes:
+                    return "unknown"
+                k = max(votes.items(), key=lambda x: x[1])[0]
+                return k
+
+            type_mix: Dict[str, int] = {"int": 0, "float": 0, "cat": 0}
+            for name in list(dtype_votes.keys()):
+                k = pick_dtype(name)
+                if k in type_mix:
+                    type_mix[k] += 1
+
             missing_total = sum(missing_counts.values())
             total_cells = rows * max(cols, 1)
             missing_rate = float(missing_total) / float(total_cells or 1)
-            dists = [
-                {"column": name, "dtype": "unknown", "count": rows, "missing": miss, "histogram": []}
-                for name, miss in list(missing_counts.items())[:2]
-            ]
+
+            def hist5(vals: List[float]) -> List[int]:
+                if not vals:
+                    return []
+                lo, hi = min(vals), max(vals)
+                if lo == hi:
+                    return [len(vals), 0, 0, 0, 0]
+                bins = [0, 0, 0, 0, 0]
+                width = (hi - lo) / 5.0
+                for x in vals:
+                    idx = int((x - lo) / width)
+                    if idx == 5:
+                        idx = 4
+                    bins[idx] += 1
+                return bins
+
+            # 分布は推定で数値上位2列
+            numeric_cols = [c for c in numeric_samples.keys() if len(numeric_samples[c]) > 0]
+            dists = []
+            for name in numeric_cols[:2]:
+                dists.append({
+                    "column": name,
+                    "dtype": pick_dtype(name),
+                    "count": rows,
+                    "missing": missing_counts[name],
+                    "histogram": hist5(numeric_samples[name])
+                })
+
             issues = []
             for name, miss in missing_counts.items():
                 if rows and miss / rows > 0.3:
                     issues.append({"severity": "high", "column": name, "description": "欠損が多い", "statistic": {"missing": round(miss/rows, 2)}})
+
             return {
                 "summary": {"rows": rows, "cols": cols, "missingRate": round(missing_rate, 4), "typeMix": type_mix},
                 "issues": issues,
