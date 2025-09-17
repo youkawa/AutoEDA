@@ -147,8 +147,18 @@ export type PIIApplyResult = z.infer<typeof PIIApplyResultSchema>;
 export const LeakageScanResultSchema = z.object({
   flagged_columns: z.array(z.string()),
   rules_matched: z.array(z.string()),
+  excluded_columns: z.array(z.string()).default([]),
+  acknowledged_columns: z.array(z.string()).default([]),
+  updated_at: z.string().optional(),
 });
 export type LeakageScanResult = z.infer<typeof LeakageScanResultSchema>;
+
+export const LeakageResolveRequestSchema = z.object({
+  dataset_id: z.string(),
+  action: z.enum(['exclude', 'acknowledge', 'reset']).default('exclude'),
+  columns: z.array(z.string()),
+});
+export type LeakageResolveRequest = z.infer<typeof LeakageResolveRequestSchema>;
 
 // --- D1: Recipe Emit ---
 export const RecipeEmitResultSchema = z.object({

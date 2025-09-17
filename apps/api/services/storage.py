@@ -141,3 +141,36 @@ def update_pii_metadata(dataset_id: str, *, masked_fields: List[str], mask_polic
     }
     save_metadata(dataset_id, meta)
     return meta
+
+
+def update_leakage_metadata(dataset_id: str, *, action: str, columns: List[str]) -> Dict[str, Dict]:
+    meta = load_metadata(dataset_id)
+    leakage = meta.get("leakage", {
+        "excluded_columns": [],
+        "acknowledged_columns": [],
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+    })
+
+    existing_excluded = set(leakage.get("excluded_columns", []))
+    existing_ack = set(leakage.get("acknowledged_columns", []))
+    targets = set(columns)
+
+    if action == "exclude":
+        existing_excluded |= targets
+        existing_ack -= targets
+    elif action == "acknowledge":
+        existing_ack |= targets
+        existing_excluded -= targets
+    elif action == "reset":
+        existing_excluded -= targets
+        existing_ack -= targets
+
+    leakage.update({
+        "excluded_columns": sorted(existing_excluded),
+        "acknowledged_columns": sorted(existing_ack),
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+    })
+
+    meta["leakage"] = leakage
+    save_metadata(dataset_id, meta)
+    return meta

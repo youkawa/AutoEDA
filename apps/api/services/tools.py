@@ -709,7 +709,22 @@ def apply_pii_policy(dataset_id: str, mask_policy: str, columns: Optional[List[s
 def leakage_scan(dataset_id: str) -> Dict[str, Any]:
     flagged = ["target_next_month", "rolling_mean_7d", "leak_feature"]
     rules = ["time_causality", "aggregation_trace"]
-    return {"flagged_columns": flagged, "rules_matched": rules}
+    meta = storage.load_metadata(dataset_id).get("leakage", {})
+    excluded = meta.get("excluded_columns", [])
+    acknowledged = meta.get("acknowledged_columns", [])
+    remaining = [col for col in flagged if col not in excluded]
+    return {
+        "flagged_columns": remaining,
+        "excluded_columns": excluded,
+        "acknowledged_columns": acknowledged,
+        "rules_matched": rules,
+        "updated_at": meta.get("updated_at"),
+    }
+
+
+def resolve_leakage(dataset_id: str, action: str, columns: List[str]) -> Dict[str, Any]:
+    storage.update_leakage_metadata(dataset_id, action=action, columns=columns)
+    return leakage_scan(dataset_id)
 
 
 def recipe_emit(dataset_id: str) -> Dict[str, Any]:

@@ -161,6 +161,9 @@ class LeakageScanRequest(BaseModel):
 class LeakageScanResult(BaseModel):
     flagged_columns: List[str]
     rules_matched: List[str]
+    excluded_columns: List[str] = []
+    acknowledged_columns: List[str] = []
+    updated_at: Optional[str] = None
 
 
 class RecipeEmitRequest(BaseModel):
@@ -183,6 +186,12 @@ class PIIApplyResult(BaseModel):
     mask_policy: Literal["MASK", "HASH", "DROP"]
     masked_fields: List[str]
     updated_at: str
+
+
+class LeakageResolveRequest(BaseModel):
+    dataset_id: str
+    action: Literal["exclude", "acknowledge", "reset"] = "exclude"
+    columns: List[str]
 
 
 def log_event(event_name: str, properties: dict) -> None:
@@ -317,6 +326,22 @@ def leakage_scan(req: LeakageScanRequest) -> LeakageScanResult:
     raw = tools.leakage_scan(req.dataset_id)
     res = LeakageScanResult(**raw)
     log_event("LeakageRiskFlagged", {"dataset_id": req.dataset_id, "flagged": res.flagged_columns, "rules_matched": res.rules_matched})
+    return res
+
+
+@app.post("/api/leakage/resolve", response_model=LeakageScanResult)
+def leakage_resolve(req: LeakageResolveRequest) -> LeakageScanResult:
+    updated = tools.resolve_leakage(req.dataset_id, req.action, req.columns)
+    res = LeakageScanResult(**updated)
+    log_event(
+        "LeakageResolutionApplied",
+        {
+            "dataset_id": req.dataset_id,
+            "action": req.action,
+            "columns": req.columns,
+            "remaining": res.flagged_columns,
+        },
+    )
     return res
 
 

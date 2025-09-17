@@ -166,7 +166,28 @@ export async function leakageScan(datasetId: string): Promise<LeakageScanResult>
   try {
     return await postJSON<LeakageScanResult>('/api/leakage/scan', { dataset_id: datasetId });
   } catch (_) {
-    return { flagged_columns: ['target_next_month'], rules_matched: ['time_causality'] };
+    return {
+      flagged_columns: ['target_next_month'],
+      rules_matched: ['time_causality'],
+      excluded_columns: [],
+      acknowledged_columns: [],
+      updated_at: new Date().toISOString(),
+    };
+  }
+}
+
+export async function resolveLeakage(datasetId: string, action: 'exclude' | 'acknowledge' | 'reset', columns: string[]): Promise<LeakageScanResult> {
+  try {
+    return await postJSON<LeakageScanResult>('/api/leakage/resolve', { dataset_id: datasetId, action, columns });
+  } catch (_) {
+    const unique = Array.from(new Set(columns));
+    return {
+      flagged_columns: action === 'exclude' ? [] : unique,
+      rules_matched: ['time_causality'],
+      excluded_columns: action === 'exclude' ? unique : [],
+      acknowledged_columns: action === 'acknowledge' ? unique : [],
+      updated_at: new Date().toISOString(),
+    };
   }
 }
 

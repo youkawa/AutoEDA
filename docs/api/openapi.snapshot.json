@@ -276,6 +276,44 @@
         }
       }
     },
+    "/api/pii/apply": {
+      "post": {
+        "summary": "Pii Apply",
+        "operationId": "pii_apply_api_pii_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PIIApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PIIApplyResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/leakage/scan": {
       "post": {
         "summary": "Leakage Scan",
@@ -285,6 +323,44 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/LeakageScanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeakageScanResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leakage/resolve": {
+      "post": {
+        "summary": "Leakage Resolve",
+        "operationId": "leakage_resolve_api_leakage_resolve_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeakageResolveRequest"
               }
             }
           },
@@ -710,6 +786,37 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "LeakageResolveRequest": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "exclude",
+              "acknowledge",
+              "reset"
+            ],
+            "title": "Action",
+            "default": "exclude"
+          },
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Columns"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "columns"
+        ],
+        "title": "LeakageResolveRequest"
+      },
       "LeakageScanRequest": {
         "properties": {
           "dataset_id": {
@@ -738,6 +845,33 @@
             },
             "type": "array",
             "title": "Rules Matched"
+          },
+          "excluded_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Excluded Columns",
+            "default": []
+          },
+          "acknowledged_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Acknowledged Columns",
+            "default": []
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
           }
         },
         "type": "object",
@@ -852,6 +986,73 @@
         ],
         "title": "Outlier"
       },
+      "PIIApplyRequest": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "mask_policy": {
+            "type": "string",
+            "enum": [
+              "MASK",
+              "HASH",
+              "DROP"
+            ],
+            "title": "Mask Policy",
+            "default": "MASK"
+          },
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Columns",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id"
+        ],
+        "title": "PIIApplyRequest"
+      },
+      "PIIApplyResult": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "mask_policy": {
+            "type": "string",
+            "enum": [
+              "MASK",
+              "HASH",
+              "DROP"
+            ],
+            "title": "Mask Policy"
+          },
+          "masked_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Masked Fields"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "mask_policy",
+          "masked_fields",
+          "updated_at"
+        ],
+        "title": "PIIApplyResult"
+      },
       "PIIScanRequest": {
         "properties": {
           "dataset_id": {
@@ -897,6 +1098,25 @@
             ],
             "title": "Mask Policy",
             "default": "MASK"
+          },
+          "masked_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Masked Fields",
+            "default": []
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
           }
         },
         "type": "object",

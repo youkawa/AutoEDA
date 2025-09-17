@@ -76,7 +76,24 @@ export const handlers = [
     });
   }),
   http.post('/api/leakage/scan', async () => {
-    return HttpResponse.json({ flagged_columns: ['target_next_month'], rules_matched: ['time_causality'] });
+    return HttpResponse.json({
+      flagged_columns: ['target_next_month', 'rolling_mean_7d'],
+      rules_matched: ['time_causality'],
+      excluded_columns: ['leak_feature'],
+      acknowledged_columns: [],
+      updated_at: new Date().toISOString(),
+    });
+  }),
+  http.post('/api/leakage/resolve', async ({ request }) => {
+    const body = await request.json() as { dataset_id: string; action: 'exclude' | 'acknowledge' | 'reset'; columns: string[] };
+    const remaining = body.action === 'exclude' ? ['rolling_mean_7d'] : ['target_next_month'];
+    return HttpResponse.json({
+      flagged_columns: remaining,
+      rules_matched: ['time_causality'],
+      excluded_columns: body.action === 'exclude' ? body.columns : [],
+      acknowledged_columns: body.action === 'acknowledge' ? body.columns : [],
+      updated_at: new Date().toISOString(),
+    });
   }),
   http.post('/api/recipes/emit', async () => {
     return HttpResponse.json({ artifact_hash: 'cafebabe', files: ['recipe.json','eda.ipynb','sampling.sql'] });
