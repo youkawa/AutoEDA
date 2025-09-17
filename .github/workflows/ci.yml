@@ -53,6 +53,12 @@ jobs:
         run: npm run check:rag
         env:
           AUTOEDA_RAG_OUTPUT: reports/rag_report.json
+      - name: Merge QA reports
+        run: npm run report:merge
+        env:
+          AUTOEDA_SLO_OUTPUT: reports/slo_report.json
+          AUTOEDA_RAG_OUTPUT: reports/rag_report.json
+          AUTOEDA_QA_SUMMARY: reports/quality_summary.json
       - name: Upload QA reports
         if: always()
         uses: actions/upload-artifact@v4

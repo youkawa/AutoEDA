@@ -17,7 +17,8 @@
     "schema:dump:openapi": "python3 apps/api/scripts/dump_openapi.py",
     "schema:validate": "tsx scripts/validate_schemas.ts",
     "check:slo": "python3 apps/api/scripts/check_slo.py",
-    "check:rag": "python3 apps/api/scripts/check_rag.py"
+    "check:rag": "python3 apps/api/scripts/check_rag.py",
+    "report:merge": "python3 apps/api/scripts/merge_quality_reports.py"
   },
   "devDependencies": {
     "@playwright/test": "^1.47.2",
