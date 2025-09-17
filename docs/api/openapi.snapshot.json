@@ -1,0 +1,824 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AutoEDA API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/eda": {
+      "post": {
+        "summary": "Eda",
+        "operationId": "eda_api_eda_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EDARequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EDAReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/charts/suggest": {
+      "post": {
+        "summary": "Charts Suggest",
+        "operationId": "charts_suggest_api_charts_suggest_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChartsSuggestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ChartCandidate"
+                  },
+                  "type": "array",
+                  "title": "Response Charts Suggest Api Charts Suggest Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/qna": {
+      "post": {
+        "summary": "Qna",
+        "operationId": "qna_api_qna_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QnARequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Answer"
+                  },
+                  "type": "array",
+                  "title": "Response Qna Api Qna Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/actions/prioritize": {
+      "post": {
+        "summary": "Prioritize",
+        "operationId": "prioritize_api_actions_prioritize_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrioritizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PrioritizedAction"
+                  },
+                  "type": "array",
+                  "title": "Response Prioritize Api Actions Prioritize Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pii/scan": {
+      "post": {
+        "summary": "Pii Scan",
+        "operationId": "pii_scan_api_pii_scan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PIIScanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PIIScanResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leakage/scan": {
+      "post": {
+        "summary": "Leakage Scan",
+        "operationId": "leakage_scan_api_leakage_scan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeakageScanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeakageScanResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Answer": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/Reference"
+            },
+            "type": "array",
+            "title": "References"
+          },
+          "coverage": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Coverage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "references",
+          "coverage"
+        ],
+        "title": "Answer"
+      },
+      "ChartCandidate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "bar",
+              "line",
+              "scatter"
+            ],
+            "title": "Type"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "source_ref": {
+            "$ref": "#/components/schemas/Reference"
+          },
+          "consistency_score": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Consistency Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "explanation",
+          "source_ref",
+          "consistency_score"
+        ],
+        "title": "ChartCandidate"
+      },
+      "ChartsSuggestRequest": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "k": {
+            "type": "integer",
+            "title": "K",
+            "default": 5
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id"
+        ],
+        "title": "ChartsSuggestRequest"
+      },
+      "Distribution": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "dtype": {
+            "type": "string",
+            "title": "Dtype"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "missing": {
+            "type": "integer",
+            "title": "Missing"
+          },
+          "histogram": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Histogram"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Reference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "dtype",
+          "count",
+          "missing",
+          "histogram"
+        ],
+        "title": "Distribution"
+      },
+      "EDAReport": {
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/Summary"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "type": "array",
+            "title": "Issues"
+          },
+          "distributions": {
+            "items": {
+              "$ref": "#/components/schemas/Distribution"
+            },
+            "type": "array",
+            "title": "Distributions"
+          },
+          "keyFeatures": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keyfeatures"
+          },
+          "outliers": {
+            "items": {
+              "$ref": "#/components/schemas/Outlier"
+            },
+            "type": "array",
+            "title": "Outliers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "summary",
+          "issues",
+          "distributions",
+          "keyFeatures",
+          "outliers"
+        ],
+        "title": "EDAReport"
+      },
+      "EDARequest": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "sample_ratio": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Ratio"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id"
+        ],
+        "title": "EDARequest"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Issue": {
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ],
+            "title": "Severity"
+          },
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "statistic": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statistic"
+          }
+        },
+        "type": "object",
+        "required": [
+          "severity",
+          "column",
+          "description"
+        ],
+        "title": "Issue"
+      },
+      "LeakageScanRequest": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id"
+        ],
+        "title": "LeakageScanRequest"
+      },
+      "LeakageScanResult": {
+        "properties": {
+          "flagged_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Flagged Columns"
+          },
+          "rules_matched": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Rules Matched"
+          }
+        },
+        "type": "object",
+        "required": [
+          "flagged_columns",
+          "rules_matched"
+        ],
+        "title": "LeakageScanResult"
+      },
+      "Outlier": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "indices": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Indices"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "indices"
+        ],
+        "title": "Outlier"
+      },
+      "PIIScanRequest": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Columns"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id"
+        ],
+        "title": "PIIScanRequest"
+      },
+      "PIIScanResult": {
+        "properties": {
+          "detected_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Detected Fields"
+          },
+          "mask_policy": {
+            "type": "string",
+            "enum": [
+              "MASK",
+              "HASH",
+              "DROP"
+            ],
+            "title": "Mask Policy",
+            "default": "MASK"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detected_fields"
+        ],
+        "title": "PIIScanResult"
+      },
+      "PrioritizeRequest": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "next_actions": {
+            "items": {
+              "$ref": "#/components/schemas/PrioritizeRequestItem"
+            },
+            "type": "array",
+            "title": "Next Actions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "next_actions"
+        ],
+        "title": "PrioritizeRequest"
+      },
+      "PrioritizeRequestItem": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "impact": {
+            "type": "number",
+            "title": "Impact"
+          },
+          "effort": {
+            "type": "number",
+            "title": "Effort"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "impact",
+          "effort",
+          "confidence"
+        ],
+        "title": "PrioritizeRequestItem"
+      },
+      "PrioritizedAction": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "impact": {
+            "type": "number",
+            "title": "Impact"
+          },
+          "effort": {
+            "type": "number",
+            "title": "Effort"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "impact",
+          "effort",
+          "confidence",
+          "score"
+        ],
+        "title": "PrioritizedAction"
+      },
+      "QnARequest": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "question"
+        ],
+        "title": "QnARequest"
+      },
+      "Reference": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "figure",
+              "table",
+              "query",
+              "doc",
+              "cell"
+            ],
+            "title": "Kind",
+            "default": "figure"
+          },
+          "locator": {
+            "type": "string",
+            "title": "Locator"
+          }
+        },
+        "type": "object",
+        "required": [
+          "locator"
+        ],
+        "title": "Reference"
+      },
+      "Summary": {
+        "properties": {
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          },
+          "cols": {
+            "type": "integer",
+            "title": "Cols"
+          },
+          "missingRate": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Missingrate"
+          },
+          "typeMix": {
+            "type": "object",
+            "title": "Typemix"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rows",
+          "cols",
+          "missingRate",
+          "typeMix"
+        ],
+        "title": "Summary"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
