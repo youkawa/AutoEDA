@@ -220,17 +220,19 @@ def datasets_list() -> List[dict]:
 @app.post("/api/eda", response_model=EDAReport)
 def eda(req: EDARequest) -> EDAReport:
     t0 = time.perf_counter()
-    raw = orchestrator.generate_eda_report(req.dataset_id, req.sample_ratio)
-    report = EDAReport(**raw)
+    report_payload, evaluation = orchestrator.generate_eda_report(req.dataset_id, req.sample_ratio)
+    report = EDAReport(**report_payload)
     dur = int((time.perf_counter() - t0) * 1000)
     log_event(
         "EDAReportGenerated",
         {
             "dataset_id": req.dataset_id,
             "sample_ratio": req.sample_ratio,
-            "groundedness": 0.92,
+            "groundedness": evaluation.get("groundedness"),
             "issues": len(report.data_quality_report.issues),
             "next_actions": len(report.next_actions),
+            "llm_latency_ms": evaluation.get("llm_latency_ms"),
+            "llm_error": evaluation.get("llm_error"),
             "duration_ms": dur,
         },
     )
