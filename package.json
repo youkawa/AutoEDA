@@ -12,9 +12,15 @@
     "lint:web": "npm run -w @autoeda/web lint",
     "typecheck:web": "npm run -w @autoeda/web typecheck",
     "test:web": "npm run -w @autoeda/web test",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "schema:dump:openapi": "python3 apps/api/scripts/dump_openapi.py",
+    "schema:validate": "tsx scripts/validate_schemas.ts"
   },
   "devDependencies": {
-    "@playwright/test": "^1.47.2"
+    "@playwright/test": "^1.47.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.3",
+    "zod-to-json-schema": "^3.23.5",
+    "tsx": "^4.15.7"
   }
 }
