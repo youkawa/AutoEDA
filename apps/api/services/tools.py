@@ -1,11 +1,12 @@
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from fastapi import UploadFile
-from . import storage
+from . import storage, recipes
 import re
 from collections import Counter
 from datetime import datetime
 from itertools import combinations
 from math import sqrt
+from pathlib import Path
 import csv
 
 
@@ -728,10 +729,21 @@ def resolve_leakage(dataset_id: str, action: str, columns: List[str]) -> Dict[st
 
 
 def recipe_emit(dataset_id: str) -> Dict[str, Any]:
-    # Deterministic artifact hash for demo purposes
-    digest = f"{hash(dataset_id) & 0xFFFFFFFF:08x}"
-    files = ["recipe.json", "eda.ipynb", "sampling.sql"]
-    return {"artifact_hash": digest, "files": files}
+    report = profile_api(dataset_id)
+    artifacts = recipes.build_artifacts(dataset_id, report)
+    summary = report.get("summary", {})
+    dataset_path = Path(artifacts["dataset_path"])
+    measured = recipes.compute_summary(dataset_path)
+    if not artifacts.get("sample_created") and not recipes.within_tolerance(summary, measured):
+        raise ValueError("generated artifacts do not reproduce A1 summary within tolerance")
+    digest = recipes.hash_files(artifacts["files"])
+    return {
+        "artifact_hash": digest,
+        "files": artifacts["files"],
+        "summary": summary,
+        "measured_summary": measured,
+        "dataset_path": dataset_path.as_posix(),
+    }
 
 
 # --- Upload helper ---

@@ -1,6 +1,6 @@
 from datetime import datetime
 import time
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Dict, Any
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -172,7 +172,9 @@ class RecipeEmitRequest(BaseModel):
 
 class RecipeEmitResult(BaseModel):
     artifact_hash: str
-    files: List[str]
+    files: List[Dict[str, Any]]
+    summary: Optional[Summary] = None
+    measured_summary: Optional[Dict[str, Any]] = None
 
 
 class PIIApplyRequest(BaseModel):

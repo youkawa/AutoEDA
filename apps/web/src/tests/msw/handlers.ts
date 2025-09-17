@@ -96,6 +96,15 @@ export const handlers = [
     });
   }),
   http.post('/api/recipes/emit', async () => {
-    return HttpResponse.json({ artifact_hash: 'cafebabe', files: ['recipe.json','eda.ipynb','sampling.sql'] });
+    return HttpResponse.json({
+      artifact_hash: 'cafebabe',
+      files: [
+        { name: 'recipe.json', path: '/recipes/recipe.json', size_bytes: 2048 },
+        { name: 'eda.ipynb', path: '/recipes/eda.ipynb', size_bytes: 4096 },
+        { name: 'sampling.sql', path: '/recipes/sampling.sql', size_bytes: 512 },
+      ],
+      summary: { rows: 100, cols: 5, missing_rate: 0.1, type_mix: { int: 3 } },
+      measured_summary: { rows: 100, cols: 5, missing_rate: 0.1 },
+    });
   }),
 ];

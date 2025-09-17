@@ -102,9 +102,13 @@ def main() -> None:
     if not isinstance(recipe, dict) or set(["artifact_hash", "files"]) - set(recipe.keys()):
         errors.append("D1 invalid recipe result structure")
     else:
-        files = set(recipe.get("files", []))
+        file_entries = recipe.get("files", [])
+        if isinstance(file_entries, list):
+            names = {entry if isinstance(entry, str) else entry.get("name") for entry in file_entries}
+        else:
+            names = set()
         expected = {"recipe.json", "eda.ipynb", "sampling.sql"}
-        if not expected.issubset(files):
+        if not expected.issubset(names):
             errors.append("D1 missing expected files")
 
     if errors:

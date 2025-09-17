@@ -160,9 +160,17 @@ export const LeakageResolveRequestSchema = z.object({
 });
 export type LeakageResolveRequest = z.infer<typeof LeakageResolveRequestSchema>;
 
+export const ArtifactFileSchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  size_bytes: z.number(),
+});
+
 // --- D1: Recipe Emit ---
 export const RecipeEmitResultSchema = z.object({
   artifact_hash: z.string(),
-  files: z.array(z.string()),
+  files: z.array(ArtifactFileSchema),
+  summary: SummarySchema.optional(),
+  measured_summary: z.record(z.string(), z.number()).optional(),
 });
 export type RecipeEmitResult = z.infer<typeof RecipeEmitResultSchema>;

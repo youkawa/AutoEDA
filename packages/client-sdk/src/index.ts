@@ -7,6 +7,7 @@ import type {
   PIIScanResult,
   PIIApplyResult,
   LeakageScanResult,
+  RecipeEmitResult,
   Reference,
 } from '@autoeda/schemas';
 
@@ -191,12 +192,20 @@ export async function resolveLeakage(datasetId: string, action: 'exclude' | 'ack
   }
 }
 
-export type { RecipeEmitResult } from '@autoeda/schemas';
-export async function emitRecipes(datasetId: string): Promise<{ artifact_hash: string; files: string[] }> {
+export async function emitRecipes(datasetId: string): Promise<RecipeEmitResult> {
   try {
-    return await postJSON<{ artifact_hash: string; files: string[] }>('/api/recipes/emit', { dataset_id: datasetId });
+    return await postJSON<RecipeEmitResult>('/api/recipes/emit', { dataset_id: datasetId });
   } catch (_) {
-    return { artifact_hash: 'deadbeef', files: ['recipe.json', 'eda.ipynb', 'sampling.sql'] };
+    return {
+      artifact_hash: 'deadbeef',
+      files: [
+        { name: 'recipe.json', path: 'recipe.json', size_bytes: 0 },
+        { name: 'eda.ipynb', path: 'eda.ipynb', size_bytes: 0 },
+        { name: 'sampling.sql', path: 'sampling.sql', size_bytes: 0 },
+      ],
+      summary: undefined,
+      measured_summary: undefined,
+    };
   }
 }
 

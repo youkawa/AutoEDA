@@ -1342,10 +1342,33 @@
           },
           "files": {
             "items": {
-              "type": "string"
+              "additionalProperties": true,
+              "type": "object"
             },
             "type": "array",
             "title": "Files"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Summary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "measured_summary": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measured Summary"
           }
         },
         "type": "object",
