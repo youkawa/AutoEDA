@@ -50,6 +50,12 @@ export const handlers = [
       { text: 'MSW: 回答', references: [{ kind: 'figure', locator: 'fig:msw' }], coverage: 0.9 },
     ]);
   }),
+  http.post('/api/followup', async () => {
+    return HttpResponse.json({
+      answers: [{ text: 'MSW: フォローアップ', references: [{ kind: 'figure', locator: 'fig:msw' }], coverage: 0.9 }],
+      references: [{ kind: 'figure', locator: 'fig:msw' }],
+    });
+  }),
   http.post('/api/actions/prioritize', async ({ request }) => {
     const body = (await request.json()) as { next_actions: PrioritizeItem[] };
     const items: PrioritizeItem[] = body?.next_actions ?? [];

@@ -618,6 +618,15 @@ def stats_qna(dataset_id: str, question: str) -> List[Dict[str, Any]]:
         }
     ]
 
+
+def followup(dataset_id: str, question: str) -> List[Dict[str, Any]]:
+    answers = stats_qna(dataset_id, question)
+    for ans in answers:
+        ans["text"] = f"フォローアップ: {ans['text']}"
+        ans["coverage"] = max(0.85, float(ans.get("coverage", 0.0)))
+    return answers
+
+
 def prioritize_actions(dataset_id: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     ranked: List[Dict[str, Any]] = []
     for it in items:

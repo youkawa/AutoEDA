@@ -71,6 +71,17 @@ def main() -> None:
         if answers_list[0].get("coverage", 0) < 0.8:
             errors.append("B1 coverage < 0.8")
 
+    # E1: /api/followup
+    p95_ms, followup = measure(client, "POST", "/api/followup", {"dataset_id": "ds_001", "question": "次の分析は？"}, runs=5)
+    if p95_ms > 2000:
+        errors.append(f"E1 p95 too high: {p95_ms:.1f}ms > 2000ms")
+    followup_list = followup if isinstance(followup, list) else followup.get("answers") if isinstance(followup, dict) else None
+    if not isinstance(followup_list, list) or not followup_list:
+        errors.append("E1 followup response invalid")
+    else:
+        if followup_list[0].get("coverage", 0) < 0.8:
+            errors.append("E1 coverage < 0.8")
+
     # B2: /api/actions/prioritize
     items = [
         {"title": "欠損補完", "impact": 0.9, "effort": 0.35, "confidence": 0.8},

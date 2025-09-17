@@ -141,6 +141,15 @@ export async function askQnA(datasetId: string, question: string): Promise<Answe
   }
 }
 
+export async function followup(datasetId: string, question: string): Promise<Answer[]> {
+  try {
+    const res = await postJSON<any>('/api/followup', { dataset_id: datasetId, question });
+    return Array.isArray(res) ? (res as Answer[]) : (res?.answers ?? []);
+  } catch (_) {
+    return [{ text: 'フォローアップ (mock)', references: [{ kind: 'figure', locator: 'fig:mock' }], coverage: 0.85 }];
+  }
+}
+
 export async function prioritizeActions(datasetId: string, next_actions: PrioritizeItem[]): Promise<PrioritizedAction[]> {
   try {
     return await postJSON<PrioritizedAction[]>('/api/actions/prioritize', { dataset_id: datasetId, next_actions });

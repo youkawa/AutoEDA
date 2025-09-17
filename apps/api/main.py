@@ -116,6 +116,11 @@ class QnAResponse(BaseModel):
     references: List["Reference"] = []
 
 
+class FollowupRequest(BaseModel):
+    dataset_id: str
+    question: str
+
+
 class PrioritizeRequestItem(BaseModel):
     title: str
     reason: Optional[str] = None
@@ -290,6 +295,27 @@ def qna(req: QnARequest) -> QnAResponse:
     cov = answers[0].coverage if answers else 0.0
     dur = int((time.perf_counter() - t0) * 1000)
     log_event("EDAQueryAnswered", {"dataset_id": req.dataset_id, "coverage": cov, "duration_ms": dur})
+    return QnAResponse(answers=answers, references=refs)
+
+
+@app.post("/api/followup", response_model=QnAResponse)
+def followup(req: FollowupRequest) -> QnAResponse:
+    t0 = time.perf_counter()
+    raw = tools.followup(req.dataset_id, req.question)
+    answers = [Answer(**a) for a in raw]
+    refs: List[Reference] = []
+    for ans in answers:
+        refs.extend(ans.references)
+    cov = answers[0].coverage if answers else 0.0
+    dur = int((time.perf_counter() - t0) * 1000)
+    log_event(
+        "FollowupAnswered",
+        {
+            "dataset_id": req.dataset_id,
+            "coverage": cov,
+            "duration_ms": dur,
+        },
+    )
     return QnAResponse(answers=answers, references=refs)
 
 
