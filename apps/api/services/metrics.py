@@ -1,0 +1,85 @@
+"""Lightweight in-memory metrics aggregation for NFR監視."""
+
+from __future__ import annotations
+
+import threading
+from math import floor
+from typing import Any, Dict, List, MutableMapping
+
+_LOCK = threading.Lock()
+_STORE: MutableMapping[str, Dict[str, List[float]]] = {}
+
+
+def reset() -> None:
+    with _LOCK:
+        _STORE.clear()
+
+
+def record_event(event_name: str, **properties: Any) -> None:
+    duration = _coerce_float(properties.get("duration_ms"))
+    groundedness = _coerce_float(properties.get("groundedness"))
+    with _LOCK:
+        bucket = _STORE.setdefault(event_name, {"duration_ms": [], "groundedness": []})
+        if duration is not None:
+            bucket["duration_ms"].append(duration)
+        if groundedness is not None:
+            bucket["groundedness"].append(groundedness)
+
+
+def slo_snapshot() -> Dict[str, Any]:
+    with _LOCK:
+        events = {
+            name: _summarize(metrics)
+            for name, metrics in _STORE.items()
+        }
+    return {"events": events}
+
+
+def detect_violations(slo_config: Dict[str, Dict[str, float]]) -> Dict[str, Dict[str, bool]]:
+    snapshot = slo_snapshot()["events"]
+    report: Dict[str, Dict[str, bool]] = {}
+    for name, thresholds in slo_config.items():
+        summary = snapshot.get(name, {"count": 0, "p95": 0.0, "groundedness_min": 1.0})
+        event_report: Dict[str, bool] = {}
+        if "p95" in thresholds:
+            event_report["p95_exceeded"] = summary["p95"] > thresholds["p95"] if summary["count"] else False
+        if "groundedness" in thresholds:
+            event_report["groundedness_below"] = summary["groundedness_min"] < thresholds["groundedness"] if summary["count"] else False
+        report[name] = event_report
+    return report
+
+
+def _summarize(metrics: Dict[str, List[float]]) -> Dict[str, Any]:
+    durations = metrics.get("duration_ms", [])
+    grounded = metrics.get("groundedness", [])
+    count = len(durations) or len(grounded)
+    summary: Dict[str, Any] = {"count": count, "p95": 0.0, "groundedness_min": 1.0}
+    if durations:
+        summary["p95"] = _percentile(durations, 0.95)
+    if grounded:
+        summary["groundedness_min"] = min(grounded)
+    return summary
+
+
+def _percentile(values: List[float], percentile: float) -> float:
+    if not values:
+        return 0.0
+    percentile = max(0.0, min(1.0, percentile))
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    pos = (len(ordered) - 1) * percentile
+    lower_index = floor(pos)
+    upper_index = min(lower_index + 1, len(ordered) - 1)
+    fraction = pos - lower_index
+    interpolated = ordered[lower_index] + (ordered[upper_index] - ordered[lower_index]) * fraction
+    return round(interpolated)
+
+
+def _coerce_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None

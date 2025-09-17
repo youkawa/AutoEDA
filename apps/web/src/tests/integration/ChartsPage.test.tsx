@@ -20,5 +20,6 @@ describe('ChartsPage', () => {
     expect(match).toBeTruthy();
     const pct = Number(match?.[1] || '0');
     expect(pct).toBeGreaterThanOrEqual(95);
+    expect(await screen.findByText(/根拠:/)).toBeTruthy();
   });
 });

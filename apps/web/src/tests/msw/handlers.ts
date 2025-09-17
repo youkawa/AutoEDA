@@ -37,12 +37,22 @@ export const handlers = [
           ...priorityMetrics(0.9, 0.3, 0.8, 0.95),
         },
       ],
-      references: [{ kind: 'table', locator: 'tbl:summary' }],
+      references: [
+        { kind: 'table', locator: 'tbl:summary' },
+        { kind: 'doc', locator: 'tool:fallback' },
+      ],
     });
   }),
   http.post('/api/charts/suggest', async () => {
     return HttpResponse.json([
-      { id: 'c1', type: 'bar', explanation: 'MSW: 提案例', source_ref: { kind: 'figure', locator: 'fig:msw' }, consistency_score: 0.96 },
+      {
+        id: 'c1',
+        type: 'bar',
+        explanation: 'MSW: 提案例',
+        source_ref: { kind: 'figure', locator: 'fig:msw' },
+        consistency_score: 0.96,
+        diagnostics: { dominant_ratio: 0.6 },
+      },
     ]);
   }),
   http.post('/api/qna', async () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { EdaPage } from '../../pages/EdaPage';
 
@@ -16,6 +16,9 @@ describe('EdaPage', () => {
     expect(screen.getByText('読み込み中...')).toBeTruthy();
     const text = await screen.findByText(/欠損が多い/);
     expect(text).toBeTruthy();
+    expect(await screen.findByText('LLMフォールバック: ツール要約のみ表示中')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '引用ビュー' }));
+    expect(await screen.findByText('参照一覧')).toBeTruthy();
+    expect(await screen.findByText(/tbl:summary/)).toBeTruthy();
   });
 });
-

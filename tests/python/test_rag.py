@@ -34,3 +34,30 @@ def test_rag_load_default_corpus(monkeypatch, tmp_path):
     rag.load_default_corpus()
     results = rag.retrieve("要件")
     assert any("requirements.md" in res.get("metadata", {}).get("source", "") for res in results)
+
+
+def test_rag_golden_queries(monkeypatch, tmp_path):
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "requirements.md").write_text("引用被覆率 0.8 を満たす", encoding='utf-8')
+    (docs_dir / "design.md").write_text("整合性は 0.95 以上", encoding='utf-8')
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(rag, "_in_memory_store", [])
+    monkeypatch.setattr(rag, "_chroma_client", None)
+    monkeypatch.setattr(rag, "_collection", None)
+
+    rag.load_default_corpus()
+
+    report = rag.evaluate_golden_queries([
+        {"id": "coverage", "query": "引用被覆率", "expects": ["requirements.md"]},
+        {"id": "consistency", "query": "整合性", "expects": ["design.md"]},
+    ])
+
+    assert report["missing"] == []
+
+    failure = rag.evaluate_golden_queries([
+        {"id": "absent", "query": "存在しない情報", "expects": ["docs.md"]},
+    ])
+
+    assert failure["missing"] == ["absent"]

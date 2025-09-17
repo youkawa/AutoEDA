@@ -121,3 +121,25 @@ def load_default_corpus() -> None:
                 }
             )
     ingest(corpus)
+
+
+def evaluate_golden_queries(queries: Iterable[Dict[str, Any]], top_k: int = 5) -> Dict[str, Any]:
+    missing: List[str] = []
+    coverage: Dict[str, Any] = {}
+    for spec in queries:
+        query_id = spec.get("id") or spec.get("query")
+        expected_sources = {src for src in spec.get("expects", []) if src}
+        results = retrieve(spec.get("query", ""), top_k=top_k)
+        found_sources = {
+            (res.get("metadata", {}) or {}).get("source")
+            for res in results
+            if res.get("metadata")
+        }
+        matched = sorted(expected_sources.intersection(found_sources))
+        coverage[str(query_id)] = {
+            "matched": matched,
+            "found": sorted(found_sources),
+        }
+        if expected_sources and not matched:
+            missing.append(str(query_id))
+    return {"missing": missing, "coverage": coverage}

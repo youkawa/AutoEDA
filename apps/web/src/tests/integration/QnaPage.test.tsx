@@ -22,5 +22,7 @@ describe('QnaPage', () => {
     expect(match).toBeTruthy();
     const pct = Number(match?.[1] || '0');
     expect(pct).toBeGreaterThanOrEqual(80);
+    expect(await screen.findByText('引用一覧')).toBeTruthy();
+    expect(await screen.findByText(/fig:msw/)).toBeTruthy();
   });
 });

@@ -24,6 +24,14 @@ export function ChartsPage() {
         {charts.map(c => (
           <li key={c.id}>
             <strong>{c.type}</strong>: {c.explanation} (consistency: {Math.round(c.consistency_score * 100)}%)
+            <div>根拠: {c.source_ref?.locator ?? 'N/A'}</div>
+            {c.diagnostics && (
+              <div style={{ fontSize: 12, color: '#555' }}>
+                {c.diagnostics.trend && <span>トレンド: {c.diagnostics.trend} </span>}
+                {c.diagnostics.correlation !== undefined && <span>相関: {Number(c.diagnostics.correlation).toFixed(2)}</span>}
+                {c.diagnostics.dominant_ratio !== undefined && <span>支配率: {Math.round(Number(c.diagnostics.dominant_ratio) * 100)}%</span>}
+              </div>
+            )}
           </li>
         ))}
       </ul>

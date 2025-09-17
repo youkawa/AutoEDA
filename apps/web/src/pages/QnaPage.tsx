@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { askQnA } from '@autoeda/client-sdk';
 import type { Answer } from '@autoeda/schemas';
@@ -8,6 +8,17 @@ export function QnaPage() {
   const [q, setQ] = useState('売上のトレンドは？');
   const [ans, setAns] = useState<Answer[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const references = useMemo(() => {
+    if (!ans) return [];
+    const items = ans.flatMap(a => a.references ?? []);
+    const seen = new Set<string>();
+    return items.filter(ref => {
+      const key = `${ref.kind}:${ref.locator}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [ans]);
 
   async function onAsk() {
     setLoading(true);
@@ -27,6 +38,17 @@ export function QnaPage() {
           <h2>回答</h2>
           <p>{ans[0]?.text}</p>
           <div>引用被覆率: {Math.round((ans[0]?.coverage ?? 0) * 100)}%</div>
+          <div>
+            <h3>引用一覧</h3>
+            <ul>
+              {references.map((ref, idx) => (
+                <li key={`${ref.locator}-${idx}`}>
+                  {ref.kind}: {ref.locator}
+                </li>
+              ))}
+              {references.length === 0 && <li>引用はまだありません。</li>}
+            </ul>
+          </div>
         </div>
       )}
     </div>

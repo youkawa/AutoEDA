@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from .services import tools
 from .services import evaluator
 from .services import orchestrator
+from .services import metrics
 
 
 class Reference(BaseModel):
@@ -208,6 +209,7 @@ def log_event(event_name: str, properties: dict) -> None:
         "timestamp": datetime.utcnow().isoformat() + "Z",
         **properties,
     }
+    metrics.record_event(event_name, **properties)
     print(payload)
 
 
@@ -268,6 +270,7 @@ def eda(req: EDARequest) -> EDAReport:
             "next_actions": len(report.next_actions),
             "llm_latency_ms": evaluation.get("llm_latency_ms"),
             "llm_error": evaluation.get("llm_error"),
+            "fallback_applied": evaluation.get("fallback_applied"),
             "duration_ms": dur,
         },
     )

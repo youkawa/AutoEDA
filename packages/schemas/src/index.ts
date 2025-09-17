@@ -72,6 +72,7 @@ export const ChartCandidateSchema = z.object({
   explanation: z.string(),
   source_ref: ReferenceSchema,
   consistency_score: z.number().min(0).max(1),
+  diagnostics: z.record(z.any()).optional(),
 });
 export type ChartCandidate = z.infer<typeof ChartCandidateSchema>;
 

@@ -107,6 +107,7 @@ function fallbackEDA(): EDAReport {
       makeReference('tbl:summary'),
       makeReference('fig:price_hist'),
       makeReference('fig:quantity_hist'),
+      makeReference('tool:fallback')
     ],
   };
 }
@@ -126,7 +127,14 @@ export async function suggestCharts(datasetId: string, k = 5): Promise<ChartCand
     return Array.isArray(res) ? (res as ChartCandidate[]) : (res?.charts ?? []);
   } catch (_) {
     return [
-      { id: 'c1', type: 'bar', explanation: '売上の季節性を示すバーチャート', source_ref: { kind: 'figure', locator: 'fig:sales_seasonality' }, consistency_score: 0.97 },
+      {
+        id: 'c1',
+        type: 'bar',
+        explanation: '売上の季節性を示すバーチャート',
+        source_ref: { kind: 'figure', locator: 'fig:sales_seasonality' },
+        consistency_score: 0.97,
+        diagnostics: { dominant_ratio: 0.6 },
+      },
     ];
   }
 }

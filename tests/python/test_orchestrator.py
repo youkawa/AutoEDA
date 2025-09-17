@@ -92,3 +92,16 @@ def test_generate_eda_report_with_llm(monkeypatch, patch_tools):
     assert report["key_features"] == ["LLM 派生の洞察"]
     assert report["next_actions"][0]["title"] == "LLM Action"
     assert any(ref["locator"] == "llm:analysis" for ref in report["references"])
+
+
+def test_generate_eda_report_marks_fallback(monkeypatch, patch_tools):
+    monkeypatch.setattr(orchestrator.tools, "profile_api", lambda *args, **kwargs: fake_profile_report())
+    monkeypatch.setattr(orchestrator.tools, "pii_scan", lambda *args, **kwargs: None)
+    monkeypatch.setattr(orchestrator.tools, "leakage_scan", lambda *args, **kwargs: None)
+    monkeypatch.setattr(orchestrator, "_retrieve_context", lambda report: [])
+    monkeypatch.setattr(orchestrator, "_invoke_llm_agent", lambda *args, **kwargs: None)
+
+    report, evaluation = orchestrator.generate_eda_report("ds_fallback_flag")
+
+    assert evaluation["fallback_applied"] is True
+    assert evaluation["groundedness"] >= 0.9
