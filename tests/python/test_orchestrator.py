@@ -21,10 +21,16 @@ def reset_config(monkeypatch):
 @pytest.fixture
 def credentials_file(tmp_path, monkeypatch):
     path = tmp_path / "credentials.json"
-    path.write_text(json.dumps({"llm": {"openai_api_key": "dummy"}}), encoding="utf-8")
+    payload = {
+        "llm": {
+            "provider": "openai",
+            "openai": {"api_key": "dummy"},
+        }
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
     monkeypatch.setenv("AUTOEDA_CREDENTIALS_FILE", str(path))
     app_config.reset_cache()
-    yield
+    yield path
     app_config.reset_cache()
 
 
@@ -105,6 +111,70 @@ def test_generate_eda_report_with_llm(monkeypatch, patch_tools, credentials_file
     assert report["key_features"] == ["LLM 派生の洞察"]
     assert report["next_actions"][0]["title"] == "LLM Action"
     assert any(ref["locator"] == "llm:analysis" for ref in report["references"])
+
+
+def test_generate_eda_report_with_gemini(monkeypatch, patch_tools, tmp_path):
+    path = tmp_path / "credentials.json"
+    payload = {
+        "llm": {
+            "provider": "gemini",
+            "gemini": {"api_key": "gm-dummy"},
+        }
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setenv("AUTOEDA_CREDENTIALS_FILE", str(path))
+    app_config.reset_cache()
+
+    context_docs = [{"id": "doc:req", "text": "EDA 要件", "metadata": {"source": "requirements.md"}}]
+    monkeypatch.setattr(orchestrator, "_retrieve_context", lambda report: context_docs)
+
+    class DummyResponse:
+        text = json.dumps(
+            {
+                "key_features": ["Gemini 洞察"],
+                "next_actions": [
+                    {
+                        "title": "Gemini Action",
+                        "reason": "Gemini",
+                        "impact": 0.7,
+                        "effort": 0.3,
+                        "confidence": 0.85,
+                        "score": 2.0,
+                        "wsjf": 2.0,
+                        "rice": 18.0,
+                    }
+                ],
+                "references": [{"kind": "doc", "locator": "llm:gemini"}],
+            },
+            ensure_ascii=False,
+        )
+
+    class DummyGenerativeModel:
+        def __init__(self, _model_name, system_instruction=None):
+            self.system_instruction = system_instruction
+
+        def generate_content(self, *_args, **_kwargs):
+            return DummyResponse()
+
+    class DummyGenAI:
+        def __init__(self):
+            self.configured = None
+
+        def configure(self, api_key=None):  # type: ignore
+            self.configured = api_key
+
+        def GenerativeModel(self, model_name, system_instruction=None):  # type: ignore
+            return DummyGenerativeModel(model_name, system_instruction=system_instruction)
+
+    dummy_genai = DummyGenAI()
+    monkeypatch.setattr(orchestrator, "genai", dummy_genai)
+
+    report, evaluation = orchestrator.generate_eda_report("ds_gemini")
+
+    assert evaluation["llm_error"] is None
+    assert report["key_features"] == ["Gemini 洞察"]
+    assert report["next_actions"][0]["title"] == "Gemini Action"
+    assert any(ref["locator"] == "llm:gemini" for ref in report["references"])
 
 
 def test_generate_eda_report_marks_fallback(monkeypatch, patch_tools):

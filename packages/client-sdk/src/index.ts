@@ -239,8 +239,12 @@ export async function applyPiiPolicy(datasetId: string, mask_policy: 'MASK' | 'H
   }
 }
 
+export type LlmProvider = 'openai' | 'gemini';
+
 export type LlmCredentialStatus = {
+  provider: LlmProvider;
   configured: boolean;
+  providers: Record<LlmProvider, { configured: boolean }>;
 };
 
 export async function getLlmCredentialStatus(): Promise<LlmCredentialStatus> {
@@ -250,21 +254,38 @@ export async function getLlmCredentialStatus(): Promise<LlmCredentialStatus> {
       headers: { accept: 'application/json' },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return (await res.json()) as LlmCredentialStatus;
+    const body = (await res.json()) as Partial<LlmCredentialStatus>;
+    const provider = (body.provider as LlmProvider) ?? 'openai';
+    const providers = body.providers as Record<LlmProvider, { configured: boolean }> | undefined;
+    return {
+      provider,
+      configured: Boolean(body.configured),
+      providers: providers ?? {
+        openai: { configured: false },
+        gemini: { configured: false },
+      },
+    };
   } catch (_) {
-    return { configured: false };
+    return {
+      provider: 'openai',
+      configured: false,
+      providers: {
+        openai: { configured: false },
+        gemini: { configured: false },
+      },
+    };
   }
 }
 
-export async function setOpenAIApiKey(openaiApiKey: string): Promise<void> {
-  const trimmed = openaiApiKey.trim();
+export async function setLlmCredentials(provider: LlmProvider, apiKey: string): Promise<void> {
+  const trimmed = apiKey.trim();
   if (!trimmed) {
     throw new Error('API key must not be empty');
   }
   const res = await fetch(`${API_BASE ?? ''}/api/credentials/llm`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ openai_api_key: trimmed }),
+    body: JSON.stringify({ provider, api_key: trimmed }),
   });
   if (!res.ok) {
     let detail = 'Failed to update API key';
@@ -276,4 +297,8 @@ export async function setOpenAIApiKey(openaiApiKey: string): Promise<void> {
     }
     throw new Error(detail);
   }
+}
+
+export async function setOpenAIApiKey(openaiApiKey: string): Promise<void> {
+  await setLlmCredentials('openai', openaiApiKey);
 }
