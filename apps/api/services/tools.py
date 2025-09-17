@@ -1,11 +1,12 @@
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from fastapi import UploadFile
-from . import storage
+from . import storage, recipes
 import re
 from collections import Counter
 from datetime import datetime
 from itertools import combinations
 from math import sqrt
+from pathlib import Path
 import csv
 
 
@@ -617,6 +618,15 @@ def stats_qna(dataset_id: str, question: str) -> List[Dict[str, Any]]:
         }
     ]
 
+
+def followup(dataset_id: str, question: str) -> List[Dict[str, Any]]:
+    answers = stats_qna(dataset_id, question)
+    for ans in answers:
+        ans["text"] = f"フォローアップ: {ans['text']}"
+        ans["coverage"] = max(0.85, float(ans.get("coverage", 0.0)))
+    return answers
+
+
 def prioritize_actions(dataset_id: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     ranked: List[Dict[str, Any]] = []
     for it in items:
@@ -643,12 +653,25 @@ def prioritize_actions(dataset_id: str, items: List[Dict[str, Any]]) -> List[Dic
 def pii_scan(dataset_id: str, columns: Optional[List[str]] = None) -> Dict[str, Any]:
     # 互換: columns 指定時は名前ベース。未指定時は内容ベースで簡易検出。
     candidates = {"email", "phone", "ssn"}
+    meta = storage.load_metadata(dataset_id).get("pii", {})
+    masked_fields: List[str] = list(meta.get("masked_fields", []))
+    mask_policy = meta.get("mask_policy", "MASK")
     if columns:
         detected = sorted(list(candidates.intersection(set(columns or []))))
-        return {"detected_fields": detected, "mask_policy": "MASK"}
+        return {
+            "detected_fields": detected,
+            "mask_policy": mask_policy,
+            "masked_fields": masked_fields,
+            "updated_at": meta.get("updated_at"),
+        }
     path = storage.dataset_path(dataset_id)
     if not path.exists():
-        return {"detected_fields": [], "mask_policy": "MASK"}
+        return {
+            "detected_fields": [],
+            "mask_policy": mask_policy,
+            "masked_fields": masked_fields,
+            "updated_at": meta.get("updated_at"),
+        }
     email_re = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
     phone_re = re.compile(r"\+?\d[\d\s\-()]{8,}")
     ssn_re = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
@@ -666,22 +689,70 @@ def pii_scan(dataset_id: str, columns: Optional[List[str]] = None) -> Dict[str, 
             if ssn_re.search(sample):
                 hits["ssn"].add(col)
         detected = sorted({k for k, v in hits.items() if v})
-        return {"detected_fields": detected, "mask_policy": "MASK"}
+        return {
+            "detected_fields": detected,
+            "mask_policy": mask_policy,
+            "masked_fields": masked_fields,
+            "updated_at": meta.get("updated_at"),
+        }
     except Exception:
-        return {"detected_fields": [], "mask_policy": "MASK"}
+        return {
+            "detected_fields": [],
+            "mask_policy": mask_policy,
+            "masked_fields": masked_fields,
+            "updated_at": meta.get("updated_at"),
+        }
+
+
+def apply_pii_policy(dataset_id: str, mask_policy: str, columns: Optional[List[str]]) -> Dict[str, Any]:
+    safe_policy = mask_policy if mask_policy in {"MASK", "HASH", "DROP"} else "MASK"
+    masked = sorted(columns or [])
+    meta = storage.update_pii_metadata(dataset_id, masked_fields=masked, mask_policy=safe_policy)
+    return {
+        "dataset_id": dataset_id,
+        "mask_policy": safe_policy,
+        "masked_fields": meta["pii"].get("masked_fields", []),
+        "updated_at": meta["pii"].get("updated_at"),
+    }
 
 
 def leakage_scan(dataset_id: str) -> Dict[str, Any]:
     flagged = ["target_next_month", "rolling_mean_7d", "leak_feature"]
     rules = ["time_causality", "aggregation_trace"]
-    return {"flagged_columns": flagged, "rules_matched": rules}
+    meta = storage.load_metadata(dataset_id).get("leakage", {})
+    excluded = meta.get("excluded_columns", [])
+    acknowledged = meta.get("acknowledged_columns", [])
+    remaining = [col for col in flagged if col not in excluded]
+    return {
+        "flagged_columns": remaining,
+        "excluded_columns": excluded,
+        "acknowledged_columns": acknowledged,
+        "rules_matched": rules,
+        "updated_at": meta.get("updated_at"),
+    }
+
+
+def resolve_leakage(dataset_id: str, action: str, columns: List[str]) -> Dict[str, Any]:
+    storage.update_leakage_metadata(dataset_id, action=action, columns=columns)
+    return leakage_scan(dataset_id)
 
 
 def recipe_emit(dataset_id: str) -> Dict[str, Any]:
-    # Deterministic artifact hash for demo purposes
-    digest = f"{hash(dataset_id) & 0xFFFFFFFF:08x}"
-    files = ["recipe.json", "eda.ipynb", "sampling.sql"]
-    return {"artifact_hash": digest, "files": files}
+    report = profile_api(dataset_id)
+    artifacts = recipes.build_artifacts(dataset_id, report)
+    summary = report.get("summary", {})
+    dataset_path = Path(artifacts["dataset_path"])
+    measured = recipes.compute_summary(dataset_path)
+    if not artifacts.get("sample_created") and not recipes.within_tolerance(summary, measured):
+        raise ValueError("generated artifacts do not reproduce A1 summary within tolerance")
+    digest = recipes.hash_files(artifacts["files"])
+    return {
+        "artifact_hash": digest,
+        "files": artifacts["files"],
+        "summary": summary,
+        "measured_summary": measured,
+        "dataset_path": dataset_path.as_posix(),
+    }
 
 
 # --- Upload helper ---

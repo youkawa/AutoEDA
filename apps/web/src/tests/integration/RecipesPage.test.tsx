@@ -14,7 +14,6 @@ describe('RecipesPage', () => {
       </MemoryRouter>
     );
     expect(await screen.findByText(/artifact_hash/)).toBeTruthy();
-    expect(await screen.findByText('recipe.json')).toBeTruthy();
+    expect(await screen.findByText(/recipe.json/)).toBeTruthy();
   });
 });
-

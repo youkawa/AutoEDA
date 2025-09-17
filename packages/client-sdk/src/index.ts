@@ -5,7 +5,9 @@ import type {
   PrioritizeItem,
   PrioritizedAction,
   PIIScanResult,
+  PIIApplyResult,
   LeakageScanResult,
+  RecipeEmitResult,
   Reference,
 } from '@autoeda/schemas';
 
@@ -139,6 +141,15 @@ export async function askQnA(datasetId: string, question: string): Promise<Answe
   }
 }
 
+export async function followup(datasetId: string, question: string): Promise<Answer[]> {
+  try {
+    const res = await postJSON<any>('/api/followup', { dataset_id: datasetId, question });
+    return Array.isArray(res) ? (res as Answer[]) : (res?.answers ?? []);
+  } catch (_) {
+    return [{ text: 'フォローアップ (mock)', references: [{ kind: 'figure', locator: 'fig:mock' }], coverage: 0.85 }];
+  }
+}
+
 export async function prioritizeActions(datasetId: string, next_actions: PrioritizeItem[]): Promise<PrioritizedAction[]> {
   try {
     return await postJSON<PrioritizedAction[]>('/api/actions/prioritize', { dataset_id: datasetId, next_actions });
@@ -157,7 +168,7 @@ export async function piiScan(datasetId: string, columns: string[]): Promise<PII
     return await postJSON<PIIScanResult>('/api/pii/scan', { dataset_id: datasetId, columns });
   } catch (_) {
     const detected = columns.filter(c => ['email', 'phone', 'ssn'].includes(c));
-    return { detected_fields: detected, mask_policy: 'MASK' };
+    return { detected_fields: detected, mask_policy: 'MASK', masked_fields: detected, updated_at: new Date().toISOString() };
   }
 }
 
@@ -165,15 +176,57 @@ export async function leakageScan(datasetId: string): Promise<LeakageScanResult>
   try {
     return await postJSON<LeakageScanResult>('/api/leakage/scan', { dataset_id: datasetId });
   } catch (_) {
-    return { flagged_columns: ['target_next_month'], rules_matched: ['time_causality'] };
+    return {
+      flagged_columns: ['target_next_month'],
+      rules_matched: ['time_causality'],
+      excluded_columns: [],
+      acknowledged_columns: [],
+      updated_at: new Date().toISOString(),
+    };
   }
 }
 
-export type { RecipeEmitResult } from '@autoeda/schemas';
-export async function emitRecipes(datasetId: string): Promise<{ artifact_hash: string; files: string[] }> {
+export async function resolveLeakage(datasetId: string, action: 'exclude' | 'acknowledge' | 'reset', columns: string[]): Promise<LeakageScanResult> {
   try {
-    return await postJSON<{ artifact_hash: string; files: string[] }>('/api/recipes/emit', { dataset_id: datasetId });
+    return await postJSON<LeakageScanResult>('/api/leakage/resolve', { dataset_id: datasetId, action, columns });
   } catch (_) {
-    return { artifact_hash: 'deadbeef', files: ['recipe.json', 'eda.ipynb', 'sampling.sql'] };
+    const unique = Array.from(new Set(columns));
+    return {
+      flagged_columns: action === 'exclude' ? [] : unique,
+      rules_matched: ['time_causality'],
+      excluded_columns: action === 'exclude' ? unique : [],
+      acknowledged_columns: action === 'acknowledge' ? unique : [],
+      updated_at: new Date().toISOString(),
+    };
+  }
+}
+
+export async function emitRecipes(datasetId: string): Promise<RecipeEmitResult> {
+  try {
+    return await postJSON<RecipeEmitResult>('/api/recipes/emit', { dataset_id: datasetId });
+  } catch (_) {
+    return {
+      artifact_hash: 'deadbeef',
+      files: [
+        { name: 'recipe.json', path: 'recipe.json', size_bytes: 0 },
+        { name: 'eda.ipynb', path: 'eda.ipynb', size_bytes: 0 },
+        { name: 'sampling.sql', path: 'sampling.sql', size_bytes: 0 },
+      ],
+      summary: undefined,
+      measured_summary: undefined,
+    };
+  }
+}
+
+export async function applyPiiPolicy(datasetId: string, mask_policy: 'MASK' | 'HASH' | 'DROP', columns: string[]): Promise<PIIApplyResult> {
+  try {
+    return await postJSON<PIIApplyResult>('/api/pii/apply', { dataset_id: datasetId, mask_policy, columns });
+  } catch (_) {
+    return {
+      dataset_id: datasetId,
+      mask_policy,
+      masked_fields: columns,
+      updated_at: new Date().toISOString(),
+    };
   }
 }

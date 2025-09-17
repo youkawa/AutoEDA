@@ -50,6 +50,12 @@ export const handlers = [
       { text: 'MSW: 回答', references: [{ kind: 'figure', locator: 'fig:msw' }], coverage: 0.9 },
     ]);
   }),
+  http.post('/api/followup', async () => {
+    return HttpResponse.json({
+      answers: [{ text: 'MSW: フォローアップ', references: [{ kind: 'figure', locator: 'fig:msw' }], coverage: 0.9 }],
+      references: [{ kind: 'figure', locator: 'fig:msw' }],
+    });
+  }),
   http.post('/api/actions/prioritize', async ({ request }) => {
     const body = (await request.json()) as { next_actions: PrioritizeItem[] };
     const items: PrioritizeItem[] = body?.next_actions ?? [];
@@ -64,12 +70,47 @@ export const handlers = [
     return HttpResponse.json(ranked);
   }),
   http.post('/api/pii/scan', async () => {
-    return HttpResponse.json({ detected_fields: ['email'], mask_policy: 'MASK' });
+    return HttpResponse.json({ detected_fields: ['email', 'phone'], mask_policy: 'MASK', masked_fields: ['email'], updated_at: new Date().toISOString() });
+  }),
+  http.post('/api/pii/apply', async ({ request }) => {
+    const body = await request.json() as { dataset_id: string; mask_policy: 'MASK' | 'HASH' | 'DROP'; columns: string[] };
+    return HttpResponse.json({
+      dataset_id: body.dataset_id,
+      mask_policy: body.mask_policy,
+      masked_fields: body.columns,
+      updated_at: new Date().toISOString(),
+    });
   }),
   http.post('/api/leakage/scan', async () => {
-    return HttpResponse.json({ flagged_columns: ['target_next_month'], rules_matched: ['time_causality'] });
+    return HttpResponse.json({
+      flagged_columns: ['target_next_month', 'rolling_mean_7d'],
+      rules_matched: ['time_causality'],
+      excluded_columns: ['leak_feature'],
+      acknowledged_columns: [],
+      updated_at: new Date().toISOString(),
+    });
+  }),
+  http.post('/api/leakage/resolve', async ({ request }) => {
+    const body = await request.json() as { dataset_id: string; action: 'exclude' | 'acknowledge' | 'reset'; columns: string[] };
+    const remaining = body.action === 'exclude' ? ['rolling_mean_7d'] : ['target_next_month'];
+    return HttpResponse.json({
+      flagged_columns: remaining,
+      rules_matched: ['time_causality'],
+      excluded_columns: body.action === 'exclude' ? body.columns : [],
+      acknowledged_columns: body.action === 'acknowledge' ? body.columns : [],
+      updated_at: new Date().toISOString(),
+    });
   }),
   http.post('/api/recipes/emit', async () => {
-    return HttpResponse.json({ artifact_hash: 'cafebabe', files: ['recipe.json','eda.ipynb','sampling.sql'] });
+    return HttpResponse.json({
+      artifact_hash: 'cafebabe',
+      files: [
+        { name: 'recipe.json', path: '/recipes/recipe.json', size_bytes: 2048 },
+        { name: 'eda.ipynb', path: '/recipes/eda.ipynb', size_bytes: 4096 },
+        { name: 'sampling.sql', path: '/recipes/sampling.sql', size_bytes: 512 },
+      ],
+      summary: { rows: 100, cols: 5, missing_rate: 0.1, type_mix: { int: 3 } },
+      measured_summary: { rows: 100, cols: 5, missing_rate: 0.1 },
+    });
   }),
 ];

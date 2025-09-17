@@ -5,7 +5,7 @@ import React from 'react';
 import { LeakagePage } from '../../pages/LeakagePage';
 
 describe('LeakagePage', () => {
-  it('shows leakage flags', async () => {
+  it('allows excluding flagged leakage columns', async () => {
     render(
       <MemoryRouter initialEntries={["/leakage/ds_001"]}>
         <Routes>
@@ -14,7 +14,9 @@ describe('LeakagePage', () => {
       </MemoryRouter>
     );
     expect(await screen.findByText(/リーク検査/)).toBeTruthy();
-    expect(await screen.findByText(/flagged:/)).toBeTruthy();
+    const checkbox = (await screen.findByRole('checkbox', { name: /target_next_month/ })) as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+    const excludeButton = (await screen.findByRole('button', { name: /除外して再計算/ })) as HTMLButtonElement;
+    expect(excludeButton.disabled).toBe(false);
   });
 });
-

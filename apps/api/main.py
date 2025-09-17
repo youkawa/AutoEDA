@@ -1,6 +1,6 @@
 from datetime import datetime
 import time
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Dict, Any
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -116,6 +116,11 @@ class QnAResponse(BaseModel):
     references: List["Reference"] = []
 
 
+class FollowupRequest(BaseModel):
+    dataset_id: str
+    question: str
+
+
 class PrioritizeRequestItem(BaseModel):
     title: str
     reason: Optional[str] = None
@@ -150,6 +155,8 @@ class PIIScanRequest(BaseModel):
 class PIIScanResult(BaseModel):
     detected_fields: List[str]
     mask_policy: Literal["MASK", "HASH", "DROP"] = "MASK"
+    masked_fields: List[str] = []
+    updated_at: Optional[str] = None
 
 
 class LeakageScanRequest(BaseModel):
@@ -159,6 +166,9 @@ class LeakageScanRequest(BaseModel):
 class LeakageScanResult(BaseModel):
     flagged_columns: List[str]
     rules_matched: List[str]
+    excluded_columns: List[str] = []
+    acknowledged_columns: List[str] = []
+    updated_at: Optional[str] = None
 
 
 class RecipeEmitRequest(BaseModel):
@@ -167,7 +177,28 @@ class RecipeEmitRequest(BaseModel):
 
 class RecipeEmitResult(BaseModel):
     artifact_hash: str
-    files: List[str]
+    files: List[Dict[str, Any]]
+    summary: Optional[Summary] = None
+    measured_summary: Optional[Dict[str, Any]] = None
+
+
+class PIIApplyRequest(BaseModel):
+    dataset_id: str
+    mask_policy: Literal["MASK", "HASH", "DROP"] = "MASK"
+    columns: List[str] = []
+
+
+class PIIApplyResult(BaseModel):
+    dataset_id: str
+    mask_policy: Literal["MASK", "HASH", "DROP"]
+    masked_fields: List[str]
+    updated_at: str
+
+
+class LeakageResolveRequest(BaseModel):
+    dataset_id: str
+    action: Literal["exclude", "acknowledge", "reset"] = "exclude"
+    columns: List[str]
 
 
 def log_event(event_name: str, properties: dict) -> None:
@@ -267,6 +298,27 @@ def qna(req: QnARequest) -> QnAResponse:
     return QnAResponse(answers=answers, references=refs)
 
 
+@app.post("/api/followup", response_model=QnAResponse)
+def followup(req: FollowupRequest) -> QnAResponse:
+    t0 = time.perf_counter()
+    raw = tools.followup(req.dataset_id, req.question)
+    answers = [Answer(**a) for a in raw]
+    refs: List[Reference] = []
+    for ans in answers:
+        refs.extend(ans.references)
+    cov = answers[0].coverage if answers else 0.0
+    dur = int((time.perf_counter() - t0) * 1000)
+    log_event(
+        "FollowupAnswered",
+        {
+            "dataset_id": req.dataset_id,
+            "coverage": cov,
+            "duration_ms": dur,
+        },
+    )
+    return QnAResponse(answers=answers, references=refs)
+
+
 @app.post("/api/actions/prioritize", response_model=List[PrioritizedAction])
 def prioritize(req: PrioritizeRequest) -> List[PrioritizedAction]:
     items = [{"title": it.title, "impact": it.impact, "effort": it.effort, "confidence": it.confidence} for it in req.next_actions]
@@ -283,11 +335,41 @@ def pii_scan(req: PIIScanRequest) -> PIIScanResult:
     return res
 
 
+@app.post("/api/pii/apply", response_model=PIIApplyResult)
+def pii_apply(req: PIIApplyRequest) -> PIIApplyResult:
+    result = tools.apply_pii_policy(req.dataset_id, req.mask_policy, req.columns)
+    log_event(
+        "PIIPolicyApplied",
+        {
+            "dataset_id": req.dataset_id,
+            "mask_policy": result["mask_policy"],
+            "masked_fields": result["masked_fields"],
+        },
+    )
+    return PIIApplyResult(**result)
+
+
 @app.post("/api/leakage/scan", response_model=LeakageScanResult)
 def leakage_scan(req: LeakageScanRequest) -> LeakageScanResult:
     raw = tools.leakage_scan(req.dataset_id)
     res = LeakageScanResult(**raw)
     log_event("LeakageRiskFlagged", {"dataset_id": req.dataset_id, "flagged": res.flagged_columns, "rules_matched": res.rules_matched})
+    return res
+
+
+@app.post("/api/leakage/resolve", response_model=LeakageScanResult)
+def leakage_resolve(req: LeakageResolveRequest) -> LeakageScanResult:
+    updated = tools.resolve_leakage(req.dataset_id, req.action, req.columns)
+    res = LeakageScanResult(**updated)
+    log_event(
+        "LeakageResolutionApplied",
+        {
+            "dataset_id": req.dataset_id,
+            "action": req.action,
+            "columns": req.columns,
+            "remaining": res.flagged_columns,
+        },
+    )
     return res
 
 

@@ -123,19 +123,54 @@ export type PrioritizedAction = z.infer<typeof PrioritizedActionSchema>;
 export const PIIScanResultSchema = z.object({
   detected_fields: z.array(z.string()),
   mask_policy: z.enum(['MASK', 'HASH', 'DROP']).default('MASK'),
+  masked_fields: z.array(z.string()).default([]),
+  updated_at: z.string().optional(),
 });
 export type PIIScanResult = z.infer<typeof PIIScanResultSchema>;
+
+export const PIIApplyRequestSchema = z.object({
+  dataset_id: z.string(),
+  mask_policy: z.enum(['MASK', 'HASH', 'DROP']).default('MASK'),
+  columns: z.array(z.string()).default([]),
+});
+export type PIIApplyRequest = z.infer<typeof PIIApplyRequestSchema>;
+
+export const PIIApplyResultSchema = z.object({
+  dataset_id: z.string(),
+  mask_policy: z.enum(['MASK', 'HASH', 'DROP']),
+  masked_fields: z.array(z.string()),
+  updated_at: z.string(),
+});
+export type PIIApplyResult = z.infer<typeof PIIApplyResultSchema>;
 
 // --- C2: Leakage Scan ---
 export const LeakageScanResultSchema = z.object({
   flagged_columns: z.array(z.string()),
   rules_matched: z.array(z.string()),
+  excluded_columns: z.array(z.string()).default([]),
+  acknowledged_columns: z.array(z.string()).default([]),
+  updated_at: z.string().optional(),
 });
 export type LeakageScanResult = z.infer<typeof LeakageScanResultSchema>;
+
+export const LeakageResolveRequestSchema = z.object({
+  dataset_id: z.string(),
+  action: z.enum(['exclude', 'acknowledge', 'reset']).default('exclude'),
+  columns: z.array(z.string()),
+});
+export type LeakageResolveRequest = z.infer<typeof LeakageResolveRequestSchema>;
+
+export const ArtifactFileSchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  size_bytes: z.number(),
+});
 
 // --- D1: Recipe Emit ---
 export const RecipeEmitResultSchema = z.object({
   artifact_hash: z.string(),
-  files: z.array(z.string()),
+  files: z.array(ArtifactFileSchema),
+  summary: SummarySchema.optional(),
+  measured_summary: z.record(z.string(), z.number()).optional(),
 });
 export type RecipeEmitResult = z.infer<typeof RecipeEmitResultSchema>;
