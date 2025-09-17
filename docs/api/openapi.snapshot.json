@@ -260,6 +260,44 @@
           }
         }
       }
+    },
+    "/api/recipes/emit": {
+      "post": {
+        "summary": "Recipes Emit",
+        "operationId": "recipes_emit_api_recipes_emit_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecipeEmitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeEmitResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -730,6 +768,40 @@
           "question"
         ],
         "title": "QnARequest"
+      },
+      "RecipeEmitRequest": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id"
+        ],
+        "title": "RecipeEmitRequest"
+      },
+      "RecipeEmitResult": {
+        "properties": {
+          "artifact_hash": {
+            "type": "string",
+            "title": "Artifact Hash"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "required": [
+          "artifact_hash",
+          "files"
+        ],
+        "title": "RecipeEmitResult"
       },
       "Reference": {
         "properties": {
