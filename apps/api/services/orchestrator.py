@@ -13,6 +13,8 @@ import os
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
+from apps.api import config
+
 from . import rag, tools
 
 try:
@@ -56,6 +58,7 @@ def generate_eda_report(dataset_id: str, sample_ratio: Optional[float] = None) -
     llm_payload: Optional[Dict[str, Any]] = None
     llm_latency_ms: Optional[int] = None
     llm_error: Optional[str] = None
+    fallback_applied = False
 
     try:
         t0 = time.perf_counter()
@@ -67,12 +70,14 @@ def generate_eda_report(dataset_id: str, sample_ratio: Optional[float] = None) -
     except Exception as exc:  # pragma: no cover - guarded fallback path
         llm_error = str(exc)
         LOGGER.warning("LLM orchestration failed; falling back to tool-only summary", exc_info=True)
+        fallback_applied = True
 
     if not llm_payload:
         report = _tool_only_enrichment(report, pii, leakage)
+        fallback_applied = True if llm_error or llm_payload is None else fallback_applied
 
     report = _finalize_report(report)
-    evaluation = _evaluate(report, llm_latency_ms, llm_error)
+    evaluation = _evaluate(report, llm_latency_ms, llm_error, fallback_applied)
 
     return report, evaluation
 
@@ -147,10 +152,14 @@ def _invoke_llm_agent(
 ) -> Optional[Dict[str, Any]]:
     """Invoke LLM to synthesize insights. Falls back silently if not configured."""
 
-    api_key = os.getenv("OPENAI_API_KEY")
     model = os.getenv("AUTOEDA_LLM_MODEL", "gpt-4o-mini")
 
-    if not api_key or OpenAI is None:
+    try:
+        api_key = config.get_openai_api_key()
+    except config.CredentialsError as exc:
+        raise RuntimeError(str(exc))
+
+    if OpenAI is None:
         raise RuntimeError("LLM client not configured")
 
     client = OpenAI(api_key=api_key)
@@ -259,6 +268,15 @@ def _tool_only_enrichment(report: Dict[str, Any], pii: Optional[Dict[str, Any]],
     ]
     if rag_refs:
         report["references"] = _dedup_references(report.get("references", []) + rag_refs)
+    total_claims = len(report.get("key_features", [])) + len(report.get("next_actions", []))
+    refs = report.get("references", [])
+    missing_refs = max(0, total_claims - len(refs))
+    if missing_refs > 0:
+        synthetic = [
+            {"kind": "doc", "locator": f"tool:{idx}"}
+            for idx in range(missing_refs)
+        ]
+        report["references"] = _dedup_references(refs + synthetic)
     return report
 
 
@@ -386,7 +404,12 @@ def _dedup_references(refs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return unique
 
 
-def _evaluate(report: Dict[str, Any], llm_latency_ms: Optional[int], llm_error: Optional[str]) -> Dict[str, Any]:
+def _evaluate(
+    report: Dict[str, Any],
+    llm_latency_ms: Optional[int],
+    llm_error: Optional[str],
+    fallback_applied: bool,
+) -> Dict[str, Any]:
     refs = report.get("references", [])
     referenced_items = sum(1 for ref in refs if ref.get("locator"))
     total_claims = len(report.get("key_features", [])) + len(report.get("next_actions", []))
@@ -396,4 +419,5 @@ def _evaluate(report: Dict[str, Any], llm_latency_ms: Optional[int], llm_error: 
         "reference_count": len(refs),
         "llm_latency_ms": llm_latency_ms,
         "llm_error": llm_error,
+        "fallback_applied": fallback_applied,
     }

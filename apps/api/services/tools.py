@@ -464,6 +464,11 @@ def _time_series_suggestions(
                 "explanation": f"{time_col} ごとの {num_col} 推移",
                 "source_ref": make_reference(f"fig:{num_col}_trend", "figure"),
                 "consistency_score": score,
+                "diagnostics": {
+                    "trend": "increasing" if delta > 0 else "decreasing" if delta < 0 else "flat",
+                    "delta": delta,
+                    "correlation": _pearson([float(idx) for idx in range(len(points))], [val for _, val in points]) or 0.0,
+                },
             }
         )
     return results
@@ -492,6 +497,9 @@ def _categorical_suggestions(
                 "explanation": f"{col} 別の件数比較",
                 "source_ref": make_reference(f"fig:{col}_counts", "figure"),
                 "consistency_score": score,
+                "diagnostics": {
+                    "dominant_ratio": dominant_ratio,
+                },
             }
         )
     return results
@@ -516,6 +524,10 @@ def _correlation_suggestions(analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "explanation": f"{x_col} と {y_col} の{trend}の相関",
                 "source_ref": make_reference(f"fig:{x_col}_{y_col}_scatter", "figure"),
                 "consistency_score": score,
+                "diagnostics": {
+                    "trend": "increasing" if corr >= 0 else "decreasing",
+                    "correlation": corr,
+                },
             }
         )
     return results

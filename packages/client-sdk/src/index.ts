@@ -107,6 +107,7 @@ function fallbackEDA(): EDAReport {
       makeReference('tbl:summary'),
       makeReference('fig:price_hist'),
       makeReference('fig:quantity_hist'),
+      makeReference('tool:fallback')
     ],
   };
 }
@@ -126,7 +127,14 @@ export async function suggestCharts(datasetId: string, k = 5): Promise<ChartCand
     return Array.isArray(res) ? (res as ChartCandidate[]) : (res?.charts ?? []);
   } catch (_) {
     return [
-      { id: 'c1', type: 'bar', explanation: '売上の季節性を示すバーチャート', source_ref: { kind: 'figure', locator: 'fig:sales_seasonality' }, consistency_score: 0.97 },
+      {
+        id: 'c1',
+        type: 'bar',
+        explanation: '売上の季節性を示すバーチャート',
+        source_ref: { kind: 'figure', locator: 'fig:sales_seasonality' },
+        consistency_score: 0.97,
+        diagnostics: { dominant_ratio: 0.6 },
+      },
     ];
   }
 }
@@ -228,5 +236,44 @@ export async function applyPiiPolicy(datasetId: string, mask_policy: 'MASK' | 'H
       masked_fields: columns,
       updated_at: new Date().toISOString(),
     };
+  }
+}
+
+export type LlmCredentialStatus = {
+  configured: boolean;
+};
+
+export async function getLlmCredentialStatus(): Promise<LlmCredentialStatus> {
+  try {
+    const res = await fetch(`${API_BASE ?? ''}/api/credentials/llm`, {
+      method: 'GET',
+      headers: { accept: 'application/json' },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return (await res.json()) as LlmCredentialStatus;
+  } catch (_) {
+    return { configured: false };
+  }
+}
+
+export async function setOpenAIApiKey(openaiApiKey: string): Promise<void> {
+  const trimmed = openaiApiKey.trim();
+  if (!trimmed) {
+    throw new Error('API key must not be empty');
+  }
+  const res = await fetch(`${API_BASE ?? ''}/api/credentials/llm`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ openai_api_key: trimmed }),
+  });
+  if (!res.ok) {
+    let detail = 'Failed to update API key';
+    try {
+      const payload = (await res.json()) as { detail?: string };
+      if (payload?.detail) detail = payload.detail;
+    } catch (_) {
+      // ignore JSON parse errors
+    }
+    throw new Error(detail);
   }
 }

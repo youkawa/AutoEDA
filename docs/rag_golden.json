@@ -1,0 +1,27 @@
+[
+  {
+    "id": "coverage",
+    "query": "引用被覆率 0.8",
+    "expects": ["requirements.md"]
+  },
+  {
+    "id": "consistency",
+    "query": "整合性 0.95",
+    "expects": ["design.md"]
+  },
+  {
+    "id": "charts_consistency",
+    "query": "チャート 整合性 0.95",
+    "expects": ["design.md"]
+  },
+  {
+    "id": "pii_policy",
+    "query": "PII マスキング ポリシー",
+    "expects": ["design.md"]
+  },
+  {
+    "id": "leakage_rules",
+    "query": "リーク 検出率 0.9",
+    "expects": ["requirements.md"]
+  }
+]

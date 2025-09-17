@@ -45,7 +45,35 @@ jobs:
         run: python3 apps/api/scripts/check_openapi_paths.py
       - name: Evaluate API NFR (p95 & thresholds)
         run: python3 apps/api/scripts/evaluate_nfr.py
+      - name: Check SLO thresholds
+        run: npm run check:slo
+        env:
+          AUTOEDA_SLO_OUTPUT: reports/slo_report.json
+      - name: Check RAG golden queries
+        run: npm run check:rag
+        env:
+          AUTOEDA_RAG_OUTPUT: reports/rag_report.json
+      - name: Merge QA reports
+        run: npm run report:merge
+        env:
+          AUTOEDA_SLO_OUTPUT: reports/slo_report.json
+          AUTOEDA_RAG_OUTPUT: reports/rag_report.json
+          AUTOEDA_QA_SUMMARY: reports/quality_summary.json
+      - name: Upload QA reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-reports
+          path: reports
+          if-no-files-found: ignore
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          if-no-files-found: ignore
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
-      - run: npm run test:e2e
+      - run: npx playwright test --reporter=line,html
       - run: npm run build:web

@@ -43,3 +43,5 @@ test-results
 *.sln
 *.sw?
 .env
+reports/
+config/credentials.json

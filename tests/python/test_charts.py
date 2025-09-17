@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from apps.api.main import app
-from apps.api.services import tools, storage
+from apps.api.services import tools, storage, evaluator
 
 
 @pytest.fixture
@@ -68,3 +68,29 @@ def test_charts_api_filters_inconsistent(monkeypatch):
     data = resp.json()
     assert len(data["charts"]) == 1
     assert data["charts"][0]["id"] == "keep"
+
+
+def test_consistency_ok_detects_trend_mismatch():
+    chart = {
+        "id": "trend",
+        "type": "line",
+        "explanation": "売上が一貫して減少",
+        "source_ref": {"kind": "figure", "locator": "fig:trend"},
+        "consistency_score": 0.99,
+        "diagnostics": {"trend": "increasing", "correlation": 0.8},
+    }
+
+    assert evaluator.consistency_ok(chart) is False
+
+
+def test_consistency_ok_accepts_supported_trend():
+    chart = {
+        "id": "trend",
+        "type": "line",
+        "explanation": "売上が一貫して増加",
+        "source_ref": {"kind": "figure", "locator": "fig:trend"},
+        "consistency_score": 0.99,
+        "diagnostics": {"trend": "increasing", "correlation": 0.8},
+    }
+
+    assert evaluator.consistency_ok(chart) is True

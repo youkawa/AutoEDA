@@ -9,6 +9,7 @@ import { ActionsPage } from './pages/ActionsPage';
 import { PiiPage } from './pages/PiiPage';
 import { LeakagePage } from './pages/LeakagePage';
 import { RecipesPage } from './pages/RecipesPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 export default function App() {
   return (
@@ -19,12 +20,14 @@ export default function App() {
           <ul style={{ listStyle: 'none', padding: 0 }}>
             <li><Link to="/">Home</Link></li>
             <li><Link to="/datasets">Datasets</Link></li>
+            <li><Link to="/settings">Settings</Link></li>
           </ul>
         </nav>
         <main style={{ flex: 1, padding: 24 }}>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/datasets" element={<DatasetsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="/eda/:datasetId" element={<EdaPage />} />
             <Route path="/charts/:datasetId" element={<ChartsPage />} />
             <Route path="/qna/:datasetId" element={<QnaPage />} />
