@@ -25,6 +25,8 @@ jobs:
         run: npm run schema:validate
       - name: Check OpenAPI components
         run: python3 apps/api/scripts/check_openapi.py
+      - name: Evaluate API NFR (p95 & thresholds)
+        run: python3 apps/api/scripts/evaluate_nfr.py
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
       - run: npm run test:e2e
