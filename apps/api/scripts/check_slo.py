@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import sys
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -19,6 +20,8 @@ SLO_THRESHOLDS = {
     "EDAQueryAnswered": {"p95": 4_000, "groundedness": 0.8},
 }
 
+OUTPUT_ENV = "AUTOEDA_SLO_OUTPUT"
+
 
 def load_events(path: Path) -> list[dict]:
     events = []
@@ -29,8 +32,17 @@ def load_events(path: Path) -> list[dict]:
     return events
 
 
-def main() -> int:
-    target = Path(sys.argv[1]) if len(sys.argv) > 1 else metrics.get_event_log_path()
+def write_output(payload: dict, destination: str | None) -> None:
+    if not destination:
+        return
+    target = Path(destination)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = argv or sys.argv[1:]
+    target = Path(argv[0]) if argv else metrics.get_event_log_path()
     events = load_events(target)
     metrics.bootstrap_from_events(events)
     violations = metrics.detect_violations(SLO_THRESHOLDS)
@@ -42,6 +54,7 @@ def main() -> int:
         "event_log": str(target),
     }
     print(json.dumps(output, ensure_ascii=False, indent=2))
+    write_output(output, os.getenv(OUTPUT_ENV))
 
     has_violation = any(
         any(result.values()) for result in violations.values()

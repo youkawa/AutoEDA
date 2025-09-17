@@ -47,8 +47,19 @@ jobs:
         run: python3 apps/api/scripts/evaluate_nfr.py
       - name: Check SLO thresholds
         run: npm run check:slo
+        env:
+          AUTOEDA_SLO_OUTPUT: reports/slo_report.json
       - name: Check RAG golden queries
         run: npm run check:rag
+        env:
+          AUTOEDA_RAG_OUTPUT: reports/rag_report.json
+      - name: Upload QA reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-reports
+          path: reports
+          if-no-files-found: ignore
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
       - run: npm run test:e2e
