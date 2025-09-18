@@ -54,8 +54,18 @@ export function SettingsPage(): JSX.Element {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (saving) return; // 二重送信ガード
     if (!apiKey.trim()) {
       setError('APIキーを入力してください');
+      return;
+    }
+    const trimmed = apiKey.trim();
+    if (trimmed.length < 8) {
+      setError('APIキーは8文字以上で入力してください');
+      return;
+    }
+    if (trimmed.startsWith('<')) {
+      setError('APIキーにプレースホルダ（<...>）が含まれています');
       return;
     }
 
@@ -63,7 +73,7 @@ export function SettingsPage(): JSX.Element {
     setMessage(null);
     setError(null);
     try {
-      await setLlmCredentials(activeProvider, apiKey.trim());
+      await setLlmCredentials(activeProvider, trimmed);
       setApiKey('');
       await loadStatus();
       setMessage('設定が更新されました');
