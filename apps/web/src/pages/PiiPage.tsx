@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { piiScan, applyPiiPolicy } from '@autoeda/client-sdk';
 import type { PIIScanResult } from '@autoeda/schemas';
-import { Button } from '@autoeda/ui-kit';
+import { Button, useToast } from '@autoeda/ui-kit';
 import { ShieldCheck, CheckCircle2 } from 'lucide-react';
 import {
   Card,
@@ -19,6 +19,7 @@ type MaskPolicy = 'MASK' | 'HASH' | 'DROP';
 export function PiiPage() {
   const { datasetId } = useParams();
   const { setLastDataset } = useLastDataset();
+  const toast = useToast();
   const [result, setResult] = useState<PIIScanResult | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [policy, setPolicy] = useState<MaskPolicy>('MASK');
@@ -46,6 +47,7 @@ export function PiiPage() {
       const applied = await applyPiiPolicy(datasetId, policy, selected);
       const updated = await piiScan(datasetId, defaults);
       setResult({ ...updated, masked_fields: applied.masked_fields, mask_policy: applied.mask_policy, updated_at: applied.updated_at });
+      toast('PII方針を適用しました', 'success');
     } finally {
       setLoading(false);
     }

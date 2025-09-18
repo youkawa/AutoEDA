@@ -12,25 +12,28 @@ import { RecipesPage } from './pages/RecipesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { LastDatasetProvider } from './contexts/LastDatasetContext';
+import { ToastProvider } from '@autoeda/ui-kit';
 
 export default function App() {
   return (
     <BrowserRouter>
       <LastDatasetProvider>
-        <Routes>
-          <Route element={<AppLayout />}>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/datasets" element={<DatasetsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/eda/:datasetId" element={<EdaPage />} />
-            <Route path="/charts/:datasetId" element={<ChartsPage />} />
-            <Route path="/qna/:datasetId" element={<QnaPage />} />
-            <Route path="/actions/:datasetId" element={<ActionsPage />} />
-            <Route path="/pii/:datasetId" element={<PiiPage />} />
-            <Route path="/leakage/:datasetId" element={<LeakagePage />} />
-            <Route path="/recipes/:datasetId" element={<RecipesPage />} />
-          </Route>
-        </Routes>
+        <ToastProvider>
+          <Routes>
+            <Route element={<AppLayout />}>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/datasets" element={<DatasetsPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/eda/:datasetId" element={<EdaPage />} />
+              <Route path="/charts/:datasetId" element={<ChartsPage />} />
+              <Route path="/qna/:datasetId" element={<QnaPage />} />
+              <Route path="/actions/:datasetId" element={<ActionsPage />} />
+              <Route path="/pii/:datasetId" element={<PiiPage />} />
+              <Route path="/leakage/:datasetId" element={<LeakagePage />} />
+              <Route path="/recipes/:datasetId" element={<RecipesPage />} />
+            </Route>
+          </Routes>
+        </ToastProvider>
       </LastDatasetProvider>
     </BrowserRouter>
   );

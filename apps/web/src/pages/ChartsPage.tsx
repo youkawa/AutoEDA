@@ -6,6 +6,7 @@ import { Button } from '@autoeda/ui-kit';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/Card';
 import { useLastDataset } from '../contexts/LastDatasetContext';
 import { BarChart3, CheckCircle2, AlertTriangle, Info, Layers } from 'lucide-react';
+import { Pill } from '../components/ui/Pill';
 
 export function ChartsPage() {
   const { datasetId } = useParams();
@@ -100,15 +101,7 @@ export function ChartsPage() {
                       <CardTitle className="text-lg capitalize">{chart.type}</CardTitle>
                       <CardDescription>{chart.explanation}</CardDescription>
                     </div>
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-widest ${
-                        isHighConfidence
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-amber-100 text-amber-700'
-                      }`}
-                    >
-                      {confidence}%
-                    </span>
+                    <Pill tone={isHighConfidence ? 'emerald' : 'amber'}>{confidence}%</Pill>
                   </div>
                   <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
                     根拠: {chart.source_ref?.locator ?? 'N/A'}

@@ -3,16 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getEDAReport, listDatasets } from '@autoeda/client-sdk';
 import type { EDAReport } from '@autoeda/schemas';
 import { Button } from '@autoeda/ui-kit';
-import {
-  Activity,
-  BarChart3,
-  AlertTriangle,
-  ArrowRight,
-  Table2,
-  Percent,
-  FileText,
-  CheckCircle2,
-} from 'lucide-react';
+import { Activity, BarChart3, AlertTriangle, ArrowRight, Table2, Percent, FileText, CheckCircle2 } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -22,14 +13,16 @@ import {
   CardTitle,
 } from '../components/ui/Card';
 import { useLastDataset } from '../contexts/LastDatasetContext';
+import { Pill } from '../components/ui/Pill';
+import { StatCard } from '../components/ui/StatCard';
 
 type ViewMode = 'stats' | 'references';
 
-const severityClassMap: Record<string, string> = {
-  critical: 'bg-red-100 text-red-700 border-red-200',
-  high: 'bg-orange-100 text-orange-700 border-orange-200',
-  medium: 'bg-amber-100 text-amber-700 border-amber-200',
-  low: 'bg-slate-100 text-slate-600 border-slate-200',
+const severityTone: Record<string, 'red' | 'amber' | 'emerald'> = {
+  critical: 'red',
+  high: 'red',
+  medium: 'amber',
+  low: 'emerald',
 };
 
 export function EdaPage() {
@@ -151,16 +144,7 @@ export function EdaPage() {
 
       <div className="grid gap-4 md:grid-cols-3">
         {metrics.map(({ label, value, icon: Icon, sub }) => (
-          <Card key={label} padding="lg" className="flex items-center gap-4">
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
-              <Icon className="h-6 w-6" />
-            </span>
-            <div>
-              <p className="text-xs uppercase tracking-widest text-slate-400">{sub}</p>
-              <p className="text-lg font-semibold text-slate-900">{value}</p>
-              <p className="text-sm text-slate-500">{label}</p>
-            </div>
-          </Card>
+          <StatCard key={label} icon={Icon} label={label} value={value} sub={sub} />
         ))}
       </div>
 
@@ -184,15 +168,13 @@ export function EdaPage() {
               data_quality_report.issues.map((issue, index) => (
                 <div
                   key={`${issue.column}-${index}`}
-                  className={`rounded-2xl border px-4 py-3 ${severityClassMap[issue.severity] ?? severityClassMap.low}`}
+                  className={`rounded-2xl border border-slate-200 bg-white px-4 py-3`}
                 >
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold">
-                      {issue.column}
-                    </p>
-                    <span className="text-xs uppercase tracking-widest">{issue.severity}</span>
+                    <p className="text-sm font-semibold text-slate-900">{issue.column}</p>
+                    <Pill tone={severityTone[issue.severity] ?? 'emerald'}>{issue.severity}</Pill>
                   </div>
-                  <p className="text-sm">{issue.description}</p>
+                  <p className="text-sm text-slate-700">{issue.description}</p>
                   {issue.statistic ? (
                     <p className="mt-1 text-xs text-slate-600">
                       {Object.entries(issue.statistic)

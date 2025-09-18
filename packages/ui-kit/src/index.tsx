@@ -57,3 +57,5 @@ export function Button({
     </button>
   );
 }
+export { Toast } from './toast/Toast';
+export { ToastProvider, useToast } from './toast/ToastProvider';
