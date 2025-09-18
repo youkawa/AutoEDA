@@ -288,14 +288,22 @@ export async function setLlmCredentials(provider: LlmProvider, apiKey: string): 
     body: JSON.stringify({ provider, api_key: trimmed }),
   });
   if (!res.ok) {
-    let detail = 'Failed to update API key';
+    let message = 'Failed to update API key';
     try {
-      const payload = (await res.json()) as { detail?: string };
-      if (payload?.detail) detail = payload.detail;
+      const payload: any = await res.json();
+      const d = payload?.detail;
+      if (typeof d === 'string') {
+        message = d;
+      } else if (Array.isArray(d)) {
+        // FastAPI/Pydantic validation errors: array of {loc,msg,type}
+        message = d.map((e: any) => e?.msg ?? JSON.stringify(e)).join('; ');
+      } else if (d && typeof d === 'object') {
+        message = JSON.stringify(d);
+      }
     } catch (_) {
       // ignore JSON parse errors
     }
-    throw new Error(detail);
+    throw new Error(message);
   }
 }
 

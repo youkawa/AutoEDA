@@ -69,7 +69,8 @@ export function SettingsPage(): JSX.Element {
       setMessage('設定が更新されました');
     } catch (err) {
       const detail = err instanceof Error ? err.message : '更新に失敗しました';
-      setError(detail);
+      // より読みやすく（Pydantic配列など）
+      setError(String(detail));
     } finally {
       setSaving(false);
     }
