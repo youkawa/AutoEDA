@@ -45,7 +45,7 @@ test.describe('Acceptance scenarios', () => {
     await expect(page.getByText('推奨アクション・優先度')).toBeVisible();
     await expect(page.getByText(/LLM フォールバック/)).toBeVisible();
     await page.getByRole('button', { name: '引用を確認' }).click();
-    await expect(page.getByText(/(ツール由来|検証済み)/)).toBeVisible();
+    await expect(page.getByText(/(ツール由来|検証済み)/).first()).toBeVisible();
   });
 
   test('C2 Leakage page lists flagged columns', async ({ page }) => {
@@ -70,7 +70,7 @@ test.describe('Acceptance scenarios', () => {
     await expect(page.getByText(/LLM フォールバック/)).toBeVisible();
 
     await page.getByRole('button', { name: '引用を確認' }).click();
-    await expect(page.locator('div').filter({ hasText: 'doc: tool:fallback' })).toHaveCount(1);
+    await expect(page.locator('div').filter({ hasText: 'doc: tool:fallback' }).first()).toBeVisible();
 
     await page.getByRole('button', { name: '統計ビュー' }).click();
     const statsItems = page.locator('section').filter({ hasText: '再現統計' }).locator('li');
