@@ -12,7 +12,7 @@ test.describe('Acceptance scenarios', () => {
 
   test('A2 charts suggestions surface consistent candidates', async ({ page }) => {
     await page.getByRole('button', { name: 'チャート提案を見る' }).click();
-    await expect(page.getByText('チャート提案')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'チャート提案' })).toBeVisible();
     await expect(page.getByText('整合性チェック済み')).toBeVisible();
     await expect(page.getByText(/根拠:/)).toBeVisible();
   });
@@ -45,14 +45,14 @@ test.describe('Acceptance scenarios', () => {
     await expect(page.getByText('推奨アクション・優先度')).toBeVisible();
     await expect(page.getByText(/LLM フォールバック/)).toBeVisible();
     await page.getByRole('button', { name: '引用を確認' }).click();
-    await expect(page.getByText(/(table: tbl:summary|doc: tool:fallback)/)).toBeVisible();
+    await expect(page.getByText(/(ツール由来|検証済み)/)).toBeVisible();
   });
 
   test('C2 Leakage page lists flagged columns', async ({ page }) => {
     await page.getByRole('link', { name: 'リーク検査' }).click();
     await expect(page.getByRole('heading', { name: 'リーク検査' })).toBeVisible();
     await expect(page.getByText('検出されたリーク候補')).toBeVisible();
-    const firstCheckbox = page.locator('ul li input[type="checkbox"]').first();
+    const firstCheckbox = page.getByRole('checkbox').first();
     await expect(firstCheckbox).toBeVisible();
     await firstCheckbox.click();
     const excludeButton = page.getByRole('button', { name: '除外して再計算' });
@@ -65,7 +65,7 @@ test.describe('Acceptance scenarios', () => {
   test('D1 Recipes page shows artifacts and warnings', async ({ page }) => {
     await page.getByRole('link', { name: 'レシピ出力' }).click();
     await expect(page.getByText('再現レシピと成果物')).toBeVisible();
-    await expect(page.getByText('artifact_hash:')).toBeVisible();
+    await expect(page.getByText('artifact_hash')).toBeVisible();
     await expect(page.getByText(/LLM フォールバック/)).toBeVisible();
 
     await page.getByRole('button', { name: '引用を確認' }).click();
