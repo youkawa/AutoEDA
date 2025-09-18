@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getEDAReport, listDatasets } from '@autoeda/client-sdk';
 import type { EDAReport } from '@autoeda/schemas';
 import { Button } from '@autoeda/ui-kit';
-import { Activity, BarChart3, AlertTriangle, ArrowRight, Table2, Percent, FileText, CheckCircle2 } from 'lucide-react';
+import { Activity, BarChart3, ArrowRight, Table2, Percent, FileText, CheckCircle2 } from 'lucide-react';
 import {
   Card,
   CardContent,

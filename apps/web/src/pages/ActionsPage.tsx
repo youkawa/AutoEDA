@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from '../components/ui/Card';
 import { Button } from '@autoeda/ui-kit';
-import { ClipboardCheck, BarChart3, ArrowRight, AlertTriangle } from 'lucide-react';
+import { ClipboardCheck, BarChart3, ArrowRight } from 'lucide-react';
 import { Callout } from '../components/ui/Callout';
 import { Pill } from '../components/ui/Pill';
 import { useLastDataset } from '../contexts/LastDatasetContext';

@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { ChartsPage } from './ChartsPage';
 import { createDefaultHandlers } from '../stories/handlers';
+import { http, HttpResponse } from 'msw';
 import { withAppProviders } from '../stories/decorators';
 import { DATASET_ID } from '../stories/data';
 
@@ -33,11 +34,7 @@ export const EmptyResults: Story = {
     msw: {
       handlers: [
         ...createDefaultHandlers().filter((h) => !(h.info.method === 'POST' && h.info.path === '/api/charts/suggest')),
-        // 空のチャート候補を返す
-        {
-          info: { path: '/api/charts/suggest', method: 'POST', type: 'rest' },
-          resolver: () => new Response(JSON.stringify({ charts: [] }), { headers: { 'Content-Type': 'application/json' } }),
-        } as any,
+        http.post('/api/charts/suggest', () => HttpResponse.json({ charts: [] })),
       ],
     },
   },
