@@ -1,129 +1,383 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { getEDAReport } from '@autoeda/client-sdk';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { getEDAReport, listDatasets } from '@autoeda/client-sdk';
 import type { EDAReport } from '@autoeda/schemas';
+import { Button } from '@autoeda/ui-kit';
+import {
+  Activity,
+  BarChart3,
+  AlertTriangle,
+  ArrowRight,
+  Table2,
+  Percent,
+  FileText,
+  CheckCircle2,
+} from 'lucide-react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '../components/ui/Card';
+import { useLastDataset } from '../contexts/LastDatasetContext';
+
+type ViewMode = 'stats' | 'references';
+
+const severityClassMap: Record<string, string> = {
+  critical: 'bg-red-100 text-red-700 border-red-200',
+  high: 'bg-orange-100 text-orange-700 border-orange-200',
+  medium: 'bg-amber-100 text-amber-700 border-amber-200',
+  low: 'bg-slate-100 text-slate-600 border-slate-200',
+};
 
 export function EdaPage() {
   const { datasetId } = useParams();
+  const navigate = useNavigate();
+  const { lastDataset, setLastDataset } = useLastDataset();
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState<EDAReport | null>(null);
-  const [showReferences, setShowReferences] = useState(false);
+  const [mode, setMode] = useState<ViewMode>('stats');
 
   useEffect(() => {
-    (async () => {
-      const r = await getEDAReport(datasetId!);
-      setReport(r);
-      setLoading(false);
-    })();
+    let mounted = true;
+    if (!datasetId) return;
+    setLoading(true);
+    void getEDAReport(datasetId)
+      .then((response) => {
+        if (!mounted) return;
+        setReport(response);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setReport(null);
+        setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
   }, [datasetId]);
 
-  if (loading) return <div>読み込み中...</div>;
+  useEffect(() => {
+    if (!datasetId) return;
+    if (!lastDataset || lastDataset.id !== datasetId) {
+      setLastDataset({ id: datasetId });
+    } else if (!lastDataset.name) {
+      void listDatasets().then((items) => {
+        const found = items.find((item) => item.id === datasetId);
+        if (found) {
+          setLastDataset({ id: found.id, name: found.name });
+        }
+      });
+    }
+  }, [datasetId, lastDataset, setLastDataset]);
+
   const references = report?.references ?? [];
-  if (!report) return <div>レポートが見つかりません</div>;
+  const fallbackActive = references.some((ref) => (ref.locator ?? '').startsWith('tool:'));
+
+  const metrics = useMemo(() => {
+    if (!report) return [];
+    return [
+      {
+        label: '行数',
+        value: report.summary.rows.toLocaleString(),
+        icon: Table2,
+        sub: 'Rows',
+      },
+      {
+        label: '列数',
+        value: report.summary.cols.toLocaleString(),
+        icon: Activity,
+        sub: 'Columns',
+      },
+      {
+        label: '欠損率',
+        value: `${(report.summary.missing_rate * 100).toFixed(1)}%`,
+        icon: Percent,
+        sub: 'Missing',
+      },
+    ];
+  }, [report]);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-32 animate-pulse rounded-3xl bg-white shadow-sm" />
+        <div className="grid gap-4 md:grid-cols-3">
+          {[...Array(3)].map((_, index) => (
+            <div key={index} className="h-28 animate-pulse rounded-2xl bg-white shadow-sm" />
+          ))}
+        </div>
+        <div className="h-96 animate-pulse rounded-3xl bg-white shadow-sm" />
+      </div>
+    );
+  }
+
+  if (!report || !datasetId) {
+    return (
+      <Card padding="lg" className="text-center">
+        <CardHeader>
+          <CardTitle>レポートが見つかりません</CardTitle>
+          <CardDescription>データセットを再度読み込み、もう一度お試しください。</CardDescription>
+        </CardHeader>
+        <CardFooter className="justify-center">
+          <Button variant="primary" onClick={() => navigate('/datasets')}>
+            データセット一覧へ戻る
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
+
   const { summary, data_quality_report, key_features, next_actions, distributions } = report;
-  const fallbackActive = references.some(ref => (ref.locator ?? '').startsWith('tool:'));
 
   return (
-    <div>
-      <h1>EDA 概要</h1>
-      {fallbackActive && (
-        <div style={{ padding: '8px 12px', background: '#fff5d6', border: '1px solid #f0c36d', borderRadius: 6, marginBottom: 16 }}>
-          LLMフォールバック: ツール要約のみ表示中
-        </div>
-      )}
-      <section>
-        <h2>サマリー</h2>
-        <ul>
-          <li>行数: {summary.rows.toLocaleString()}</li>
-          <li>列数: {summary.cols}</li>
-          <li>欠損率: {(summary.missing_rate * 100).toFixed(1)}%</li>
-        </ul>
-      </section>
-      <section>
-        <h2>主要な分布</h2>
-        <ul>
-          {distributions.map(dist => (
-            <li key={dist.column}>
-              {dist.column} — 欠損 {Math.round((dist.missing / Math.max(dist.count, 1)) * 100)}%
-            </li>
-          ))}
-          {distributions.length === 0 && <li>数値列の分布がありません。</li>}
-        </ul>
-      </section>
-      <section>
-        <h2>品質課題</h2>
-        <ul>
-          {data_quality_report.issues.map((issue, idx) => (
-            <li key={`${issue.column}-${idx}`}>
-              <strong>[{issue.severity}] {issue.column}</strong>: {issue.description}
-            </li>
-          ))}
-          {data_quality_report.issues.length === 0 && <li>重大な品質課題は検出されていません。</li>}
-        </ul>
-      </section>
-      <section>
-        <h2>注目すべき特徴</h2>
-        <ul>
-          {key_features.map((feat, idx) => (
-            <li key={idx}>{feat}</li>
-          ))}
-          {key_features.length === 0 && <li>重要な特徴がまだ見つかっていません。</li>}
-        </ul>
-      </section>
-      <section>
-        <h2>次アクション</h2>
-        <ol>
-          {next_actions.map(action => (
-            <li key={action.title}>
-              <strong>{action.title}</strong> — score {action.score.toFixed(2)} / impact {(action.impact * 100).toFixed(0)}%
-              {action.reason && <div>理由: {action.reason}</div>}
-            </li>
-          ))}
-          {next_actions.length === 0 && <li>次アクション候補はまだありません。</li>}
-        </ol>
-      </section>
-      <section>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <h2 style={{ margin: 0 }}>ビュー切替</h2>
-          <button onClick={() => setShowReferences(false)} disabled={!showReferences}>
-            統計ビュー
-          </button>
-          <button onClick={() => setShowReferences(true)} disabled={showReferences}>
-            引用ビュー
-          </button>
-        </div>
-        {showReferences ? (
-          <div>
-            <h3>参照一覧</h3>
-            <ul>
-              {references.map((ref, idx) => (
-                <li key={`${ref.locator}-${idx}`}>
-                  {ref.kind}:{' '}
-                  {ref.locator}
-                  {ref.locator?.startsWith('tool:') && <span style={{ marginLeft: 6, color: '#b45309' }}>（ツール由来）</span>}
-                </li>
-              ))}
-              {references.length === 0 && <li>参照はまだありません。</li>}
-            </ul>
+    <div className="space-y-8">
+      {fallbackActive ? (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-amber-800">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-1 h-5 w-5" />
+            <div>
+              <p className="font-semibold">LLM フォールバックが適用されています</p>
+              <p className="text-sm text-amber-700">
+                LLM 資格情報が未設定のため、ツールの要約のみを表示しています。`/settings` から API Key を設定すると、引用付きの要約が生成されます。
+              </p>
+            </div>
           </div>
-        ) : (
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 md:grid-cols-3">
+        {metrics.map(({ label, value, icon: Icon, sub }) => (
+          <Card key={label} padding="lg" className="flex items-center gap-4">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+              <Icon className="h-6 w-6" />
+            </span>
+            <div>
+              <p className="text-xs uppercase tracking-widest text-slate-400">{sub}</p>
+              <p className="text-lg font-semibold text-slate-900">{value}</p>
+              <p className="text-sm text-slate-500">{label}</p>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
+        <Card padding="lg" className="space-y-4">
+          <CardHeader className="mb-2">
+            <CardTitle className="flex items-center gap-3 text-lg">
+              <BarChart3 className="h-5 w-5 text-brand-600" />
+              データ品質トリアージ
+            </CardTitle>
+            <CardDescription>
+              重大度順にソートされた品質課題と推定統計。重大な問題ほど上位に表示されます。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {data_quality_report.issues.length === 0 ? (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                品質課題は検出されませんでした。
+              </div>
+            ) : (
+              data_quality_report.issues.map((issue, index) => (
+                <div
+                  key={`${issue.column}-${index}`}
+                  className={`rounded-2xl border px-4 py-3 ${severityClassMap[issue.severity] ?? severityClassMap.low}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">
+                      {issue.column}
+                    </p>
+                    <span className="text-xs uppercase tracking-widest">{issue.severity}</span>
+                  </div>
+                  <p className="text-sm">{issue.description}</p>
+                  {issue.statistic ? (
+                    <p className="mt-1 text-xs text-slate-600">
+                      {Object.entries(issue.statistic)
+                        .map(([key, value]) => `${key}: ${value}`)
+                        .join(' / ')}
+                    </p>
+                  ) : null}
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card padding="lg" className="space-y-4">
+          <CardHeader className="mb-2">
+            <CardTitle className="text-lg">コア指標</CardTitle>
+            <CardDescription>注目すべき特徴量と、推奨されるアクションの概要です。</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">注目トピック</p>
+              {key_features.length === 0 ? (
+                <p>重要な特徴がまだ見つかっていません。</p>
+              ) : (
+                <ul className="space-y-2">
+                  {key_features.map((feature, index) => (
+                    <li key={index} className="flex gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-brand-500" />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 p-4 text-sm text-slate-600">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">推奨アクション</p>
+              {next_actions.length === 0 ? (
+                <p>次アクション候補がまだありません。</p>
+              ) : (
+                <ul className="space-y-2">
+                  {next_actions.slice(0, 3).map((action) => (
+                    <li key={action.title} className="rounded-xl bg-slate-50 px-3 py-2">
+                      <p className="font-medium text-slate-900">{action.title}</p>
+                      <p className="text-xs text-slate-500">score {action.score.toFixed(2)} / impact {(action.impact * 100).toFixed(0)}%</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<ArrowRight className="h-4 w-4" />}
+              onClick={() => navigate(`/actions/${datasetId}`)}
+            >
+              次アクションの詳細を見る
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+
+      <Card padding="lg" className="space-y-6">
+        <CardHeader>
+          <CardTitle className="text-lg">分布サマリー</CardTitle>
+          <CardDescription>代表的な数値列について欠損率と分布の傾向を可視化します。</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {distributions.length === 0 ? (
+            <p className="text-sm text-slate-500">数値列の分布がありません。</p>
+          ) : (
+            distributions.map((dist) => {
+              const total = dist.histogram.reduce((sum, value) => sum + value, 0);
+              return (
+                <div key={dist.column} className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-slate-800">{dist.column}</span>
+                    <span className="text-xs text-slate-500">欠損 {(dist.missing / Math.max(dist.count, 1) * 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-1">
+                    {dist.histogram.map((value, idx) => (
+                      <div
+                        key={`${dist.column}-${idx}`}
+                        className="rounded-full bg-brand-200"
+                        style={{ height: `${total ? Math.max(12, (value / total) * 60) : 12}px` }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
+
+      <Card padding="lg">
+        <CardHeader className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <h3>統計サマリー</h3>
-            <ul>
-              <li>欠損率: {(summary.missing_rate * 100).toFixed(1)}%</li>
-              <li>品質課題数: {data_quality_report.issues.length}</li>
-              <li>提案アクション数: {next_actions.length}</li>
-            </ul>
+            <CardTitle className="text-lg">ビュー切替</CardTitle>
+            <CardDescription>統計の要約と引用ソースを切り替えて確認できます。</CardDescription>
           </div>
-        )}
-      </section>
-      <div style={{ marginTop: 16, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <Link to={`/charts/${datasetId}`}>可視化を自動提案</Link>
-        <Link to={`/qna/${datasetId}`}>Q&A</Link>
-        <Link to={`/actions/${datasetId}`}>Next Actions</Link>
-        <Link to={`/pii/${datasetId}`}>PII</Link>
-        <Link to={`/leakage/${datasetId}`}>Leakage</Link>
-        <Link to={`/recipes/${datasetId}`}>Recipes</Link>
+          <div className="flex gap-2">
+            <Button
+              variant={mode === 'stats' ? 'primary' : 'secondary'}
+              size="sm"
+              onClick={() => setMode('stats')}
+            >
+              統計サマリー
+            </Button>
+            <Button
+              variant={mode === 'references' ? 'primary' : 'secondary'}
+              size="sm"
+              onClick={() => setMode('references')}
+            >
+              引用ビュー
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {mode === 'stats' ? (
+            <ul className="grid gap-3 text-sm text-slate-600 md:grid-cols-3">
+              <li className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-xs text-slate-400">欠損率</p>
+                <p className="text-lg font-semibold text-slate-900">{(summary.missing_rate * 100).toFixed(1)}%</p>
+              </li>
+              <li className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-xs text-slate-400">品質課題数</p>
+                <p className="text-lg font-semibold text-slate-900">{data_quality_report.issues.length}</p>
+              </li>
+              <li className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-xs text-slate-400">推奨アクション</p>
+                <p className="text-lg font-semibold text-slate-900">{next_actions.length}</p>
+              </li>
+            </ul>
+          ) : (
+            <div className="space-y-3">
+              {references.length === 0 ? (
+                <p className="text-sm text-slate-500">参照はまだありません。</p>
+              ) : (
+                references.map((ref, index) => (
+                  <div
+                    key={`${ref.locator}-${index}`}
+                    className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600"
+                  >
+                    <div>
+                      <span className="font-medium text-slate-800">{ref.kind}</span>
+                      <span className="ml-3 text-slate-500">{ref.locator}</span>
+                    </div>
+                    {ref.locator?.startsWith('tool:') ? (
+                      <span className="text-xs font-semibold uppercase tracking-widest text-amber-600">ツール由来</span>
+                    ) : (
+                      <span className="text-xs text-emerald-600">LLM 検証済み</span>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="flex flex-wrap gap-3">
+        <Button
+          variant="primary"
+          icon={<BarChart3 className="h-4 w-4" />}
+          onClick={() => navigate(`/charts/${datasetId}`)}
+        >
+          チャート提案を見る
+        </Button>
+        <Button
+          variant="secondary"
+          icon={<FileText className="h-4 w-4" />}
+          onClick={() => navigate(`/qna/${datasetId}`)}
+        >
+          Q&A を実行
+        </Button>
+        <Button
+          variant="secondary"
+          icon={<CheckCircle2 className="h-4 w-4" />}
+          onClick={() => navigate(`/actions/${datasetId}`)}
+        >
+          次アクションを確認
+        </Button>
       </div>
     </div>
   );

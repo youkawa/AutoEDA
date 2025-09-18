@@ -45,3 +45,9 @@ test-results
 .env
 reports/
 config/credentials.json
+
+# Sample Project files
+sample/
+
+*storybook.log
+storybook-static

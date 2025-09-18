@@ -1,34 +1,47 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { leakageScan, resolveLeakage } from '@autoeda/client-sdk';
 import type { LeakageScanResult } from '@autoeda/schemas';
+import { Button } from '@autoeda/ui-kit';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '../components/ui/Card';
+import { useLastDataset } from '../contexts/LastDatasetContext';
+import { AlertTriangle, ShieldCheck, RefreshCw } from 'lucide-react';
+
+type LeakageAction = 'exclude' | 'acknowledge' | 'reset';
 
 export function LeakagePage() {
   const { datasetId } = useParams();
-  const [res, setRes] = useState<LeakageScanResult | null>(null);
+  const { setLastDataset } = useLastDataset();
+  const [result, setResult] = useState<LeakageScanResult | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const defaults = useMemo(() => datasetId, [datasetId]);
 
   useEffect(() => {
     if (!datasetId) return;
-    void (async () => {
-      const result = await leakageScan(datasetId);
-      setRes(result);
-      setSelected(result.flagged_columns);
-    })();
-  }, [datasetId, defaults]);
+    setLastDataset({ id: datasetId });
+    void leakageScan(datasetId).then((res) => {
+      setResult(res);
+      setSelected(res.flagged_columns);
+    });
+  }, [datasetId, setLastDataset]);
 
   const toggle = (column: string) => {
-    setSelected(prev => (prev.includes(column) ? prev.filter(c => c !== column) : [...prev, column]));
+    setSelected((prev) => (prev.includes(column) ? prev.filter((c) => c !== column) : [...prev, column]));
   };
 
-  const apply = async (action: 'exclude' | 'acknowledge' | 'reset') => {
+  const apply = async (action: LeakageAction) => {
     if (!datasetId || selected.length === 0) return;
     setLoading(true);
     try {
       const updated = await resolveLeakage(datasetId, action, selected);
-      setRes(updated);
+      setResult(updated);
       setSelected(updated.flagged_columns);
     } finally {
       setLoading(false);
@@ -36,43 +49,107 @@ export function LeakagePage() {
   };
 
   return (
-    <div>
-      <h1>リーク検査</h1>
-      {!res ? (
-        '検査中...'
-      ) : (
-        <div style={{ display: 'grid', gap: 12, maxWidth: 480 }}>
-          <div>
-            <div>検出されたリーク候補</div>
-            {res.flagged_columns.length === 0 ? (
-              <div>なし</div>
-            ) : (
-              <ul>
-                {res.flagged_columns.map(col => (
-                  <li key={col}>
-                    <label>
-                      <input type="checkbox" checked={selected.includes(col)} onChange={() => toggle(col)} /> {col}
+    <div className="space-y-6">
+      <Card padding="lg" className="space-y-4">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-3 text-lg">
+            <AlertTriangle className="h-5 w-5 text-amber-600" />
+            リーク検査
+          </CardTitle>
+          <CardDescription>未来情報やターゲットリークの可能性がある特徴量を検出します。</CardDescription>
+        </CardHeader>
+
+        {!result ? (
+          <CardContent>
+            <p className="text-sm text-slate-500">検査中...</p>
+          </CardContent>
+        ) : (
+          <CardContent className="space-y-4">
+            <div>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400">検出されたリーク候補</p>
+              {result.flagged_columns.length === 0 ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  リークの疑いがある特徴量は検出されませんでした。
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {result.flagged_columns.map((column) => (
+                    <label
+                      key={column}
+                      className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
+                    >
+                      <div>
+                        <p className="font-semibold text-slate-900">{column}</p>
+                        <p className="text-xs text-slate-500">{result.rules_matched.join(', ') || 'rules: N/A'}</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                        checked={selected.includes(column)}
+                        onChange={() => toggle(column)}
+                      />
                     </label>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => apply('exclude')} disabled={loading || selected.length === 0}>除外して再計算</button>
-              <button onClick={() => apply('acknowledge')} disabled={loading || selected.length === 0}>承認して維持</button>
-              <button onClick={() => apply('reset')} disabled={loading || selected.length === 0}>選択をリセット</button>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-          <div>
-            <strong>除外済み</strong>: {res.excluded_columns?.join(', ') || 'なし'}
-          </div>
-          <div>
-            <strong>承認済み</strong>: {res.acknowledged_columns?.join(', ') || 'なし'}
-          </div>
-          <div>検出ルール: {res.rules_matched.join(', ') || 'なし'}</div>
-          {res.updated_at && <div>最終更新: {new Date(res.updated_at).toLocaleString()}</div>}
-        </div>
-      )}
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <StatusPill label="除外済み" values={result.excluded_columns} accent="brand" />
+              <StatusPill label="承認済み" values={result.acknowledged_columns} accent="emerald" />
+              <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                <p className="text-xs uppercase tracking-widest text-slate-400">最終更新</p>
+                <p>{result.updated_at ? new Date(result.updated_at).toLocaleString() : '未登録'}</p>
+              </div>
+            </div>
+          </CardContent>
+        )}
+
+        <CardFooter className="flex flex-wrap gap-3">
+          <Button
+            variant="primary"
+            disabled={!result || selected.length === 0}
+            loading={loading}
+            icon={<ShieldCheck className="h-4 w-4" />}
+            onClick={() => apply('exclude')}
+          >
+            除外して再計算
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={!result || selected.length === 0}
+            onClick={() => apply('acknowledge')}
+          >
+            承認して維持
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={!result || selected.length === 0}
+            icon={<RefreshCw className="h-4 w-4" />}
+            onClick={() => apply('reset')}
+          >
+            選択をリセット
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  );
+}
+
+function StatusPill({
+  label,
+  values,
+  accent,
+}: {
+  label: string;
+  values?: string[];
+  accent: 'brand' | 'emerald';
+}) {
+  const color = accent === 'emerald' ? 'text-emerald-700 bg-emerald-50' : 'text-brand-700 bg-brand-50';
+  return (
+    <div className={`rounded-2xl px-4 py-3 text-sm ${color}`}>
+      <p className="text-xs uppercase tracking-widest">{label}</p>
+      <p>{values && values.length ? values.join(', ') : 'なし'}</p>
     </div>
   );
 }

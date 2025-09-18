@@ -76,4 +76,34 @@ jobs:
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
       - run: npx playwright test --reporter=line,html
+      - name: Build Storybook static
+        run: npm run storybook:build
+      - name: Check Storybook snapshot presence
+        run: |
+          if [ -d tests/storybook/__screenshots__ ]; then
+            echo "SNAPSHOT_EXISTS=true" >> $GITHUB_ENV
+          else
+            echo "SNAPSHOT_EXISTS=false" >> $GITHUB_ENV
+          fi
+      - name: Storybook visual regression
+        if: env.SNAPSHOT_EXISTS == 'true'
+        run: npm run storybook:test
+      - name: Storybook create baseline snapshots (first run)
+        if: env.SNAPSHOT_EXISTS != 'true'
+        run: npm run storybook:test -- --update-snapshots
+        continue-on-error: true
+      - name: Upload Storybook snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: storybook-snapshots
+          path: tests/storybook/__screenshots__
+          if-no-files-found: ignore
+      - name: Upload Storybook visual report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: storybook-playwright-report
+          path: test-results/storybook
+          if-no-files-found: ignore
       - run: npm run build:web

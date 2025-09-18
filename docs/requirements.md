@@ -1,193 +1,183 @@
-## アプリ/ツール案（LLM活用）— **AutoEDAアシスタント**
+## AutoEDA アシスタント — 要件定義 (2025-09-18 更新)
 
-* **名前**: AutoEDAアシスタント
-* **ターゲットユーザー**: DS/DE/PM（飲食・小売・通信の案件横断）
-* **コア課題 / JTBD**: 「アップロード or 接続したデータを即座に品質診断・可視化し、次アクション（特徴量/仮説/追加データ要望）まで一気通貫で提案したい」
-* **LLM設計（RAG/エージェント/関数呼び出し/構造化出力）**:
-
-  * *RAG*: 社内データ辞書・ドメイン規約・可視化スタイルガイドをベクトルDB化し、要約や説明の根拠付けに利用
-  * *エージェント*: 「プロファイリング→可視化→診断→提案」のサブルーチンをツール呼び出しで連携（`profile_api`, `chart_api`, `stats_api`, `pii_scan`）
-  * *構造化出力*: JSON Schemaで `distributions[]`, `key_features[]`, `outliers[]`, `data_quality_report`, `next_actions[]` を必須化
-  * *プロンプト方針*: System/Developer/Userの分層。数値はツール結果のみ採用、LLMの推測は禁止。
-  * *キャッシュ/再ランク*: データ辞書Q\&Aは結果を短期キャッシュ、根拠文書は再ランクでTop-k選出
-* **差別化キーフィーチャ（例）**:
-
-  1. 反証探索CoT（矛盾チェック指示）、2) ソース自動引用（図表/セル範囲/クエリID）、3) セマンティック監査（説明と統計値の整合判定）、4) 期待値テスト（しきい値逸脱を警告）、5) PII/リーク検査、6) チャート自動推奨（目的×データ型で選択）
-* **品質向上メカニズム**: ツール実行結果→LLM要約→検証器（ルール&軽量LLM）→再質問（不足根拠を検索）の4段ループ。Groundedness/引用被覆率/ハルシネーション率@kを継続測定。
-* **セキュリティ/プライバシー/ガードレール**: Prompt Injectionフィルタ、PIIマスキング（列推定＋辞書）、権限ベースのデータアクセス、出力ポリシーチェック（機密語リスト）
-* **KPI**（先行/遅行）: 先行= groundedness≥0.9、引用被覆率≥0.8、一次解決率↑ / 遅行= EDA工数▲50%・着手〜一次仮説提示LT▲40%・案件粗利%↑・SLA遵守
-* **参考アーキテクチャ（Text図）**:
-
-  ```
-  Sources(DB/CSV/BI/Docs)
-        └─ ETL & Profiling (stats_api, pii_scan)
-             └─ Chunking/Embeddings → VectorDB
-                  └─ Retriever + Reranker
-                       └─ Orchestrator(EDA Agent)
-                            ├─ Policy/Safety
-                            ├─ Tool Calls: profile_api | chart_api | sql_sampler
-                            └─ LLM (structured JSON)
-                                   └─ Evaluator(groundedness/consistency)
-                                        └─ Observability(Log/metrics/traces)
-  ```
-* **Build vs Buy・主要リスクと軽減策**:
-
-  * *Build*: 既存OSS（pandas-profiling系/統計API）とRAG基盤を統合。高いカスタマイズ性。
-  * *Buy*: BI/ETL製品にLLM機能を付与。導入は速いがドメイン適合が限定的。
-  * *リスク*: 大規模データ時のレイテンシ/コスト、LLMの過大一般化、PII取り扱い。→ サンプリング＋前段要約、関数結果のみ採用、厳格なPIIポリシー・監査で軽減。
+- **目的**: CSV など表形式データを対象に、プロファイル生成から可視化提案、根拠付き Q&A、次アクション、品質監査、再現レシピまでを一気通貫で支援する。
+- **対象ユーザー**: DS / DE / PM。社内データ辞書・規約を参照する RAG/LLM を想定するが、未設定時はツールのみで動作すること。
+- **LLM 設計方針**: RAG (Chroma / in-memory), エージェントレス (直接 SDK 呼び出し)、構造化 JSON、数値はツール出力のみ採用。
+- **非機能 (共通)**: groundedness ≥ 0.9、引用被覆率 ≥ 0.8、p95 レイテンシはストーリーごとの上限を維持、LLM 未設定時はフォールバック警告を表示。イベントログ (`data/metrics/events.jsonl`) に記録し `check_slo.py` で検証する。
 
 ---
 
-## ユーザーストーリー（LLM前提）— **Epic: AutoEDAでデータ探索と品質診断を自動化**
+## Capability U: データセット管理
 
-### Capability A: **データ概要レポート生成**
+### Story U1: CSV アップロードと登録 (バックログ / API 実装済み)
 
-**Story A1: CSVアップロードからの即時プロファイリング**
+- **Given** ユーザーが `sales.csv` をアップロードする
+- **When** `POST /api/datasets/upload` に渡す
+- **Then** `dataset_id` を払い出し、`data/datasets/ds_xxxx.csv` に保存し、`index.json` にメタデータを追加する
+- **受入れ基準**:
+  - 100MB 超または 50 列超は `413`/`400` を返す
+  - 登録後に `GET /api/datasets` で一覧へ反映
+  - `.meta.json` に PII 初期値 (`MASK`, 空配列) を格納
+- **実装状況**: API 完了 (`apps/api/main.py:95`)、UI 未実装 (`docs/wireframe.md` バックログ)
 
-* **Given** ユーザーがCSV（≤50列・≤100万行）をアップロードし「EDA開始」を選ぶ
-* **When** システムが `profile_api` と `pii_scan` を実行し、結果をLLMに渡す
-* **Then** `distributions`, `key_features`, `outliers`, `data_quality_report`, `next_actions` を含むJSONを返す（各セクションは根拠リンク付き）
-* **受け入れ基準**:
+### Story U2: データセット一覧 (実装済み)
 
-  * p95レイテンシ≤10s（サンプリング許可時）
-  * `data_quality_report.issues[]` に重大度・根拠（列名/統計）必須
-  * groundedness≥0.9、ハルシネーション率@5≤2%
-* **KPI**: 初回レポート一次合格率、EDA工数削減率、引用被覆率
-* **LLM非機能**: 予算≤1.0円/1K tokens、可用性≥99.9%、応答最大50KB、モデル切替（高精度↔軽量）
-* **Observabilityイベント**:
-
-  * `event_name`: `EDAReportGenerated`
-  * `properties`: `{user_id, dataset_id, rows, cols, sample_ratio, model_id, tokens_used, duration_ms, groundedness}`
-  * `pii_flag`: true（内部で検知→結果はマスク）
-  * `retention`: 90d
-  * `prompt_hash`: `eda_v1_a1`
-  * `tool_calls`: `[{"name":"profile_api","success":true},{"name":"pii_scan","success":true}]`
-
-**Story A2: チャート自動生成と説明文の整合性検査**
-
-* **Given** A1の結果があり、ユーザーが「可視化を自動提案」を実行
-* **When** システムが `chart_api` で候補チャート（上位5件）を作成し、LLMが各チャートの説明文を生成
-* **Then** 説明文に使用統計と図表IDの引用を付与し、整合性検査を通過したもののみ返す
-* **受け入れ基準**: 説明と統計の一致率≥0.95、p95レイテンシ≤6s、JSONに `charts[i].explanation` と `source_ref` 必須
-* **KPI**: 採用チャート率、誤説明検出率（内部監査器の検知）
-* **LLM非機能**: 0.6円/1K tokens上限、レスポンス差分配信（ストリーミング）
-* **Observability**:
-
-  * `event_name`: `ChartsSuggested`
-  * `properties`: `{dataset_id, chart_count, model_id, tokens_used, consistency_score}`
-  * `pii_flag`: false
-  * `prompt_hash`: `eda_v1_a2`
-  * `tool_calls`: `[{"name":"chart_api","count":5}]`
+- **Given** `data/datasets/index.json` に 2 件登録済み
+- **When** `GET /api/datasets` を呼び出す
+- **Then** `{id, name, rows, cols}` の配列を返す
+- **受入れ基準**: 0 件の場合でも 200 を返す、`packages/client-sdk` はフォールバックデータを提供
+- **Observability**: なし (今後 `DatasetsListed` 等を追加検討)
 
 ---
 
-### Capability B: **インタラクティブQ\&Aと仮説提案**
+## Capability A: データ概要レポート生成
 
-**Story B1: 影響要因の自然言語質問に対する根拠付き回答**
+### Story A1: 即時プロファイリング (実装済み)
 
-* **Given** ユーザーが「売上に効く上位要因は？」と質問
-* **When** システムが相関/重要度統計を `stats_api` で算出し、RAGでドメイン規約を参照
-* **Then** LLMが「上位要因・推定効果・注意点」をJSONで返し、すべてに統計根拠リンクを付与
-* **受け入れ基準**: 回答中の数値はツール出力に一致、引用被覆率≥0.8、p95≤4s
-* **KPI**: 一時解決率、追質問の解消率、groundedness
-* **LLM非機能**: 0.5円/1K tokens上限、セッション要約で履歴トークン圧縮
-* **Observability**:
+- **Given** dataset_id が存在
+- **When** `POST /api/eda {dataset_id}` を呼ぶ
+- **Then** `EDAReport` (summary/distributions/key_features/outliers/data_quality_report/next_actions/references) を返す
+- **受入れ基準**:
+  - p95 レイテンシ ≤ 10 秒 (`EDAReportGenerated.duration_ms`)
+  - groundedness ≥ 0.9（LLM 成功時）
+  - フォールバック時は references に `tool:` を含め、UI が警告バナーを表示
+  - 欠損率 30%以上の列は `data_quality_report.issues[]` に追加
+  - イベント: `EDAReportGenerated` (dataset_id, sample_ratio, groundedness, duration_ms, fallback_applied)
+- **実装参照**: `apps/api/services/tools.py::profile_api`, `apps/api/services/orchestrator.py`
 
-  * `event_name`: `EDAQueryAnswered`
-  * `properties`: `{question, model_id, tokens_used, references, duration_ms}`
-  * `pii_flag`: false
-  * `prompt_hash`: `eda_v1_b1`
-  * `tool_calls`: `[{"name":"stats_api","success":true},{"name":"vector_search","k":6}]`
+### Story A2: チャート自動提案 (実装済み)
 
-**Story B2: 次アクション（仮説・追加データ要求・前処理提案）の提示**
-
-* **Given** B1の結果を受け、ユーザーが「次に何をすべきか？」と要求
-* **When** システムが品質課題・ビジネス目的・可用データを照合
-* **Then** 「追加データ要望」「前処理レシピ」「検証実験案（AB/オフライン）」を優先度付きでJSON返却
-* **受け入れ基準**: `next_actions[]` に *impact*・*effort*・*confidence* を数値で付与、WSJF/RICEのスコア提示
-* **KPI**: 次アクション採択率、着手までのLT短縮
-* **LLM非機能**: p95≤3s、0.3円/1K tokens上限
-* **Observability**:
-
-  * `event_name`: `NextActionsProposed`
-  * `properties`: `{action_count, prioritized_by, model_id, tokens_used}`
-  * `pii_flag`: false
-  * `prompt_hash`: `eda_v1_b2`
-  * `tool_calls`: `[]`
+- **When** `POST /api/charts/suggest {dataset_id, k=5}`
+- **Then** `charts[]` を返し、各項目に `consistency_score >= 0.95` を付与
+- **受入れ基準**:
+  - 説明文に `source_ref` を含める
+  - trend と診断値 (correlation) が矛盾しない (`evaluator.consistency_ok`)
+  - p95 レイテンシ ≤ 6 秒 (`ChartsSuggested.duration_ms`)
+- **Observability**: `ChartsSuggested {dataset_id, k, count, duration_ms}`
 
 ---
 
-### Capability C: **データ品質・PII・リーク検査**
+## Capability B: 根拠付き Q&A と次アクション
 
-**Story C1: PII自動検出とマスキング**
+### Story B1: 根拠付き回答 (実装済み / LLM 未接続時はテンプレ)
 
-* **Given** アップロードデータに氏名/電話/メール等が含まれる可能性
-* **When** `pii_scan` が列型推定＋辞書照合を実行し、LLMが説明を要約
-* **Then** マスク方針（表示/保存/送信）を自動適用し、結果を監査ログに記録
-* **受け入れ基準**: PII検知再現率≥0.95、誤検知率≤0.05、監査イベント必須
-* **KPI**: PII漏えい率→0、監査指摘件数↓
-* **LLM非機能**: 安全ポリシー強制（機密語禁止）、レスポンスにPIIを含まないこと
-* **Observability**:
+- **When** `POST /api/qna {dataset_id, question}`
+- **Then** `answers[]` を返し、coverage ≥ 0.8、引用を重複排除
+- **受入れ基準**:
+  - 数値はツール出力（モックでは固定文言）
+  - イベント: `EDAQueryAnswered {dataset_id, coverage, duration_ms}`
+  - LLM を有効化した場合は `orchestrator._invoke_llm_agent` が JSON をマージ
 
-  * `event_name`: `PIIMasked`
-  * `properties`: `{dataset_id, detected_fields, mask_policy, model_id}`
-  * `pii_flag`: true
-  * `retention`: 180d
-  * `prompt_hash`: `eda_v1_c1`
-  * `tool_calls`: `[{"name":"pii_scan","success":true}]`
+### Story B1-2: 追質問フォローアップ (実装済み)
 
-**Story C2: データリークリスク（ターゲット漏洩）検査**
+- **When** `POST /api/followup`
+- **Then** coverage を 0.85 以上に保ち、回答冒頭に `フォローアップ:` を付与
 
-* **Given** 教師ありタスク用のEDAで、目的変数と説明変数の関係を点検
-* **When** システムが「未来情報/集計後列/リーク疑い列」をルール＆軽量LLMでスクリーニング
-* **Then** リスク列をフラグし、根拠（生成ロジック/タイムスタンプ関係）を提示
-* **受け入れ基準**: 既知リーク疑似データでの検出率≥0.9、誤警告≤0.1
-* **KPI**: 後工程の再学習率↓、本番ドリフト低減
-* **LLM非機能**: p95≤5s
-* **Observability**:
+### Story B2: 次アクション優先度付け (実装済み)
 
-  * `event_name`: `LeakageRiskFlagged`
-  * `properties`: `{dataset_id, flagged_columns, rules_matched, model_id}`
-  * `pii_flag`: false
-  * `prompt_hash`: `eda_v1_c2`
-  * `tool_calls`: `[{"name":"stats_api","checks":["time_causality","aggregation_trace"]}]`
+- **When** `POST /api/actions/prioritize`
+- **Then** 入力配列に対して WSJF / RICE / score を算出し降順ソート
+- **受入れ基準**:
+  - score = WSJF。impact/effort/confidence は 0..1 にクリップ
+  - イベント: `ActionsPrioritized {dataset_id, count}`
 
 ---
 
-### Capability D: **再現可能なEDAレシピ出力**
+## Capability C: 品質・セキュリティ検査
 
-**Story D1: ノートブック/SQL/ワークフローの自動生成**
+### Story C1: PII 検出とマスキング (実装済み)
 
-* **Given** A1〜C2の結果が確定
-* **When** ユーザーが「再現レシピを出力」を選択
-* **Then** `recipe.json`（手順/パラメータ）、`eda.ipynb`、`sampling.sql` を生成し、すべてにハッシュとバージョンを付与
-* **受け入れ基準**: 生成物の実行でA1の主要統計が±1%以内で再現、依存関係リストを同梱
-* **KPI**: 再現失敗率≤2%、引き継ぎ工数↓
-* **LLM非機能**: p95≤8s、0.8円/1K tokens上限
-* **Observability**:
+- **When** `POST /api/pii/scan {dataset_id, columns}`
+- **Then** `detected_fields`, `mask_policy`, `masked_fields`, `updated_at` を返す
+- **受入れ基準**:
+  - デフォルトは email/phone/ssn を探索
+  - `apply` 実行後に `.meta.json` が更新され、`pii.scan` が最新状態を返す
+  - イベント: `PIIMasked {dataset_id, detected_fields, mask_policy}`
 
-  * `event_name`: `EDARecipeEmitted`
-  * `properties`: `{artifact_hash, files:["recipe.json","eda.ipynb","sampling.sql"], model_id, tokens_used}`
-  * `pii_flag`: false
-  * `prompt_hash`: `eda_v1_d1`
-  * `tool_calls`: `[{"name":"codegen_api","targets":["ipynb","sql"]}]`
+### Story C2: リーク検査と対応 (実装済み)
+
+- **When** `POST /api/leakage/scan`
+- **Then** `flagged_columns`, `rules_matched`, `excluded_columns`, `acknowledged_columns` を返す
+- **受入れ基準**:
+  - `resolve` の action = exclude/acknowledge/reset で `.meta.json` を更新
+  - イベント: `LeakageRiskFlagged {dataset_id, flagged, rules_matched}` / `LeakageResolutionApplied`
 
 ---
 
-### Capability E: **継続対話と高速応答**
+## Capability D: 再現レシピ
 
-**Story E1: セッション要約と高速フォローアップ**
+### Story D1: ノートブック/SQL/JSON 生成 (実装済み)
 
-* **Given** 直近の対話履歴が長くなっている
-* **When** システムが履歴を要約バッファに圧縮し、軽量モデルへ切替
-* **Then** フォローアップ質問にp95≤2sで回答（数値はキャッシュ参照、計算は必要時のみ）
-* **受け入れ基準**: 重要コンテキスト保持率≥0.95、誤回答率≤0.05
-* **KPI**: レスポンス満足度、継続利用率
-* **LLM非機能**: 0.2円/1K tokens上限、rps≥5（同時ユーザー対応）
-* **Observability**:
+- **When** `POST /api/recipes/emit`
+- **Then** `artifact_hash`, `files[]`, `summary`, `measured_summary` を返す
+- **受入れ基準**:
+  - `recipes.compute_summary` の結果が ±1% 以内 (`recipes.within_tolerance`)
+  - 再現誤差が閾値超過の場合は 400 (例外) を返す
+  - イベント: `EDARecipeEmitted {artifact_hash, files}`
 
-  * `event_name`: `FollowupAnswered`
-  * `properties`: `{session_id, summary_tokens, model_id, duration_ms}`
-  * `pii_flag`: false
-  * `prompt_hash`: `eda_v1_e1`
-  * `tool_calls`: `[]`
+---
+
+## Capability S: システム設定 / オペレーション
+
+### Story S1: LLM 資格情報管理 (実装済み)
+
+- **When** `GET /api/credentials/llm` を呼ぶ
+- **Then** 有効プロバイダ (`provider`)、設定状態 (`configured`)、各プロバイダの状態を返す
+
+- **When** `POST /api/credentials/llm {provider, api_key}`
+- **Then** `config/credentials.json` (または `AUTOEDA_CREDENTIALS_FILE` で指定されたファイル) を更新する
+- **受入れ基準**:
+  - 空キーは 400 を返す (`CredentialUpdateRequest._ensure_api_key`)
+  - 成功時は 204 を返し `LLMCredentialsUpdated` イベントを記録
+  - Settings ページで状態が即時反映
+
+### Story S2: メトリクス監査 (実装済み)
+
+- **When** CLI で `python3 apps/api/scripts/check_slo.py` を実行
+- **Then** `data/metrics/events.jsonl` を読み、閾値違反時に exit code 1 を返す
+- **When** `python3 apps/api/scripts/check_rag.py` を実行
+- **Then** RAG ゴールデンセットの欠落クエリを列挙する
+
+---
+
+## KPI / モニタリング指標
+
+| 指標 | 目標 | 取得方法 |
+| ---- | ---- | -------- |
+| groundedness | ≥ 0.9 | `EDAReportGenerated.groundedness` (LLM 成功時) |
+| 引用被覆率 | ≥ 0.8 | Q&A 応答 (`coverage`)、Actions/Recipes は参照表示で確認 |
+| p95 レイテンシ | A1: ≤10s / A2: ≤6s / B1: ≤4s / C1: ≤4s / C2: ≤5s / D1: ≤8s | `check_slo.py` |
+| LLM フォールバック率 | <10% (開発中) | `EDAReportGenerated.fallback_applied` |
+| PII/リーク検出完了率 | 100% | `.meta.json` の `updated_at` を追跡 |
+| レシピ再現成功率 | 100% | `recipes.within_tolerance` 成功/失敗ログ |
+
+---
+
+## セキュリティ / コンプライアンス
+
+- Secrets は `config/credentials.json` にのみ保存し、リポジトリへコミットしない。
+- PII/リークの操作履歴は `.meta.json` に残し、手動でのデータ持ち出し時に参照。
+- Playwright/E2E ではモックデータのみを扱う。
+
+---
+
+## トレーサビリティ
+
+| Story | 主要コード | UI | テスト |
+| ------ | ---------- | -- | ------ |
+| U2 | `apps/api/main.py:109`, `storage.list_datasets` | `DatasetsPage` | `tests/python/test_storage.py` (存在する場合) |
+| A1 | `orchestrator.generate_eda_report` | `EdaPage` | `tests/python/test_orchestrator.py` (LLM 無し) |
+| A2 | `tools.chart_api`, `evaluator.consistency_ok` | `ChartsPage` | `tests/python/test_charts.py` (TODO) |
+| B1/B2 | `tools.stats_qna`, `tools.prioritize_actions` | `QnaPage`, `ActionsPage` | `packages/client-sdk` のユニットテスト (TODO) |
+| C1/C2 | `tools.pii_scan`, `tools.leakage_scan` | `PiiPage`, `LeakagePage` | `tests/python/test_pii.py`, `test_leakage.py` (TODO) |
+| D1 | `tools.recipe_emit`, `recipes.*` | `RecipesPage` | `tests/python/test_recipes.py` |
+| S1 | `config.py`, `SettingsPage` | `SettingsPage` | `tests/python/test_credentials.py` |
+
+テストが未整備の箇所は `TODO` として明記し、`docs/task.md` にタスクを追加する。
+
+---
+
+## 変更履歴
+
+- 2025-09-18: 実装内容と同期。LangChain への依存を削除。LLM 資格情報・フォールバック・メトリクス要件を追加。
+- 2025-09-15: 初版 (仕様草案)。
