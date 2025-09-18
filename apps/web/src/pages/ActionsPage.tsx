@@ -12,6 +12,7 @@ import {
 } from '../components/ui/Card';
 import { Button } from '@autoeda/ui-kit';
 import { ClipboardCheck, BarChart3, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Pill } from '../components/ui/Pill';
 import { useLastDataset } from '../contexts/LastDatasetContext';
 
 export function ActionsPage() {
@@ -98,9 +99,18 @@ export function ActionsPage() {
                     </div>
                   </div>
                   <div className="mt-3 grid gap-4 sm:grid-cols-3">
-                    <MetricPill label="Impact" value={`${Math.round(action.impact * 100)}%`} accent="emerald" />
-                    <MetricPill label="Effort" value={`${Math.round(action.effort * 100)}%`} accent="orange" />
-                    <MetricPill label="Confidence" value={`${Math.round(action.confidence * 100)}%`} accent="brand" />
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <p className="text-xs uppercase tracking-widest text-slate-400">Impact</p>
+                      <div className="mt-1"><Pill tone="emerald">{`${Math.round(action.impact * 100)}%`}</Pill></div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <p className="text-xs uppercase tracking-widest text-slate-400">Effort</p>
+                      <div className="mt-1"><Pill tone="amber">{`${Math.round(action.effort * 100)}%`}</Pill></div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <p className="text-xs uppercase tracking-widest text-slate-400">Confidence</p>
+                      <div className="mt-1"><Pill tone="brand">{`${Math.round(action.confidence * 100)}%`}</Pill></div>
+                    </div>
                   </div>
                   {action.dependencies?.length ? (
                     <p className="mt-3 text-xs text-slate-500">依存タスク: {action.dependencies.join(', ')}</p>
@@ -183,24 +193,4 @@ export function ActionsPage() {
   );
 }
 
-function MetricPill({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent: 'emerald' | 'orange' | 'brand';
-}) {
-  const colorMap = {
-    emerald: 'bg-emerald-100 text-emerald-700',
-    orange: 'bg-orange-100 text-orange-700',
-    brand: 'bg-brand-50 text-brand-700',
-  };
-  return (
-    <div className={`rounded-2xl px-4 py-3 ${colorMap[accent]}`}>
-      <p className="text-xs uppercase tracking-widest">{label}</p>
-      <p className="text-base font-semibold">{value}</p>
-    </div>
-  );
-}
+// MetricPill は Pill を用いた置換によりDRY化しました

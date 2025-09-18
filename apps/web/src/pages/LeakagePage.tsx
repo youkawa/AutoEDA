@@ -13,6 +13,7 @@ import {
 } from '../components/ui/Card';
 import { useLastDataset } from '../contexts/LastDatasetContext';
 import { AlertTriangle, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Pill } from '../components/ui/Pill';
 
 type LeakageAction = 'exclude' | 'acknowledge' | 'reset';
 
@@ -95,8 +96,26 @@ export function LeakagePage() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
-              <StatusPill label="除外済み" values={result.excluded_columns} accent="brand" />
-              <StatusPill label="承認済み" values={result.acknowledged_columns} accent="emerald" />
+              <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                <p className="text-xs uppercase tracking-widest text-slate-400">除外済み</p>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {(result.excluded_columns ?? []).length === 0 ? (
+                    <span className="text-slate-500">なし</span>
+                  ) : (
+                    result.excluded_columns.map((v) => <Pill key={v} tone="brand">{v}</Pill>)
+                  )}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                <p className="text-xs uppercase tracking-widest text-slate-400">承認済み</p>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {(result.acknowledged_columns ?? []).length === 0 ? (
+                    <span className="text-slate-500">なし</span>
+                  ) : (
+                    result.acknowledged_columns.map((v) => <Pill key={v} tone="emerald">{v}</Pill>)
+                  )}
+                </div>
+              </div>
               <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
                 <p className="text-xs uppercase tracking-widest text-slate-400">最終更新</p>
                 <p>{result.updated_at ? new Date(result.updated_at).toLocaleString() : '未登録'}</p>
@@ -136,20 +155,4 @@ export function LeakagePage() {
   );
 }
 
-function StatusPill({
-  label,
-  values,
-  accent,
-}: {
-  label: string;
-  values?: string[];
-  accent: 'brand' | 'emerald';
-}) {
-  const color = accent === 'emerald' ? 'text-emerald-700 bg-emerald-50' : 'text-brand-700 bg-brand-50';
-  return (
-    <div className={`rounded-2xl px-4 py-3 text-sm ${color}`}>
-      <p className="text-xs uppercase tracking-widest">{label}</p>
-      <p>{values && values.length ? values.join(', ') : 'なし'}</p>
-    </div>
-  );
-}
+// StatusPill は Pill に置換しDRY化
