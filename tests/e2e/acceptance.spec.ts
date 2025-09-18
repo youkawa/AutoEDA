@@ -3,32 +3,31 @@ import { test, expect } from '@playwright/test';
 test.describe('Acceptance scenarios', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
-    await page.click('text=Datasets');
-    await page.click('text=sales.csv');
-    await expect(page.getByRole('heading', { name: 'EDA 概要' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'データセットを選択' })).toBeVisible();
+    await page.getByRole('button', { name: 'データセットを選択' }).click();
+    const row = page.locator('tr', { hasText: 'sales.csv' }).first();
+    await row.getByRole('button', { name: 'EDA を開始' }).click();
+    await expect(page.getByText('データ品質トリアージ')).toBeVisible();
   });
 
   test('A2 charts suggestions surface consistent candidates', async ({ page }) => {
-    await page.click('text=可視化を自動提案');
-    await expect(page.getByRole('heading', { name: 'Charts 候補' })).toBeVisible();
-    const firstCandidate = page.locator('h1:has-text("Charts 候補") + ul li').first();
-    await expect(firstCandidate).toContainText('consistency:');
-    await expect(firstCandidate).toContainText('根拠:');
-    await expect(page.locator('ul li').filter({ hasText: 'consistency: 90' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'チャート提案を見る' }).click();
+    await expect(page.getByRole('heading', { name: 'チャート提案' })).toBeVisible();
+    await expect(page.getByText('整合性チェック済み')).toBeVisible();
+    await expect(page.getByText(/根拠:/)).toBeVisible();
   });
 
   test('B1 Q&A response maintains citation coverage', async ({ page }) => {
     await page.getByRole('link', { name: 'Q&A' }).click();
-    await expect(page.getByRole('heading', { name: 'Q&A' })).toBeVisible();
-    await page.getByRole('button', { name: '質問する' }).click();
+    await expect(page.getByText('根拠付き Q&A')).toBeVisible();
+    await page.getByRole('button', { name: '分析を実行' }).click();
     await expect(page.getByRole('heading', { name: '回答' })).toBeVisible();
     await expect(page.getByText(/引用被覆率/)).toContainText('%');
   });
 
   test('C1 PII workflow lists detected fields with mask options', async ({ page }) => {
-    await page.getByRole('link', { name: 'PII' }).click();
-    await expect(page.getByRole('heading', { name: 'PII スキャン' })).toBeVisible();
+    await page.getByRole('link', { name: 'PII検出' }).click();
+    await expect(page.getByText('PII スキャン結果')).toBeVisible();
     await expect(page.getByText('検出フィールド')).toBeVisible();
     await expect(page.getByRole('button', { name: 'マスクを適用して再計算' })).toBeEnabled();
     const checkbox = page.getByRole('checkbox').first();
@@ -42,19 +41,18 @@ test.describe('Acceptance scenarios', () => {
   });
 
   test('B2 Next Actions view exposes fallback and references', async ({ page }) => {
-    await page.getByRole('link', { name: 'Next Actions' }).click();
-    await expect(page.getByRole('heading', { name: 'Next Actions' })).toBeVisible();
-    await expect(page.getByText('LLMフォールバック: ツール要約のみ表示中')).toBeVisible();
-    await page.getByRole('button', { name: '引用ビュー' }).click();
-    await expect(page.getByText('参照一覧')).toBeVisible();
-    await expect(page.getByText(/tool:/)).toBeVisible();
+    await page.getByRole('link', { name: '次アクション' }).click();
+    await expect(page.getByText('推奨アクション・優先度')).toBeVisible();
+    await expect(page.getByText(/LLM フォールバック/)).toBeVisible();
+    await page.getByRole('button', { name: '引用を確認' }).click();
+    await expect(page.getByText(/(ツール由来|検証済み)/).first()).toBeVisible();
   });
 
   test('C2 Leakage page lists flagged columns', async ({ page }) => {
-    await page.getByRole('link', { name: 'Leakage' }).click();
+    await page.getByRole('link', { name: 'リーク検査' }).click();
     await expect(page.getByRole('heading', { name: 'リーク検査' })).toBeVisible();
     await expect(page.getByText('検出されたリーク候補')).toBeVisible();
-    const firstCheckbox = page.locator('ul li input[type="checkbox"]').first();
+    const firstCheckbox = page.getByRole('checkbox').first();
     await expect(firstCheckbox).toBeVisible();
     await firstCheckbox.click();
     const excludeButton = page.getByRole('button', { name: '除外して再計算' });
@@ -65,14 +63,14 @@ test.describe('Acceptance scenarios', () => {
   });
 
   test('D1 Recipes page shows artifacts and warnings', async ({ page }) => {
-    await page.getByRole('link', { name: 'Recipes' }).click();
-    await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
-    await expect(page.getByText('artifact_hash:')).toBeVisible();
-    await expect(page.getByText('LLMフォールバック: ツール要約のみ表示中')).toBeVisible();
+    await page.getByRole('link', { name: 'レシピ出力' }).click();
+    await expect(page.getByText('再現レシピと成果物')).toBeVisible();
+    await expect(page.getByText('artifact_hash')).toBeVisible();
+    await expect(page.getByText('recipe.json')).toBeVisible();
+    await expect(page.getByText(/LLM フォールバック/)).toBeVisible();
 
-    await page.getByRole('button', { name: '引用ビュー' }).click();
-    await expect(page.getByText('参照一覧')).toBeVisible();
-    await expect(page.locator('ul li').filter({ hasText: 'tool:' })).toHaveCount(1);
+    await page.getByRole('button', { name: '引用を確認' }).click();
+    await expect(page.getByText(/(ツール由来|検証済み)/).first()).toBeVisible();
 
     await page.getByRole('button', { name: '統計ビュー' }).click();
     const statsItems = page.locator('section').filter({ hasText: '再現統計' }).locator('li');
@@ -95,7 +93,7 @@ test.describe('Acceptance scenarios', () => {
       expect(withinTolerance(baseCols, cols)).toBeTruthy();
       expect(withinTolerance(baseMissing, missingRate)).toBeTruthy();
     } else {
-      await expect(page.getByText('LLMフォールバック: ツール要約のみ表示中')).toBeVisible();
+      await expect(page.getByText(/LLM\s*フォールバック/)).toBeVisible();
     }
   });
 });

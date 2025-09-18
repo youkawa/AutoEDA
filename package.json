@@ -18,14 +18,18 @@
     "schema:validate": "tsx scripts/validate_schemas.ts",
     "check:slo": "python3 apps/api/scripts/check_slo.py",
     "check:rag": "python3 apps/api/scripts/check_rag.py",
-    "report:merge": "python3 apps/api/scripts/merge_quality_reports.py"
+    "report:merge": "python3 apps/api/scripts/merge_quality_reports.py",
+    "storybook:build": "npm run -w @autoeda/web build-storybook",
+    "storybook:test": "playwright test --config tests/storybook/playwright.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.47.2",
+    "esbuild": "^0.18.20",
+    "http-server": "^14.1.1",
     "husky": "^9.1.6",
     "ts-node": "^10.9.2",
+    "tsx": "^4.15.7",
     "typescript": "^5.5.3",
-    "zod-to-json-schema": "^3.23.5",
-    "tsx": "^4.15.7"
+    "zod-to-json-schema": "^3.23.5"
   }
 }

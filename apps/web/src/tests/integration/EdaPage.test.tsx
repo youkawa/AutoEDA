@@ -13,12 +13,11 @@ describe('EdaPage', () => {
         </Routes>
       </MemoryRouter>
     );
-    expect(screen.getByText('読み込み中...')).toBeTruthy();
-    const text = await screen.findByText(/欠損が多い/);
-    expect(text).toBeTruthy();
-    expect(await screen.findByText('LLMフォールバック: ツール要約のみ表示中')).toBeTruthy();
+    expect(screen.getByLabelText('loading')).toBeTruthy();
+    // コンテンツ表示後の主要セクション
+    expect(await screen.findByText('データ品質トリアージ')).toBeTruthy();
+    // 引用ビューに切り替え、参照ソースの一部（テーブル要約）を確認
     fireEvent.click(screen.getByRole('button', { name: '引用ビュー' }));
-    expect(await screen.findByText('参照一覧')).toBeTruthy();
     expect(await screen.findByText(/tbl:summary/)).toBeTruthy();
   });
 });

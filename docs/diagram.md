@@ -1,194 +1,188 @@
-# AutoEDA（プロトタイピング版）画面遷移図
+# AutoEDA 画面/状態図 (2025-09-18 時点)
 
-> `requirements.md` の設計方針に合わせ、**A1〜D1**の主要フローをページ（四角）／モーダル（丸角）／分岐（ひし形）で記載。
-> ルーティングは \*\*/（Next.js 互換）\*\*の想定ですが、Vite でも同等に実装可能です。
+`docs/requirements.md` のストーリー A1〜D1, C1/C2, S1 を、現行実装 (`apps/web/src/pages/*`) に合わせて図示する。React Router によるシングルページ構成で、サイドバー (`App.tsx`) から主要ページへ遷移する。
 
 ---
 
-## 1) サイトマップ（全体俯瞰）
+## 1. サイトマップ (Router)
 
 ```mermaid
-flowchart LR
-  subgraph Global Navigation
-    L[Login/Setup（任意）]:::muted
-    H[/Home: / /]
-    D[/Datasets: /datasets/]
-    E[/EDA: /eda/:dataset_id/]
-    C[/Charts: /charts/:dataset_id/]
-    Q[/Q&A: /qna/:dataset_id/]
-    N[/Next Actions: /actions/:dataset_id/]
-    P[/PII: /pii/:dataset_id/]
-    K[/Leakage: /leakage/:dataset_id/]
-    R[/Recipes: /recipes/:dataset_id/]
-    G[/Settings: /settings/]
-  end
+graph LR
+  Home[/Home (/)/]
+  Datasets[/Datasets (/datasets)/]
+  Settings[/Settings (/settings)/]
+  EDA[/EDA Summary (/eda/:datasetId)/]
+  Charts[/Charts (/charts/:datasetId)/]
+  QnA[/Q&A (/qna/:datasetId)/]
+  Actions[/Next Actions (/actions/:datasetId)/]
+  PII[/PII (/pii/:datasetId)/]
+  Leakage[/Leakage (/leakage/:datasetId)/]
+  Recipes[/Recipes (/recipes/:datasetId)/]
 
-  H --> D
-  D --> E
-  E --> C
-  E --> Q
-  Q --> N
-  E --> P
-  E --> K
-  E --> R
-  C --> R
-  N --> R
-
-  classDef muted fill:#f7f7f7,stroke:#ddd,color:#999;
+  Home --> Datasets
+  Datasets --> EDA
+  EDA --> Charts
+  EDA --> QnA
+  EDA --> Actions
+  EDA --> PII
+  EDA --> Leakage
+  EDA --> Recipes
+  Charts --> Recipes
+  Actions --> Recipes
+  Settings -.-> API["/api/credentials/llm"]
 ```
 
 ---
 
-## 2) メインフロー（A1→A2→B1/B2→D1）
+## 2. メインフロー (A1→A2→B1/B2→D1)
 
 ```mermaid
-flowchart TD
-  U[ユーザー] --> H[/Home<br/>アップロード&最近のデータ/]
-  H -->|CSV選択| UPL([Upload Modal])
-  UPL -->|成功| D[/Datasets 一覧/]
-  D -->|EDA開始| E[/EDA 概要レポート/]
+sequenceDiagram
+  participant User as ユーザー
+  participant UI as React UI
+  participant SDK as client-sdk
+  participant API as FastAPI
 
-  subgraph A1: プロファイリング
-    E --> A1{プロファイル実行?}
-    A1 -->|OK| EOK[構造化JSON表示<br/>distributions/key_features/outliers<br/>data_quality_report/next_actions]
-    A1 -->|失敗| EERR([再試行/サンプル実行ダイアログ])
-  end
+  User->>UI: Datasets ページを開く
+  UI->>SDK: listDatasets()
+  SDK->>API: GET /api/datasets
+  API-->>SDK: データセット一覧
+  SDK-->>UI: datasets[]
+  User->>UI: データセット選択
+  UI->>SDK: getEDAReport(datasetId)
+  SDK->>API: POST /api/eda
+  API->>API: orchestrator.generate_eda_report
+  API-->>SDK: EDAReport
+  SDK-->>UI: レポート表示 (fallback 有無バナー)
 
-  EOK -->|可視化を自動提案| C[/Charts 候補/]
+  User->>UI: 可視化を表示
+  UI->>SDK: suggestCharts(datasetId)
+  SDK->>API: POST /api/charts/suggest
+  API-->>SDK: {charts:[]}
+  SDK-->>UI: チャート候補 (consistency>=0.95)
 
-  subgraph A2: チャート自動提案
-    C --> A2{整合性検査OK?}
-    A2 -->|OK| COK[explanation + source_ref 付きで表示]
-    A2 -->|NG| CFILT([不整合チャートを非表示/警告])
-  end
+  User->>UI: 質問を送信
+  UI->>SDK: askQnA(datasetId, question)
+  SDK->>API: POST /api/qna
+  API-->>SDK: answers[] (coverage>=0.8)
+  SDK-->>UI: 回答/引用
 
-  COK -->|質問する| Q[/Q&A/]
+  User->>UI: Next Actions を確認
+  UI->>SDK: prioritizeActions(datasetId, items)
+  SDK->>API: POST /api/actions/prioritize
+  API-->>SDK: ranked[]
+  SDK-->>UI: WSJF/RICE 表示
 
-  subgraph B1/B2: Q&A と次アクション
-    Q --> B1{stats_api実行/引用>=0.8?}
-    B1 -->|OK| QOK[根拠リンク付き回答]
-    B1 -->|不足| QREF([追加検索→再生成])
-    QOK -->|次に何をすべき?| N[/Next Actions/]
-    N --> B2{優先度付け<br/>WSJF/RICE}
-    B2 --> NOK[impact/effort/confidence/score 表示]
-  end
-
-  NOK -->|再現レシピを出力| R[/Recipes/]
-
-  subgraph D1: レシピ出力
-    R --> D1{生成成功?}
-    D1 -->|OK| ROK[recipe.json / eda.ipynb / sampling.sql<br/>artifact_hash / ダウンロード]
-    D1 -->|NG| RERR([ログ参照&再生成])
-  end
+  User->>UI: レシピ生成
+  UI->>SDK: emitRecipes(datasetId)
+  SDK->>API: POST /api/recipes/emit
+  API-->>SDK: RecipeEmitResult (artifact_hash, measured_summary)
+  SDK-->>UI: 生成結果 + ±1% 乖離警告
 ```
 
 ---
 
-## 3) 品質/セキュリティ補助フロー（C1/C2）
+## 3. 品質フロー (C1/C2)
 
 ```mermaid
-flowchart LR
-  E[/EDA 概要レポート/] --> P[/PII 検出/]
-  P --> C1{PII 検出?}
-  C1 -->|Yes| PM([マスク適用 Modal<br/>MASK/HASH/DROP 選択肢]) --> POK[マスク済みで再計算] --> E
-  C1 -->|No| E
+graph TD
+  PIIPage[PII ページ] -->|初期ロード| PiiScan[/POST /api/pii/scan/]
+  PiiScan --> Detected{検出フィールドあり?}
+  Detected -->|Yes| Toggle[チェックボックスで選択]
+  Toggle --> Apply[/POST /api/pii/apply/]
+  Apply --> Refresh[/再度 /api/pii/scan]
+  Refresh --> PIIPage
+  Detected -->|No| PIIPage
 
-  E --> K[/Leakage 検査/]
-  K --> C2{未来情報/集計後列/派生列の疑い?}
-  C2 -->|Yes| KFLAG([flagged_columns + rules_matched を表示<br/>影響説明/除外オプション]) --> E
-  C2 -->|No| E
+  LeakagePage[Leakage ページ] --> LeakScan[/POST /api/leakage/scan/]
+  LeakScan --> Flags{flagged_columns}
+  Flags -->|Yes| Select[チェックボックス]
+  Select --> Action[exclude / acknowledge / reset]
+  Action --> Resolve[/POST /api/leakage/resolve/]
+  Resolve --> ReScan[/再度 /api/leakage/scan]
+  ReScan --> LeakagePage
+  Flags -->|No| LeakagePage
 ```
 
 ---
 
-## 4) 画面別 UI 要素（主要コンポーネント／遷移）
+## 4. 設定フロー (S1: LLM 資格情報)
 
-| 画面(Route)                         | 主要UI/コンポーネント                                                                                     | 主要操作                                 | 遷移先                                                                   |
-| --------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------ | --------------------------------------------------------------------- |
-| **Home** (`/`)                    | DatasetUploader, RecentDatasets, KPI バッジ                                                         | CSV 選択 / アップロード                      | `/datasets/`                                                          |
-| **Datasets** (`/datasets/`)       | DatasetTable（rows/cols/更新日時）, NewEDA ボタン                                                         | 「EDAを開始」                             | `/eda/:dataset_id/`                                                   |
-| **EDA 概要** (`/eda/:id`)           | SummaryCards（distributions/key\_features/outliers）, QualityIssuesList（重大度/根拠）、NextActionsPreview | 「可視化を自動提案」「Q\&A」「PII/Leakage」「レシピ出力」 | `/charts/:id`, `/qna/:id`, `/pii/:id`, `/leakage/:id`, `/recipes/:id` |
-| **Charts 候補** (`/charts/:id`)     | ChartGallery(最大5), ExplanationPanel, ConsistencyBadge                                            | 採用/除外、ソース参照                          | `/recipes/:id` or 戻る                                                  |
-| **Q\&A** (`/qna/:id`)             | QuestionBox, AnswerPane（引用タブ・統計タブ）, Followups                                                    | 送信/再検索                               | `/actions/:id`                                                        |
-| **Next Actions** (`/actions/:id`) | PrioritizedList（impact/effort/confidence/score）, フィルタ/並び替え                                       | 採択/エクスポート                            | `/recipes/:id`                                                        |
-| **PII** (`/pii/:id`)              | DetectedFieldsTable, MaskPolicySelector                                                          | 適用/差戻し                               | `/eda/:id`                                                            |
-| **Leakage** (`/leakage/:id`)      | FlaggedColumns, RulesMatched, 影響説明                                                               | 除外/承認                                | `/eda/:id`                                                            |
-| **Recipes** (`/recipes/:id`)      | ArtifactsList（`recipe.json`/`eda.ipynb`/`sampling.sql`）, Hash/Version                            | ダウンロード                               | 終了                                                                    |
+```mermaid
+sequenceDiagram
+  participant UI as SettingsPage
+  participant SDK as client-sdk
+  participant API as FastAPI
+  participant Config as config/credentials.json
+
+  UI->>SDK: getLlmCredentialStatus()
+  SDK->>API: GET /api/credentials/llm
+  API-->>SDK: {provider, configured, providers}
+  SDK-->>UI: ステータス表示
+  User->>UI: API Key を入力
+  UI->>SDK: setLlmCredentials(provider, apiKey)
+  SDK->>API: POST /api/credentials/llm
+  API->>Config: set_llm_credentials()
+  API-->>SDK: 204 No Content
+  SDK-->>UI: 完了メッセージ
+```
 
 ---
 
-## 5) 画面状態（State Machine：データセット単位）
+## 5. 画面別要素 (実装済みコンポーネント)
+
+| 画面 | 主な表示要素 | API 呼び出し | 備考 |
+| ---- | ------------ | ------------ | ---- |
+| Home | 説明文のみ | なし | アップロード UI は未実装（バックログ） |
+| Datasets | データセット一覧 (`Button` with variant="ghost") | `listDatasets()` | モックデータでフォールバック可能 |
+| EDA | Summary/Distributions/QualityIssues/NextActions、引用ビュー切替 | `getEDAReport()` | `tool:` 参照でフォールバック警告 |
+| Charts | チャート候補一覧、診断値表示 | `suggestCharts()` | consistency を百分率表示 |
+| Q&A | 入力フォーム、回答、引用 | `askQnA()` | coverage を表示 |
+| Actions | 優先度付きリスト、引用ビュー | `prioritizeActions()` + `getEDAReport()` | WSJF/RICE を小数点 2 桁で表示 |
+| PII | チェックボックス、ポリシー選択、結果表示 | `piiScan()` / `applyPiiPolicy()` | `updated_at` を日付表示 |
+| Leakage | フラグ一覧、除外/承認/リセットボタン | `leakageScan()` / `resolveLeakage()` | 選択が空の場合ボタン無効 |
+| Recipes | 生成ファイル一覧、再現統計、引用ビュー | `emitRecipes()` + `getEDAReport()` | ±1% 乖離検出で警告バナー |
+| Settings | プロバイダ状態、API Key 入力フォーム | `getLlmCredentialStatus()` / `setLlmCredentials()` | 保存後に再ロード |
+
+---
+
+## 6. データセット状態遷移
 
 ```mermaid
-stateDiagram-v2
-  [*] --> Uploaded
-  Uploaded --> Profiled: profile_api 完了
-  Profiled --> PIIScanned: pii_scan 完了
-  PIIScanned --> Masked: マスク適用
-  Masked --> EDAReady: LLM要約（構造化JSON）
-  EDAReady --> ChartsSuggested: chart_api + 整合性OK
-  EDAReady --> QnAAnswered: stats_api + RAG + 引用>=0.8
-  QnAAnswered --> ActionsPrioritized: WSJF/RICE スコア付与
-  ChartsSuggested --> RecipesEmitted
+stateDiagram
+  [*] --> Uploaded : /api/datasets/upload
+  Uploaded --> Profiled : /api/eda
+  Profiled --> PiiScanned : /api/pii/scan
+  PiiScanned --> PiiApplied : /api/pii/apply
+  Profiled --> LeakageChecked : /api/leakage/scan
+  LeakageChecked --> LeakageResolved : /api/leakage/resolve
+  Profiled --> ChartsSuggested : /api/charts/suggest
+  Profiled --> QnAAnswered : /api/qna
+  QnAAnswered --> ActionsPrioritized : /api/actions/prioritize
+  ChartsSuggested --> RecipesEmitted : /api/recipes/emit
   ActionsPrioritized --> RecipesEmitted
   RecipesEmitted --> [*]
-  note right of EDAReady
-    すべての数値はツール出力のみ採用
-    groundedness>=0.9 / 引用被覆率>=0.8
+  note right of Profiled
+    orchestrator が LLM 呼び出しに失敗した場合
+    fallback_applied=true がメトリクスに記録され、
+    UI は LLM フォールバック警告を表示する。
   end note
 ```
 
 ---
 
-## 6) エラー/フォールバック遷移（共通）
+## 7. エラー / フォールバック表示
 
-```mermaid
-flowchart TD
-  any[任意画面] --> TMO{タイムアウト?}
-  TMO -->|Yes| RETRY([再試行ボタン/指数バックオフ])
-  TMO -->|No| CONT[処理継続]
-
-  any --> VAL{入力/スキーマ不正?}
-  VAL -->|Yes| FORMERR([入力エラー表示/修正促し])
-
-  any --> LLMERR{LLM失敗?}
-  LLMERR -->|Yes| FB([フォールバック: ツール結果の簡易要約のみ表示<br/>※明示ラベル付き])
-```
+- **LLM フォールバック**: `references` に `tool:` で始まる参照が含まれる場合、EDA/Actions/Recipes ページで黄色の警告バナーを表示。
+- **SLO 超過**: UI では即時表示しないが、`data/metrics/events.jsonl` に `duration_ms` が記録される。`python3 apps/api/scripts/check_slo.py` で検知。
+- **PII/Leakage 未設定**: API が空配列を返した場合は「なし」と表示。
+- **レシピ再現差分**: `measured_summary` の ±1% を超えた場合、赤い警告バナーを表示。
 
 ---
 
-## 7) ルーティング設計（Next.js 例）
+## 8. 補足 (バックログ)
 
-```
-app/
-├─ page.tsx                      # Home
-├─ datasets/page.tsx             # Datasets
-├─ eda/[dataset_id]/page.tsx     # EDA 概要
-├─ charts/[dataset_id]/page.tsx  # Charts 候補
-├─ qna/[dataset_id]/page.tsx     # Q&A
-├─ actions/[dataset_id]/page.tsx # Next Actions
-├─ pii/[dataset_id]/page.tsx     # PII
-├─ leakage/[dataset_id]/page.tsx # Leakage
-└─ recipes/[dataset_id]/page.tsx # Recipes
-```
+- Home に CSV アップロードモーダルを追加し、`POST /api/datasets/upload` と連携する UI を今後実装する。
+- Storybook 導入後、各ページを Container/Presentational に分割し、本ドキュメントを更新する予定。
 
----
-
-## 8) 画面遷移チェックリスト（受け入れ要件トレース）
-
-* A1: `/eda/:id` 到達時に **構造化JSON** の全セクションが表示される（根拠リンク付）。
-* A2: `/charts/:id` で **不整合チャートは非表示**、説明に `source_ref` 必須。
-* B1: `/qna/:id` の回答中、**数値はツール出力のみ**・**引用被覆率≥0.8**。
-* B2: `/actions/:id` の各アクションに **impact/effort/confidence/score**。
-* C1: `/pii/:id` で **検出→マスク→再計算** の往復が画面遷移で成立。
-* C2: `/leakage/:id` で **flagged\_columns** と **rules\_matched** の確認→承認/除外。
-* D1: `/recipes/:id` で **3成果物** のダウンロードが可能、**artifact\_hash** 表示。
-
----
-
-### 備考（プロトタイプ向けUI実装ヒント）
-
-* **非同期状態の可視化**：各ページに `LoadingBar` / `Toast` / `Retry` を標準実装。
-* **根拠の開示**：Explanation セクションは常に **「数値タブ」「引用タブ」** を持つ。
-* **スモールステップ**：A1 完了後に順次ボタンを活性化（A2/Q\&A/NextActions/Recipes）。
-* **アクセシビリティ**：表は見出しセル＋行キー、キーボード操作（←→でタブ切替）。
+現行実装に沿った図面を維持し、機能追加時は本ファイルを更新すること。

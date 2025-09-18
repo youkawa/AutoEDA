@@ -15,8 +15,9 @@ describe('RecipesPage', () => {
     );
     expect(await screen.findByText(/artifact_hash/)).toBeTruthy();
     expect(await screen.findByText(/recipe.json/)).toBeTruthy();
-    expect(await screen.findByText('LLMフォールバック: ツール要約のみ表示中')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '引用ビュー' }));
-    expect(await screen.findByText('参照一覧')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '引用を確認' }));
+    // 参照が列挙される（doc/tbl のどちらか）
+    const refs = await screen.findAllByText(/(table: tbl:summary|doc: tool:fallback)/);
+    expect(refs.length).toBeGreaterThanOrEqual(1);
   });
 });

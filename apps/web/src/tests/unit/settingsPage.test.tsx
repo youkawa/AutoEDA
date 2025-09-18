@@ -31,8 +31,10 @@ describe('SettingsPage', () => {
     render(<SettingsPage />);
 
     expect(await screen.findByText(/現在の状態: 未設定/)).toBeTruthy();
-    expect(await screen.findByText('OpenAI — 未設定')).toBeTruthy();
-    expect(await screen.findByText('Gemini — 未設定')).toBeTruthy();
+    expect((await screen.findAllByText('OpenAI')).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText('Google Gemini')).length).toBeGreaterThanOrEqual(1);
+    const unconfigured = await screen.findAllByText('未設定');
+    expect(unconfigured.length).toBeGreaterThanOrEqual(2);
   });
 
   it('APIキーを送信すると設定済みに更新される', async () => {
@@ -59,7 +61,7 @@ describe('SettingsPage', () => {
     const providerSelect = await screen.findByLabelText(/使用する LLM プロバイダ/);
     fireEvent.change(providerSelect, { target: { value: 'gemini' } });
 
-    const input = await screen.findByLabelText('Gemini API Key');
+    const input = await screen.findByLabelText(/Gemini.*API Key/);
     fireEvent.change(input, { target: { value: 'gm-test-abc123456789' } });
     fireEvent.submit(input.closest('form')!);
 

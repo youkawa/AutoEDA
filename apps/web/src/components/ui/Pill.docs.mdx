@@ -1,0 +1,28 @@
+import { Meta, Canvas, Story, Subtitle, Description } from '@storybook/blocks';
+import { Pill } from './Pill';
+
+<Meta title="Foundations/Pill/Docs" />
+
+# Pill
+
+<Subtitle>状態やラベルを淡色で強調するバッジ。</Subtitle>
+
+<Description>
+Pill は severity に応じて `red | amber | emerald` を推奨します。タグ用途では `brand | slate` も使用できます。
+</Description>
+
+## Variants
+
+<Canvas>
+  <Story name="variants">
+    {() => (
+      <div className="flex flex-wrap items-center gap-3">
+        <Pill tone="red">critical</Pill>
+        <Pill tone="amber">warning</Pill>
+        <Pill tone="emerald">ok</Pill>
+        <Pill tone="brand">brand</Pill>
+        <Pill tone="slate">neutral</Pill>
+      </div>
+    )}
+  </Story>
+</Canvas>

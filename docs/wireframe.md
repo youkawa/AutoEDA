@@ -1,321 +1,188 @@
-# AutoEDA ワイヤーフレーム v1（プロトタイピング版）
+# AutoEDA ワイヤーフレーム v1 (実装同期版)
 
-> 対象: ローカル実行の個人開発向け MVP / Web UI + REST API。HLD(設計文書)の A1〜D1 シナリオと NFR を満たす画面の**低忠実度(Lo‑Fi)ワイヤーフレーム**です。
-> 記法: \[C] コンポーネントID, \[A] 操作, \[S] 状態/バッジ, \[R] 参照(引用/根拠), \[E] エラー/フォールバック。
-
----
-
-## 0. 共通 UI 要素 (全画面)
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│ AutoEDA ▸ Dataset: <name>  [Search]                [Help] [⚙] │  ← グローバルヘッダ [C:hdr]
-├──────────────────────────────────────────────────────────────┤
-│ Breadcrumbs  | ToastArea [S] | ProgressBar [S]                │  ← 通知/進捗 [C:toast][C:progress]
-└──────────────────────────────────────────────────────────────┘
-```
-
-* ショートカット: ⌘K=コマンドパレット、/ = 検索、? = ヘルプ。
-* テーマ: ライト/ダーク切替(任意)。
+> 対象: `apps/web` の現行 UI。サイドバー + コンテンツ領域という最低限の構成に合わせ、各ページの Lo-Fi ワイヤーフレームを更新する。アップロード UI など未実装要素はバックログとして明記する。
 
 ---
 
-## 1. Home / (アップロード & 最近のデータ)
+## 0. 共通レイアウト
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│ [H1] Welcome to AutoEDA                                        │
-├──────────────────────────────────────────────────────────────┤
-│ [C:upl-001] Upload Panel                                       │
-│  ┌───────────────────────────────┐   ┌─────────────────────┐  │
-│  │  Drop CSV here / Select File  │   │  [A] Start EDA      │  │
-│  └───────────────────────────────┘   └─────────────────────┘  │
-│  • Accept: .csv  • Max: 50 cols / 1M rows  • Sample: on/off     │
-├──────────────────────────────────────────────────────────────┤
-│ [C:rec-001] Recent Datasets                                     │
-│  ┌───────────────────────────────────────────────────────────┐   │
-│  │ Name        Rows  Cols  UpdatedAt      [A] Open [A] EDA   │   │
-│  │ sales.csv   1M    48    2025-09-12     [Open] [EDA]      │   │
-│  └───────────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│ Sidebar (220px)                              │
+│ ┌──────────────┐ ┌──────────────────────────┐ │
+│ │ AutoEDA      │ │ Main Content (flex:1)    │ │
+│ │ - Home       │ │  ページ毎に内容が変化    │ │
+│ │ - Datasets   │ │  Padding: 24             │ │
+│ │ - Settings   │ │                          │ │
+│ └──────────────┘ └──────────────────────────┘ │
+└──────────────────────────────────────────────┘
 ```
 
-* 遷移: \[A] Start EDA → `/datasets/` → `/eda/:dataset_id`
-* API: `POST /api/datasets/upload` -> dataset\_id 返却。
+- ナビゲーションは `Link` コンポーネント。アクティブ表示なし (改善候補)。
+- 全ページで見出し (`<h1>`) を先頭に配置。
 
 ---
 
-## 2. Datasets /datasets
+## 1. Home (`/`)
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│ [H1] Datasets                                                 │
-├──────────────────────────────────────────────────────────────┤
-│ [C:tbl-001] Table: Name | Rows | Cols | Updated | Actions      │
-│  ... [A] Open  [A] EDA                                      │
-└──────────────────────────────────────────────────────────────┘
+┌ Main ───────────────────────────────────────┐
+│ [H1] Home                                   │
+│  データをアップロードしてEDAを開始できます。 │
+│  左のメニューから Datasets へ進んでください。│
+└───────────────────────────────────────────┘
 ```
 
-* 遷移: \[A] EDA → `/eda/:dataset_id`
+*バックログ*: CSV ドロップ領域とアップロードボタンを追加。
 
 ---
 
-## 3. EDA 概要 /eda/\:dataset\_id  — A1
+## 2. Datasets (`/datasets`)
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│ [H1] EDA Summary — <dataset>                                         │
-├───────────────────┬──────────────────────────────────────────────────┤
-│ [C:sum-001] Cards │ [C:qil-001] Quality Issues (severity, desc, R)   │
-│  • Rows/Cols      │  ┌─────────────────────────────────────────────┐ │
-│  • Missing%       │  │ [S] critical  col=price  desc=... [R:id...] │ │
-│  • Types mix      │  │ [S] high      col=date   desc=... [R:id...] │ │
-│  ──────────────── │  └─────────────────────────────────────────────┘ │
-│ [C:dis-001] Distributions (per column, mini‑hist)                     │
-│ [C:key-001] Key Features (bullets)                                     │
-│ [C:out-001] Outliers (table: col | count | [A] View)                   │
-├───────────────────┴──────────────────────────────────────────────────┤
-│ [A] 可視化を自動提案 → /charts/:id   [A] Q&A → /qna/:id               │
-│ [A] PII 検出 → /pii/:id             [A] リーク検査 → /leakage/:id      │
-│ [A] レシピ出力 → /recipes/:id                                            │
-└──────────────────────────────────────────────────────────────────────┘
+┌ Main ───────────────────────────────────────┐
+│ [H1] Datasets                               │
+│  • ds_xxx.csv  [Button variant="ghost"]    │
+│  • ds_yyy.csv  [Button variant="ghost"]    │
+└───────────────────────────────────────────┘
 ```
 
-* NFR 表示: p95≤10s, groundedness≥0.9, 引用被覆率≥0.8 (画面右上にバッジ)
-* API: `POST /api/eda` → `distributions,key_features,outliers,data_quality_report,next_actions, references`
+- `Button` を押下すると `/eda/:datasetId` へ遷移。
+- リストが空の場合は fallback モックが表示される。
 
 ---
 
-## 4. チャート候補 /charts/\:dataset\_id — A2
+## 3. EDA Summary (`/eda/:datasetId`)
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ [H1] Chart Suggestions                                                 │
-├─────────────────────────────────────────────────────────────────────────┤
-│ Filter: [show only consistent] [k=5]                                   │
-│ Grid (max 5):                                                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                 │
-│  │  [Chart#1]   │  │  [Chart#2]   │  │  [Chart#3]   │  ...            │
-│  │ [R:id...]    │  │ [R:id...]    │  │ [R:id...]    │                 │
-│  │ expl: ...    │  │ expl: ...    │  │ expl: ...    │                 │
-│  │ [S] ✅ consistency 0.97         │  │ [S] ⚠ 0.82 (hidden if off)     │
-│  │ [A] Adopt  [A] Exclude          │  │ [A] Adopt  [A] Exclude         │
-│  └──────────────┘  └──────────────┘  └──────────────┘                 │
-├─────────────────────────────────────────────────────────────────────────┤
-│ [A] 質問する → /qna/:id      [A] レシピへ進む → /recipes/:id             │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-* API: `POST /api/charts/suggest` (k=5)。整合性検査は Evaluator 内部。
-* NFR: 説明×統計一致率≥0.95, p95≤6s。
-
----
-
-## 5. Q\&A /qna/\:dataset\_id — B1/B2
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│ [H1] Q&A                                                     │
-├──────────────────────────────────────────────────────────────┤
-│ [C:qbx-001] QuestionBox: "売上に効く上位要因は?" [A] Ask        │
-│ [Tabs] Answer | Numbers | References                           │
-│  • Answer: テキスト(根拠にインライン引用マーカー) [R]            │
-│  • Numbers: stats_api 出力 (相関/重要度/CI等)                    │
-│  • References: RAG 文書/チャート/セル/クエリID                    │
-│ [S] 引用被覆率 ≥0.8 | groundedness ≥0.9                         │
-├──────────────────────────────────────────────────────────────┤
-│ [A] 次アクションを提案 → /actions/:id                           │
-└──────────────────────────────────────────────────────────────┘
-```
-
-* API: `POST /api/qna` (内部で `stats_api` + RAG)。
-* B2 遷移で `next_actions[]` を優先度付き表示。
-
----
-
-## 6. 次アクション /actions/\:dataset\_id — B2
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│ [H1] Next Actions (Prioritized)                              │
-├──────────────────────────────────────────────────────────────┤
-│ Sort by: [score]  Filter: [impact≥0.5] [effort≤0.5]          │
-│ ┌─────────────────────────────────────────────────────────┐  │
-│ │ ✓ | Title                    | Impact | Effort | Conf |Score│
-│ │──┼───────────────────────────┼────────┼───────┼──────┼─────│
-│ │   追加データ:天候API         | 0.7    | 0.3   | 0.8  | 0.62│
-│ │   前処理:カテゴリ統合        | 0.5    | 0.2   | 0.9  | 0.59│
-│ └─────────────────────────────────────────────────────────┘  │
-├──────────────────────────────────────────────────────────────┤
-│ [A] Export to recipe → /recipes/:id                           │
-└──────────────────────────────────────────────────────────────┘
+┌ Main ───────────────────────────────────────────────────────┐
+│ [H1] EDA 概要                                              │
+│ [Optional Banner] LLMフォールバック                        │
+│ [Section] サマリー: 行数 / 列数 / 欠損率                   │
+│ [Section] 主要な分布: 箇条書き                             │
+│ [Section] 品質課題: severity + 説明                        │
+│ [Section] 注目すべき特徴: 箇条書き                         │
+│ [Section] 次アクション: 番号付きリスト (score/impact)      │
+│ [View Toggle] 統計ビュー / 引用ビュー                       │
+│   - 統計ビュー: 欠損率 / 課題数 / 提案数                   │
+│   - 引用ビュー: kind:locator リスト (tool: は警告表示)      │
+│ [Links] Charts / Q&A / Next Actions / PII / Leakage / Recipes│
+└──────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 7. PII 検出 /pii/\:dataset\_id — C1
+## 4. Charts (`/charts/:datasetId`)
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│ [H1] PII Scan                                                │
-├──────────────────────────────────────────────────────────────┤
-│ Detected Fields:                                             │
-│  email (col=email)  phone (col=tel) ...                      │
-│ [C:mask-001] Policy: [MASK | HASH(SALTED) | DROP]            │
-│ [A] Apply & Recalculate                                      │
-└──────────────────────────────────────────────────────────────┘
-```
-
-* イベント: `PIIMasked` (detected\_fields, mask\_policy, pii\_flag=true)
-
----
-
-## 8. リーク検査 /leakage/\:dataset\_id — C2
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│ [H1] Leakage Check                                           │
-├──────────────────────────────────────────────────────────────┤
-│ Flagged Columns:                                             │
-│  target_mean_by_user  created_after_label  ...               │
-│ Rules Matched: time_causality, aggregation_trace             │
-│ [A] Exclude from modeling  [A] Accept risk                   │
-└──────────────────────────────────────────────────────────────┘
-```
-
-* イベント: `LeakageRiskFlagged` (flagged\_columns, rules\_matched)
-
----
-
-## 9. レシピ出力 /recipes/\:dataset\_id — D1
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│ [H1] Reproducible Artifacts                                  │
-├──────────────────────────────────────────────────────────────┤
-│ Files                                                        │
-│  • recipe.json     [A] Download                              │
-│  • eda.ipynb       [A] Download                              │
-│  • sampling.sql    [A] Download                              │
-│ Hash: <artifact_hash>  Version: v1                           │
-│ [A] Regenerate (同条件)  [A] Open in notebook (任意)           │
-└──────────────────────────────────────────────────────────────┘
-```
-
-* NFR: A1主要統計±1%以内で再現、依存リスト同梱。
-
----
-
-## 10. モーダル/ダイアログ/トースト
-
-```
-[Upload Modal]
-┌────────────────────────────┐
-│ Select CSV [Browse]        │
-│ [A] Upload  [A] Cancel     │
-└────────────────────────────┘
-
-[Retry Dialog]
-┌────────────────────────────┐
-│ 処理がタイムアウトしました。     │
-│ [A] Retry (backoff)         │
-│ [A] Use sample (1%)         │
-└────────────────────────────┘
-
-[Mask Policy Modal]
-┌────────────────────────────┐
-│ PII 方針を選択: MASK/HASH/DROP │
-│ [A] Apply                   │
-└────────────────────────────┘
-
-[Toast]
-✓ EDAReportGenerated (8.4s, groundedness 0.92)
+┌ Main ───────────────────────────────────────────────────────┐
+│ [H1] Charts 候補                                            │
+│  for each chart:                                            │
+│   • type (bar/line/scatter)                                 │
+│   • explanation                                              │
+│   • consistency: 97%                                         │
+│   • diagnostics: trend / correlation / dominant_ratio        │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 11. レスポンシブ（主要画面のモバイル版）
-
-### 11.1 Home (mobile)
+## 5. Q&A (`/qna/:datasetId`)
 
 ```
-┌AutoEDA┐
-│Upload │
-│[Start]│
-│Recent │
-└───────┘
-```
-
-### 11.2 EDA 概要 (mobile)
-
-```
-┌EDA Summary┐
-│Cards      │
-│Issues     │
-│Distributions
-│KeyFeatures│
-│Outliers   |
-│[Charts] [Q&A]
-│[PII] [Leak] [Recipe]
-└───────────┘
-```
-
-### 11.3 Charts (mobile)
-
-```
-┌Charts┐
-│[Card#1]
-│ expl + [R]
-│ [Adopt]
-│────────
-│[Card#2] ...
-└───────┘
+┌ Main ───────────────────────────────────────────────────────┐
+│ [H1] Q&A                                                   │
+│ [Input] question (width:60%) [Button] 質問する             │
+│ [Loading] 問い合わせ中... (optional)                      │
+│ [Section] 回答: テキスト / coverage                        │
+│ [Section] 引用一覧: kind: locator                          │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 12. 画面→API/イベント マッピング
+## 6. Next Actions (`/actions/:datasetId`)
 
-| 画面      | 主API                      | 主要イベント              |
-| ------- | ------------------------- | ------------------- |
-| Home    | POST /api/datasets/upload | —                   |
-| EDA     | POST /api/eda             | EDAReportGenerated  |
-| Charts  | POST /api/charts/suggest  | ChartsSuggested     |
-| Q\&A    | POST /api/qna (stats+RAG) | EDAQueryAnswered    |
-| Actions | — (内部: prioritize)        | NextActionsProposed |
-| PII     | POST /api/pii/scan        | PIIMasked           |
-| Leakage | POST /api/leakage/check   | LeakageRiskFlagged  |
-| Recipes | POST /api/recipes/export  | EDARecipeEmitted    |
-
----
-
-## 13. 受け入れ基準トレース (A1〜D1 抜粋)
-
-* **A1**: EDA 概要に `distributions,key_features,outliers,data_quality_report,next_actions` が**常に表示**。\[R] 参照リンク必須。p95≤10s バッジ表示。
-* **A2**: Charts 画面で不整合カードは**非表示**(フィルタON)。各カードに `explanation + source_ref + consistency`。
-* **B1**: Q\&A で数値は `stats_api` 出力のみ。`References` タブの引用被覆率≥0.8 を計測/表示。
-* **B2**: Actions で `impact/effort/confidence/score` を列として表示、並び替え/フィルタ可能。
-* **C1**: PII 画面で検出→方針適用→再計算の操作が 1 画面内で完結。
-* **C2**: Leakage で `flagged_columns, rules_matched` を説明付きで表示し、除外操作が可能。
-* **D1**: Recipes で 3成果物の DL と `artifact_hash` 表示、Regenerate 操作。
+```
+┌ Main ───────────────────────────────────────────────────────┐
+│ [H1] Next Actions                                          │
+│ [Optional Banner] LLMフォールバック                        │
+│ [Ordered List] title + WSJF/RICE + 理由                     │
+│ [View Toggle] 統計ビュー / 引用ビュー                       │
+│   - 統計: 推定アクション数 / 入力候補数                     │
+│   - 引用: kind: locator + tool: 表示                        │
+└──────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 14. 実装ヒント（UI スケルトン & 状態）
+## 7. PII (`/pii/:datasetId`)
 
-* **ローディング**: Cards/表/ギャラリーにスケルトン (骨組み) プレースホルダ。
-* **エラー**: 上部バナー + 各カード内の再試行ボタン。
-* **差分配信**: Charts/Q\&A はレスポンスストリーミングで段階的表示可。
-* **アクセシビリティ**: 見出し階層、表ヘッダ、ボタンのラベル、Tab/Enter 操作。
+```
+┌ Main ───────────────────────────────────────────────────────┐
+│ [H1] PII スキャン                                          │
+│ [Section] 検出フィールド: チェックボックス一覧             │
+│ [Select] マスクポリシー (MASK/HASH/DROP)                   │
+│ [Button] マスクを適用して再計算                            │
+│ [Meta] 適用済み / 最終更新                                 │
+└──────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 15. コンポーネントID 一覧 (抜粋)
+## 8. Leakage (`/leakage/:datasetId`)
 
-* `hdr` ヘッダ, `toast` トースト, `progress` 進捗バー
-* `upl-001` アップロードパネル, `rec-001` 最近データ
-* `sum-001` サマリーカード群, `qil-001` 品質問題リスト
-* `dis-001` 分布一覧, `key-001` 主要特徴, `out-001` 外れ値
-* `cgal-001` チャートギャラリー, `exp-001` 説明パネル
-* `qbx-001` 質問ボックス, `ans-001` 回答ペイン
-* `pri-001` 優先度付きリスト, `mask-001` マスクポリシ
+```
+┌ Main ───────────────────────────────────────────────────────┐
+│ [H1] リーク検査                                            │
+│ [Section] flagged_columns: チェックボックス                │
+│ [Buttons] 除外 / 承認 / リセット (選択が無いと disabled)   │
+│ [Meta] 除外済み / 承認済み / 検出ルール / 最終更新         │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 9. Recipes (`/recipes/:datasetId`)
+
+```
+┌ Main ───────────────────────────────────────────────────────┐
+│ [H1] Recipes                                               │
+│ [Optional Banner] LLMフォールバック                        │
+│ [Optional Banner] ±1% 乖離警告                             │
+│ artifact_hash                                               │
+│ summary: rows / cols / missing_rate                         │
+│ files: bullet list (名前 + サイズ)                         │
+│ [View Toggle] 統計ビュー / 引用ビュー                       │
+│   - 統計: measured_summary の数値                          │
+│   - 引用: kind: locator                                    │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 10. Settings (`/settings`)
+
+```
+┌ Main ───────────────────────────────────────────────────────┐
+│ [H1] システム設定                                          │
+│ 状態: 使用中プロバイダ / 設定済み or 未設定                │
+│ プロバイダ別ステータス (リスト)                           │
+│ [Form]                                                     │
+│  - select provider (openai/gemini)                         │
+│  - password input (api key)                                │
+│  - [Button] 保存 (saving state)                             │
+│ 成功メッセージ or エラー表示                               │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 11. バックログ要素
+
+- **アップロード UI**: Home にドラッグ&ドロップ領域を追加し、`POST /api/datasets/upload` と連携する。
+- **ナビゲーション強調**: 現在地ハイライト、Breadcrumbs を追加。
+- **共通カード/リスト化**: EDA/Actions/Recipes のセクションを再利用可能なコンポーネントへ抽出。
+- **レスポンシブ対応**: 固定幅からフレックスレイアウトへ改善。
+
+実装更新時は本ワイヤーフレームを差し替え、Storybook と整合させること。

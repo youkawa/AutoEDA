@@ -1,9 +1,19 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { getLlmCredentialStatus, setLlmCredentials, type LlmProvider } from '@autoeda/client-sdk';
+import { Button } from '@autoeda/ui-kit';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '../components/ui/Card';
+import { ShieldCheck, Lock } from 'lucide-react';
 
 const PROVIDER_LABELS: Record<LlmProvider, string> = {
   openai: 'OpenAI',
-  gemini: 'Gemini',
+  gemini: 'Google Gemini',
 };
 
 export function SettingsPage(): JSX.Element {
@@ -68,65 +78,73 @@ export function SettingsPage(): JSX.Element {
   const statusLabel = configured === null ? '読み込み中' : configured ? '設定済み' : '未設定';
 
   return (
-    <section style={{ maxWidth: 560 }}>
-      <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 16 }}>システム設定</h1>
-      <p style={{ marginBottom: 8 }}>現在の状態: {statusLabel}（使用中: {PROVIDER_LABELS[activeProvider]}）</p>
-      <p style={{ marginBottom: 16, color: '#4b5563' }}>
-        LLM の API Key はローカルファイル (`config/credentials.json`) に保存され、リポジトリには含まれません。
-      </p>
-      <div style={{ marginBottom: 20, padding: 12, border: '1px solid #e5e7eb', borderRadius: 6 }}>
-        <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: 16 }}>プロバイダ別ステータス</h2>
-        <ul style={{ margin: 0, paddingLeft: 16 }}>
-          {Object.entries(providerStates).map(([provider, state]) => (
-            <li key={provider}>
-              {PROVIDER_LABELS[provider as LlmProvider]} — {state ? '設定済み' : '未設定'}
-            </li>
-          ))}
-        </ul>
-      </div>
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 16 }}>
-        <label htmlFor="provider-select" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span>使用する LLM プロバイダ</span>
-          <select
-            id="provider-select"
-            value={activeProvider}
-            onChange={(event) => setActiveProvider(event.target.value as LlmProvider)}
-            style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 4 }}
-          >
-            <option value="openai">OpenAI</option>
-            <option value="gemini">Google Gemini</option>
-          </select>
-        </label>
-        <label htmlFor="llm-key" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span>{PROVIDER_LABELS[activeProvider]} API Key</span>
-          <input
-            id="llm-key"
-            type="password"
-            value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-            placeholder={activeProvider === 'openai' ? 'sk-...' : 'gm-...'}
-            autoComplete="off"
-            style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 4 }}
-            aria-label={`${PROVIDER_LABELS[activeProvider]} API Key`}
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={saving}
-          style={{
-            backgroundColor: '#2563eb',
-            color: 'white',
-            padding: '10px 16px',
-            borderRadius: 6,
-            border: 'none',
-            cursor: saving ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {saving ? '保存中...' : '保存'}
-        </button>
-      </form>
-      {message && <p style={{ marginTop: 16, color: '#16a34a' }}>{message}</p>}
-      {error && <p style={{ marginTop: 16, color: '#dc2626' }}>{error}</p>}
-    </section>
+    <div className="mx-auto max-w-3xl space-y-6">
+      <Card padding="lg">
+        <CardHeader className="space-y-2">
+          <CardTitle className="flex items-center gap-3 text-lg">
+            <ShieldCheck className="h-5 w-5 text-brand-600" />
+            システム設定
+          </CardTitle>
+          <CardDescription>
+            現在の状態: {statusLabel}（使用中: {PROVIDER_LABELS[activeProvider]}）。API Key は `config/credentials.json` に保存され、リポジトリには含まれません。
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            <p className="text-xs uppercase tracking-widest text-slate-400">プロバイダ別ステータス</p>
+            <ul className="mt-2 space-y-1">
+              {Object.entries(providerStates).map(([provider, state]) => (
+                <li key={provider} className="flex items-center justify-between">
+                  <span>{PROVIDER_LABELS[provider as LlmProvider]}</span>
+                  <span className={state ? 'text-emerald-600' : 'text-slate-400'}>
+                    {state ? '設定済み' : '未設定'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <form onSubmit={handleSubmit} className="grid gap-4">
+            <label className="flex flex-col gap-2 text-sm text-slate-600">
+              <span>使用する LLM プロバイダ</span>
+              <select
+                value={activeProvider}
+                onChange={(event) => setActiveProvider(event.target.value as LlmProvider)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm shadow-sm focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
+              >
+                <option value="openai">OpenAI</option>
+                <option value="gemini">Google Gemini</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-2 text-sm text-slate-600">
+              <span>{PROVIDER_LABELS[activeProvider]} API Key</span>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="llm-key"
+                  type="password"
+                  value={apiKey}
+                  onChange={(event) => setApiKey(event.target.value)}
+                  placeholder={activeProvider === 'openai' ? 'sk-...' : 'gm-...'}
+                  autoComplete="off"
+                  className="w-full rounded-xl border border-slate-200 px-10 py-2 text-sm shadow-sm focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                  aria-label={`${PROVIDER_LABELS[activeProvider]} API Key`}
+                />
+              </div>
+            </label>
+            {message ? <p className="text-sm text-emerald-600">{message}</p> : null}
+            {error ? <p className="text-sm text-red-600">{error}</p> : null}
+            <div className="flex justify-end">
+              <Button type="submit" variant="primary" loading={saving}>
+                保存
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+        <CardFooter className="text-xs text-slate-500">
+          `AUTOEDA_CREDENTIALS_FILE` を設定すると、環境ごとに認証情報を切り替えられます。
+        </CardFooter>
+      </Card>
+    </div>
   );
 }

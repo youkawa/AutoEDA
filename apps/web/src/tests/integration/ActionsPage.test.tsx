@@ -13,12 +13,11 @@ describe('ActionsPage', () => {
         </Routes>
       </MemoryRouter>
     );
-    expect(await screen.findByText(/Next Actions/)).toBeTruthy();
-    expect(await screen.findByText('LLMフォールバック: ツール要約のみ表示中')).toBeTruthy();
+    expect(await screen.findByText(/推奨アクション・優先度/)).toBeTruthy();
     const metrics = await screen.findAllByText(/WSJF/);
     expect(metrics.length).toBeGreaterThanOrEqual(1);
-    fireEvent.click(screen.getByRole('button', { name: '引用ビュー' }));
-    expect(await screen.findByText('参照一覧')).toBeTruthy();
-    expect(await screen.findByText(/tool:fallback/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '引用を確認' }));
+    const refs = await screen.findAllByText(/(table: tbl:summary|doc: tool:fallback)/);
+    expect(refs.length).toBeGreaterThanOrEqual(1);
   });
 });
