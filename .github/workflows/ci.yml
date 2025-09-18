@@ -80,7 +80,7 @@ jobs:
         run: npm run storybook:build
       - name: Check Storybook snapshot presence
         run: |
-          if [ -d tests/storybook/__screenshots__ ]; then
+          if ls tests/storybook/*-snapshots 1> /dev/null 2>&1; then
             echo "SNAPSHOT_EXISTS=true" >> $GITHUB_ENV
           else
             echo "SNAPSHOT_EXISTS=false" >> $GITHUB_ENV
@@ -97,7 +97,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: storybook-snapshots
-          path: tests/storybook/__screenshots__
+          path: tests/storybook/*-snapshots
           if-no-files-found: ignore
       - name: Upload Storybook visual report
         if: always()
