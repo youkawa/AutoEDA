@@ -66,6 +66,7 @@ test.describe('Acceptance scenarios', () => {
     await page.getByRole('link', { name: 'レシピ出力' }).click();
     await expect(page.getByText('再現レシピと成果物')).toBeVisible();
     await expect(page.getByText('artifact_hash')).toBeVisible();
+    await expect(page.getByText('recipe.json')).toBeVisible();
     await expect(page.getByText(/LLM フォールバック/)).toBeVisible();
 
     await page.getByRole('button', { name: '引用を確認' }).click();
