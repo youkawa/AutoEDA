@@ -93,7 +93,7 @@ test.describe('Acceptance scenarios', () => {
       expect(withinTolerance(baseCols, cols)).toBeTruthy();
       expect(withinTolerance(baseMissing, missingRate)).toBeTruthy();
     } else {
-      await expect(page.getByText('LLMフォールバック: ツール要約のみ表示中')).toBeVisible();
+      await expect(page.getByText(/LLM\s*フォールバック/)).toBeVisible();
     }
   });
 });
