@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { resolve } from 'path';
 
 export default defineConfig({
   testDir: __dirname,
@@ -16,7 +17,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npx http-server ./apps/web/storybook-static -p 6007 -c-1 -s',
+    command: `npx http-server ${resolve(__dirname, '../../apps/web/storybook-static')} -p 6007 -c-1 -s`,
     url: 'http://127.0.0.1:6007/iframe.html',
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe',

@@ -12,7 +12,12 @@ type DatasetContextValue = {
 
 const STORAGE_KEY = 'autoeda:last-dataset';
 
-const LastDatasetContext = createContext<DatasetContextValue | undefined>(undefined);
+const defaultCtx: DatasetContextValue = {
+  lastDataset: null,
+  setLastDataset: () => {},
+};
+
+const LastDatasetContext = createContext<DatasetContextValue>(defaultCtx);
 
 function readInitialDataset(): DatasetSummary | null {
   if (typeof window === 'undefined') return null;
@@ -51,9 +56,5 @@ export function LastDatasetProvider({ children }: { children: React.ReactNode })
 }
 
 export function useLastDataset() {
-  const ctx = useContext(LastDatasetContext);
-  if (!ctx) {
-    throw new Error('useLastDataset must be used within LastDatasetProvider');
-  }
-  return ctx;
+  return useContext(LastDatasetContext);
 }

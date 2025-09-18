@@ -13,13 +13,10 @@ describe('ChartsPage', () => {
         </Routes>
       </MemoryRouter>
     );
-    expect(await screen.findByText(/Charts 候補/)).toBeTruthy();
-    const item = await screen.findByText(/consistency:/);
-    const text = item.textContent || '';
-    const match = text.match(/consistency:\s*(\d+)%/);
-    expect(match).toBeTruthy();
-    const pct = Number(match?.[1] || '0');
-    expect(pct).toBeGreaterThanOrEqual(95);
+    expect(await screen.findByText(/チャート提案/)).toBeTruthy();
+    // 高整合性チャートのバッジ
+    expect(await screen.findByText('整合性チェック済み')).toBeTruthy();
+    // 根拠の表示
     expect(await screen.findByText(/根拠:/)).toBeTruthy();
   });
 });

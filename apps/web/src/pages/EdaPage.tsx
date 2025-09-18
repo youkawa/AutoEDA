@@ -103,7 +103,7 @@ export function EdaPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6" aria-label="loading">
         <div className="h-32 animate-pulse rounded-3xl bg-white shadow-sm" />
         <div className="grid gap-4 md:grid-cols-3">
           {[...Array(3)].map((_, index) => (
