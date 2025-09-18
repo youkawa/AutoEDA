@@ -26,3 +26,19 @@ export default meta;
 type Story = StoryObj<typeof ChartsPage>;
 
 export const ConsistentOnly: Story = {};
+
+export const EmptyResults: Story = {
+  name: 'Empty',
+  parameters: {
+    msw: {
+      handlers: [
+        ...createDefaultHandlers().filter((h) => !(h.info.method === 'POST' && h.info.path === '/api/charts/suggest')),
+        // 空のチャート候補を返す
+        {
+          info: { path: '/api/charts/suggest', method: 'POST', type: 'rest' },
+          resolver: () => new Response(JSON.stringify({ charts: [] }), { headers: { 'Content-Type': 'application/json' } }),
+        } as any,
+      ],
+    },
+  },
+};

@@ -12,6 +12,7 @@ import {
 } from '../components/ui/Card';
 import { Button } from '@autoeda/ui-kit';
 import { ClipboardCheck, BarChart3, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Callout } from '../components/ui/Callout';
 import { Pill } from '../components/ui/Pill';
 import { useLastDataset } from '../contexts/LastDatasetContext';
 
@@ -54,12 +55,9 @@ export function ActionsPage() {
   return (
     <div className="space-y-6">
       {fallbackActive ? (
-        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-amber-700">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5" />
-            <span>LLM フォールバック中: ツール結果を基に優先度を計算しています。</span>
-          </div>
-        </div>
+        <Callout tone="warning" title="LLM フォールバック中">
+          ツール結果を基に優先度を計算しています。
+        </Callout>
       ) : null}
 
       <Card padding="lg" className="space-y-4">

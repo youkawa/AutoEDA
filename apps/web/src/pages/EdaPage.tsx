@@ -14,6 +14,7 @@ import {
 } from '../components/ui/Card';
 import { useLastDataset } from '../contexts/LastDatasetContext';
 import { Pill } from '../components/ui/Pill';
+import { Callout } from '../components/ui/Callout';
 import { StatCard } from '../components/ui/StatCard';
 
 type ViewMode = 'stats' | 'references';
@@ -129,17 +130,9 @@ export function EdaPage() {
   return (
     <div className="space-y-8">
       {fallbackActive ? (
-        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-amber-800">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-1 h-5 w-5" />
-            <div>
-              <p className="font-semibold">LLM フォールバックが適用されています</p>
-              <p className="text-sm text-amber-700">
-                LLM 資格情報が未設定のため、ツールの要約のみを表示しています。`/settings` から API Key を設定すると、引用付きの要約が生成されます。
-              </p>
-            </div>
-          </div>
-        </div>
+        <Callout tone="warning" title="LLM フォールバックが適用されています">
+          LLM 資格情報が未設定のため、ツールの要約のみを表示しています。`/settings` から API Key を設定すると、引用付きの要約が生成されます。
+        </Callout>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-3">

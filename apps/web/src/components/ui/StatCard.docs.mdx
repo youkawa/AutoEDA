@@ -1,0 +1,27 @@
+import { Meta, Canvas, Story, Subtitle, Description } from '@storybook/blocks';
+import { StatCard } from './StatCard';
+import { Table2, Activity, Percent } from 'lucide-react';
+
+<Meta title="Foundations/StatCard/Docs" />
+
+# StatCard
+
+<Subtitle>KPI をアイコン付きで簡潔に提示するカード。</Subtitle>
+
+<Description>
+KPI 種類（行数・列数・欠損率など）に応じて、`icon/label/value/sub` を指定します。ページ先頭に3枚並べる運用を想定しています。
+</Description>
+
+## KPI example
+
+<Canvas>
+  <Story name="kpi">
+    {() => (
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard icon={Table2} label="行数" value={(123456).toLocaleString()} sub="Rows" />
+        <StatCard icon={Activity} label="列数" value={(48).toLocaleString()} sub="Columns" />
+        <StatCard icon={Percent} label="欠損率" value={`12.3%`} sub="Missing" />
+      </div>
+    )}
+  </Story>
+</Canvas>

@@ -1,0 +1,27 @@
+import { Meta, Canvas, Story, Subtitle, Description } from '@storybook/blocks';
+import { Toast } from '@autoeda/ui-kit';
+
+<Meta title="Foundations/Toast/Docs" />
+
+# Toast
+
+<Subtitle>非同期操作の結果を右下に短時間表示する通知。</Subtitle>
+
+<Description>
+`useToast()` で `toast(message, tone)` を発火します。トーンは `info | success | warning | error`。自動クローズは既定5sです。
+</Description>
+
+## Tones
+
+<Canvas>
+  <Story name="tones">
+    {() => (
+      <div className="fixed bottom-4 right-4 space-y-2">
+        <Toast message="情報のトーストです" tone="info" autoClose={0} />
+        <Toast message="成功しました" tone="success" autoClose={0} />
+        <Toast message="警告があります" tone="warning" autoClose={0} />
+        <Toast message="エラーが発生しました" tone="error" autoClose={0} />
+      </div>
+    )}
+  </Story>
+</Canvas>
