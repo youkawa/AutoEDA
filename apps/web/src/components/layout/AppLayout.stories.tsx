@@ -57,9 +57,9 @@ const meta: Meta<typeof AppLayout> = {
   title: 'Layout/AppLayout',
   component: AppLayout,
   decorators: [
-    (Story) => {
+    (Story, context) => {
       ensureDataset();
-      return withAppProviders(Story);
+      return withAppProviders(Story, context);
     },
   ],
   parameters: {
@@ -100,4 +100,3 @@ export const NoDataset: Story = {
     },
   },
 };
-
