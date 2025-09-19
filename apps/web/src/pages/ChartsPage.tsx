@@ -17,7 +17,8 @@ export function ChartsPage() {
   const [showConsistentOnly, setShowConsistentOnly] = useState(true);
   const [selectedDetail, setSelectedDetail] = useState<ChartCandidate | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [results, setResults] = useState<Record<string, { loading: boolean; error?: string; src?: string; code?: string }>>({});
+  type ChartRender = { loading: boolean; error?: string; src?: string; code?: string; tab?: 'viz'|'code'|'meta' };
+  const [results, setResults] = useState<Record<string, ChartRender>>({});
   const toast = useToast();
 
   useEffect(() => {
@@ -91,7 +92,7 @@ export function ChartsPage() {
                   const hints = charts.filter((c) => selectedIds.has(c.id)).map((c) => c.type);
                   const res = await generateChartsBatch(datasetId, hints);
                   // 簡易反映: 各カードに最初の出力(SVG)を描画
-                  const next = { ...results };
+                  const next: Record<string, ChartRender> = { ...results };
                   charts.forEach((c, idx) => {
                     if (!selectedIds.has(c.id)) return;
                     const r = res[Math.min(idx, res.length - 1)];
@@ -206,7 +207,7 @@ export function ChartsPage() {
                           const out = r.outputs?.[0];
                           if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
                             const src = `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}`;
-                            setResults((s) => ({ ...s, [chart.id]: { loading: false, src, code: r.code } }));
+                            setResults((s) => ({ ...s, [chart.id]: { loading: false, src, code: r.code, tab: 'viz' } }));
                           } else {
                             setResults((s) => ({ ...s, [chart.id]: { loading: false, error: '出力形式に未対応' } }));
                           }
@@ -226,9 +227,42 @@ export function ChartsPage() {
                 {results[chart.id]?.error ? (
                   <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">{results[chart.id]?.error}</div>
                 ) : null}
-                {results[chart.id]?.src ? (
-                  <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
-                    <img src={results[chart.id]?.src} alt="generated chart" />
+                {results[chart.id] && !results[chart.id]?.loading && !results[chart.id]?.error ? (
+                  <div className="mt-3 rounded-xl border border-slate-200 bg-white">
+                    <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2 text-xs">
+                      {['viz','code','meta'].map((k) => (
+                        <button
+                          key={k}
+                          className={`rounded px-2 py-1 ${results[chart.id]?.tab === k ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}
+                          onClick={() => setResults((s) => ({ ...s, [chart.id]: { ...s[chart.id]!, tab: k as 'viz'|'code'|'meta' } }))}
+                        >
+                          {k === 'viz' ? '可視化' : k === 'code' ? 'コード' : 'メタ'}
+                        </button>
+                      ))}
+                      <div className="ml-auto">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            const r = results[chart.id];
+                            if (!r?.src) return;
+                            const a = document.createElement('a');
+                            a.href = r.src;
+                            a.download = `${chart.id}.svg`;
+                            a.click();
+                          }}
+                        >
+                          ダウンロード
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="p-3 text-sm">
+                      {results[chart.id]?.tab !== 'code' ? (
+                        results[chart.id]?.src ? <img src={results[chart.id]!.src} alt="generated chart" /> : null
+                      ) : (
+                        <pre className="overflow-auto rounded bg-slate-50 p-3 text-xs text-slate-800">{results[chart.id]?.code ?? '# 生成されたコードはありません'}</pre>
+                      )}
+                    </div>
                   </div>
                 ) : null}
               </Card>
