@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getEDAReport, listDatasets } from '@autoeda/client-sdk';
 import type { EDAReport } from '@autoeda/schemas';
@@ -34,11 +34,19 @@ export function EdaPage() {
   const [report, setReport] = useState<EDAReport | null>(null);
   const [mode, setMode] = useState<ViewMode>('stats');
 
+  // StrictMode二重実行対策: ページ内で同一datasetIdのリクエストをデデュープ
+  const inflightMapRef = useRef<Map<string, Promise<EDAReport>>>(new Map());
   useEffect(() => {
     let mounted = true;
     if (!datasetId) return;
     setLoading(true);
-    void getEDAReport(datasetId)
+    const key = `eda:${datasetId}`;
+    const inflight = inflightMapRef.current.get(key);
+    const runner = inflight ?? getEDAReport(datasetId);
+    if (!inflight) {
+      inflightMapRef.current.set(key, runner);
+    }
+    void runner
       .then((response) => {
         if (!mounted) return;
         setReport(response);
@@ -48,6 +56,10 @@ export function EdaPage() {
         if (!mounted) return;
         setReport(null);
         setLoading(false);
+      })
+      .finally(() => {
+        // 完了後はキャッシュを破棄（最新状態を常に取得する方針）
+        inflightMapRef.current.delete(key);
       });
     return () => {
       mounted = false;
