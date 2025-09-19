@@ -8,17 +8,17 @@
 
 ```mermaid
 graph LR
-  Home[Home /];
-  Datasets[Datasets /datasets];
-  Settings[Settings /settings];
-  EDA[EDA Summary /eda/{id}];
-  Charts[Charts /charts/{id}];
-  ChartsBulk[Bulk select & generate];
-  QnA[QnA /qna/{id}];
-  Actions[Next Actions /actions/{id}];
-  PII[PII /pii/{id}];
-  Leakage[Leakage /leakage/{id}];
-  Recipes[Recipes /recipes/{id}];
+  Home["Home /"];
+  Datasets["Datasets /datasets"];
+  Settings["Settings /settings"];
+  EDA["EDA Summary /eda/&#123;id&#125;"];
+  Charts["Charts /charts/&#123;id&#125;"];
+  ChartsBulk["Bulk select &amp; generate"];
+  QnA["QnA /qna/&#123;id&#125;"];
+  Actions["Next Actions /actions/&#123;id&#125;"];
+  PII["PII /pii/&#123;id&#125;"];
+  Leakage["Leakage /leakage/&#123;id&#125;"];
+  Recipes["Recipes /recipes/&#123;id&#125;"];
 
   Home --> Datasets;
   Datasets --> EDA;
@@ -31,7 +31,7 @@ graph LR
   Charts --> Recipes;
   Charts --> ChartsBulk;
   Actions --> Recipes;
-  Settings -.-> API[API /api/credentials/llm];
+  Settings -.-> API["API /api/credentials/llm"];
 ```
 
 ---

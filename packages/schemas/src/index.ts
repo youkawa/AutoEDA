@@ -175,3 +175,40 @@ export const RecipeEmitResultSchema = z.object({
   measured_summary: z.record(z.string(), z.number()).optional(),
 });
 export type RecipeEmitResult = z.infer<typeof RecipeEmitResultSchema>;
+
+// --- H: Chart Generation (Job/Batch) ---
+export const ChartOutputSchema = z.object({
+  type: z.enum(['image', 'vega']),
+  mime: z.string(),
+  // image: base64 string or SVG xml; vega: JSON object
+  content: z.any(),
+});
+export type ChartOutput = z.infer<typeof ChartOutputSchema>;
+
+export const ChartResultSchema = z.object({
+  language: z.string().default('python'),
+  library: z.string().default('vega'),
+  code: z.string().optional(),
+  seed: z.number().optional(),
+  outputs: z.array(ChartOutputSchema),
+});
+export type ChartResult = z.infer<typeof ChartResultSchema>;
+
+export const ChartJobSchema = z.object({
+  job_id: z.string(),
+  status: z.enum(['queued', 'running', 'succeeded', 'failed']),
+  result: ChartResultSchema.optional(),
+  error: z.string().optional(),
+});
+export type ChartJob = z.infer<typeof ChartJobSchema>;
+
+export const ChartBatchItemSchema = z.object({ job_id: z.string(), status: z.string() });
+export const ChartBatchStatusSchema = z.object({
+  batch_id: z.string(),
+  total: z.number().int(),
+  done: z.number().int(),
+  running: z.number().int(),
+  failed: z.number().int(),
+  items: z.array(ChartBatchItemSchema),
+});
+export type ChartBatchStatus = z.infer<typeof ChartBatchStatusSchema>;

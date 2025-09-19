@@ -139,6 +139,36 @@ export async function suggestCharts(datasetId: string, k = 5): Promise<ChartCand
   }
 }
 
+// --- H: Chart Generation ---
+import type { ChartResult, ChartJob } from '@autoeda/schemas';
+
+type GenerateItem = {
+  dataset_id: string;
+  spec_hint?: string;
+  columns?: string[];
+  library?: 'vega' | 'altair' | 'matplotlib';
+  seed?: number;
+};
+
+export async function generateChart(datasetId: string, specHint?: string, columns: string[] = []): Promise<ChartResult> {
+  const job = await postJSON<ChartJob>('/api/charts/generate', {
+    dataset_id: datasetId,
+    spec_hint: specHint,
+    columns,
+  } as GenerateItem);
+  if (job.status !== 'succeeded' || !job.result) {
+    throw new Error(job.error || 'chart generation failed');
+  }
+  return job.result;
+}
+
+export async function generateChartsBatch(datasetId: string, hints: string[]): Promise<ChartResult[]> {
+  const items: GenerateItem[] = hints.map((h) => ({ dataset_id: datasetId, spec_hint: h }));
+  const batch = await postJSON<any>('/api/charts/generate-batch', { dataset_id: datasetId, items });
+  const results: ChartResult[] = (batch.results ?? []) as ChartResult[];
+  return results;
+}
+
 export async function askQnA(datasetId: string, question: string): Promise<Answer[]> {
   try {
     const res = await postJSON<any>('/api/qna', { dataset_id: datasetId, question });

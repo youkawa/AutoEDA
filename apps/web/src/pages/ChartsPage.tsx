@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { suggestCharts } from '@autoeda/client-sdk';
+import { suggestCharts, generateChart, generateChartsBatch } from '@autoeda/client-sdk';
 import type { ChartCandidate } from '@autoeda/schemas';
 import { Button, useToast } from '@autoeda/ui-kit';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/Card';
@@ -15,7 +15,9 @@ export function ChartsPage() {
   const [loading, setLoading] = useState(true);
   const [charts, setCharts] = useState<ChartCandidate[]>([]);
   const [showConsistentOnly, setShowConsistentOnly] = useState(true);
-  const [selected, setSelected] = useState<ChartCandidate | null>(null);
+  const [selectedDetail, setSelectedDetail] = useState<ChartCandidate | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [results, setResults] = useState<Record<string, { loading: boolean; error?: string; src?: string; code?: string }>>({});
   const toast = useToast();
 
   useEffect(() => {
@@ -65,13 +67,7 @@ export function ChartsPage() {
           </p>
         </div>
         <div className="flex gap-3">
-          <Button
-            variant={showConsistentOnly ? 'primary' : 'secondary'}
-            icon={<CheckCircle2 className="h-4 w-4" />}
-            onClick={() => setShowConsistentOnly((prev) => !prev)}
-          >
-            一致率 95% 以上のみ表示
-          </Button>
+          <Button variant={showConsistentOnly ? 'primary' : 'secondary'} icon={<CheckCircle2 className="h-4 w-4" />} onClick={() => setShowConsistentOnly((prev) => !prev)}>一致率 95% 以上のみ表示</Button>
           <Button
             variant="secondary"
             icon={<Layers className="h-4 w-4" />}
@@ -81,6 +77,43 @@ export function ChartsPage() {
           </Button>
         </div>
       </header>
+
+      {selectedIds.size > 0 ? (
+        <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="text-sm text-slate-700">{selectedIds.size} 件選択中</div>
+          <div className="flex gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={async () => {
+                if (!datasetId) return;
+                try {
+                  const hints = charts.filter((c) => selectedIds.has(c.id)).map((c) => c.type);
+                  const res = await generateChartsBatch(datasetId, hints);
+                  // 簡易反映: 各カードに最初の出力(SVG)を描画
+                  const next = { ...results };
+                  charts.forEach((c, idx) => {
+                    if (!selectedIds.has(c.id)) return;
+                    const r = res[Math.min(idx, res.length - 1)];
+                    const out = r?.outputs?.[0];
+                    if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
+                      next[c.id] = { loading: false, src: `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}` };
+                    }
+                  });
+                  setResults(next);
+                } catch (e: any) {
+                  toast(e?.message ?? '一括生成に失敗しました', 'error');
+                }
+              }}
+            >
+              一括生成
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setSelectedIds(new Set())}>
+              キャンセル
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {filteredCharts.length === 0 ? (
@@ -148,41 +181,82 @@ export function ChartsPage() {
                       <AlertTriangle className="h-4 w-4" /> 再確認を推奨
                     </span>
                   )}
-                  <Button
-                    variant={isHighConfidence ? 'primary' : 'secondary'}
-                    size="sm"
-                    onClick={() => setSelected(chart)}
-                  >
-                    詳細を検証
-                  </Button>
+                  <div className="flex items-center gap-3">
+                    <label className="flex cursor-pointer items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(chart.id)}
+                        onChange={(e) => {
+                          const next = new Set(selectedIds);
+                          if (e.target.checked) next.add(chart.id); else next.delete(chart.id);
+                          setSelectedIds(next);
+                        }}
+                      />
+                      <span className="text-xs text-slate-600">選択</span>
+                    </label>
+                    <Button
+                      variant={isHighConfidence ? 'primary' : 'secondary'}
+                      size="sm"
+                      onClick={async () => {
+                        if (!datasetId) return;
+                        setResults((s) => ({ ...s, [chart.id]: { loading: true } }));
+                        try {
+                          const r = await generateChart(datasetId, chart.type);
+                          const out = r.outputs?.[0];
+                          if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
+                            const src = `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}`;
+                            setResults((s) => ({ ...s, [chart.id]: { loading: false, src, code: r.code } }));
+                          } else {
+                            setResults((s) => ({ ...s, [chart.id]: { loading: false, error: '出力形式に未対応' } }));
+                          }
+                        } catch (e: any) {
+                          setResults((s) => ({ ...s, [chart.id]: { loading: false, error: e?.message ?? '生成に失敗' } }));
+                        }
+                      }}
+                    >
+                      チャート作成
+                    </Button>
+                  </div>
                 </CardFooter>
+                {results[chart.id]?.loading ? (
+                  <div className="mt-3 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">生成中…</div>
+                ) : null}
+                {results[chart.id]?.error ? (
+                  <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">{results[chart.id]?.error}</div>
+                ) : null}
+                {results[chart.id]?.src ? (
+                  <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={results[chart.id]?.src} alt="generated chart" />
+                  </div>
+                ) : null}
               </Card>
             );
           })
         )}
       </div>
 
-      <Modal open={Boolean(selected)} onClose={() => setSelected(null)} title="チャートの詳細検証">
-        {selected ? (
+      <Modal open={Boolean(selectedDetail)} onClose={() => setSelectedDetail(null)} title="チャートの詳細検証">
+        {selectedDetail ? (
           <div className="grid gap-4 text-sm text-slate-700">
             <div>
               <p className="text-xs uppercase tracking-widest text-slate-400">タイプ</p>
-              <p className="font-medium capitalize">{selected.type}</p>
+              <p className="font-medium capitalize">{selectedDetail.type}</p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-widest text-slate-400">説明</p>
-              <p>{selected.explanation}</p>
+              <p>{selectedDetail.explanation}</p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-widest text-slate-400">根拠</p>
               <div className="flex items-center gap-2">
-                <span className="rounded-lg bg-slate-100 px-2 py-1">{selected.source_ref?.locator ?? 'N/A'}</span>
+                <span className="rounded-lg bg-slate-100 px-2 py-1">{selectedDetail.source_ref?.locator ?? 'N/A'}</span>
                 <Button
                   variant="secondary"
                   size="sm"
                   onClick={async () => {
                     try {
-                      await navigator.clipboard.writeText(selected.source_ref?.locator ?? '');
+                      await navigator.clipboard.writeText(selectedDetail.source_ref?.locator ?? '');
                       toast('引用をコピーしました', 'success');
                     } catch {
                       toast('クリップボードへのコピーに失敗しました', 'error');
@@ -193,21 +267,21 @@ export function ChartsPage() {
                 </Button>
               </div>
             </div>
-            {selected.diagnostics ? (
+            {selectedDetail.diagnostics ? (
               <div className="grid gap-2">
                 <p className="text-xs uppercase tracking-widest text-slate-400">診断情報</p>
-                {selected.diagnostics.trend && <p>トレンド: {selected.diagnostics.trend}</p>}
-                {selected.diagnostics.correlation !== undefined && (
-                  <p>相関: {Number(selected.diagnostics.correlation).toFixed(2)}</p>
+                {selectedDetail.diagnostics.trend && <p>トレンド: {selectedDetail.diagnostics.trend}</p>}
+                {selectedDetail.diagnostics.correlation !== undefined && (
+                  <p>相関: {Number(selectedDetail.diagnostics.correlation).toFixed(2)}</p>
                 )}
-                {selected.diagnostics.dominant_ratio !== undefined && (
-                  <p>支配率: {Math.round(Number(selected.diagnostics.dominant_ratio) * 100)}%</p>
+                {selectedDetail.diagnostics.dominant_ratio !== undefined && (
+                  <p>支配率: {Math.round(Number(selectedDetail.diagnostics.dominant_ratio) * 100)}%</p>
                 )}
               </div>
             ) : null}
 
             <div className="mt-2 flex justify-end gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setSelected(null)}>
+              <Button variant="secondary" size="sm" onClick={() => setSelectedDetail(null)}>
                 閉じる
               </Button>
             </div>
