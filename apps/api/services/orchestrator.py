@@ -74,7 +74,8 @@ def generate_eda_report(dataset_id: str, sample_ratio: Optional[float] = None) -
             report = _merge_llm_payload(report, llm_payload)
     except Exception as exc:  # pragma: no cover - guarded fallback path
         llm_error = str(exc)
-        LOGGER.warning("LLM orchestration failed; falling back to tool-only summary", exc_info=True)
+        # noisyスタックトレースを避け、簡潔な警告にとどめる
+        LOGGER.warning("LLM orchestration failed; falling back to tool-only summary: %s", llm_error, exc_info=False)
         fallback_applied = True
 
     if not llm_payload:
@@ -336,19 +337,9 @@ def _invoke_llm_agent(
         raise RuntimeError("empty response from LLM")
 
     try:
-        payload = json.loads(text)
-    except json.JSONDecodeError:
-        # 緩和: テキスト中の最初のJSONブロックを抽出して再試行
-        from re import search, DOTALL
-        m = search(r"\{.*\}\s*$", text, DOTALL)
-        if not m:
-            m = search(r"\{.*\}", text, DOTALL)
-        if not m:
-            raise RuntimeError("invalid JSON from LLM: could not locate JSON object")
-        try:
-            payload = json.loads(m.group(0))
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(f"invalid JSON from LLM: {exc}")
+        payload = json.loads(_coerce_json_string(text))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"invalid JSON from LLM: {exc}")
 
     return payload
 
@@ -426,6 +417,28 @@ def _extract_gemini_text(response: Any) -> Optional[str]:  # pragma: no cover - 
     except Exception:
         pass
     return None
+
+def _coerce_json_string(text: str) -> str:
+    """Best-effort cleanup to obtain a JSON object string from LLM outputs.
+
+    - Strips markdown code fences ```json ... ```
+    - If full parse fails, extract the first {...} block.
+    """
+    s = text.strip().lstrip('\ufeff')
+    if s.startswith('```'):
+        # remove ```json
+        s = s.strip('`')
+        # もう一段試す（単純化）
+        s = s.replace('```json', '').replace('```', '').strip()
+    try:
+        json.loads(s)
+        return s
+    except Exception:
+        from re import search, DOTALL
+        m = search(r"\{[\s\S]*\}\s*$", s, DOTALL) or search(r"\{[\s\S]*\}", s, DOTALL)
+        if m:
+            return m.group(0)
+        return s
 
 
 def _merge_llm_payload(report: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:

@@ -32,18 +32,26 @@ export function ActionsPage() {
 
   useEffect(() => {
     if (!datasetId) return;
-    void prioritizeActions(datasetId, items).then((res) => {
+    let done = false; // React StrictMode 二重実行対策
+    void (async () => {
+      if (done) return;
+      done = true;
+      const res = await prioritizeActions(datasetId, items);
       setRanked(res);
-    });
+    })();
   }, [datasetId, items]);
 
   useEffect(() => {
     if (!datasetId) return;
     setLastDataset({ id: datasetId });
     let active = true;
-    void getEDAReport(datasetId).then((result) => {
+    let done = false; // React StrictMode 二重実行対策
+    void (async () => {
+      if (done) return;
+      done = true;
+      const result = await getEDAReport(datasetId);
       if (active) setReport(result);
-    });
+    })();
     return () => {
       active = false;
     };
