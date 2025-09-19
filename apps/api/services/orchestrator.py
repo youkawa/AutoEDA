@@ -173,13 +173,15 @@ def _invoke_llm_agent(
         generation_config = {
             "temperature": 0.3,
             "max_output_tokens": 1200,
+            # 可能ならJSON強制（Gemini 1.5+）
+            "response_mime_type": "application/json",
         }
         model = genai.GenerativeModel(model_name, system_instruction=prompt["system"])
         response = model.generate_content(
             prompt["user"],
             generation_config=generation_config,
         )
-        text = getattr(response, "text", None)
+        text = _extract_gemini_text(response)
     else:
         model_name = os.getenv("AUTOEDA_LLM_MODEL", "gpt-4o-mini")
         try:
@@ -212,8 +214,18 @@ def _invoke_llm_agent(
 
     try:
         payload = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"invalid JSON from LLM: {exc}")
+    except json.JSONDecodeError:
+        # 緩和: テキスト中の最初のJSONブロックを抽出して再試行
+        from re import search, DOTALL
+        m = search(r"\{.*\}\s*$", text, DOTALL)
+        if not m:
+            m = search(r"\{.*\}", text, DOTALL)
+        if not m:
+            raise RuntimeError("invalid JSON from LLM: could not locate JSON object")
+        try:
+            payload = json.loads(m.group(0))
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"invalid JSON from LLM: {exc}")
 
     return payload
 
@@ -265,6 +277,29 @@ def _extract_text(response: Any) -> Optional[str]:  # pragma: no cover - depends
                     return item.text
         if hasattr(response, "choices"):
             return response.choices[0].message["content"]  # legacy fallback
+    except Exception:
+        pass
+    return None
+
+def _extract_gemini_text(response: Any) -> Optional[str]:  # pragma: no cover - SDK-dependent
+    # 1) 直接text
+    txt = getattr(response, "text", None)
+    if isinstance(txt, str) and txt.strip():
+        return txt
+    # 2) candidates -> content -> parts[].text
+    try:
+        candidates = getattr(response, "candidates", None) or []
+        buf: list[str] = []
+        for cand in candidates:
+            content = getattr(cand, "content", None)
+            parts = getattr(content, "parts", None) or []
+            for p in parts:
+                t = getattr(p, "text", None)
+                if isinstance(t, str):
+                    buf.append(t)
+        joined = "\n".join(buf).strip()
+        if joined:
+            return joined
     except Exception:
         pass
     return None
