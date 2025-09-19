@@ -114,7 +114,7 @@ def answer_qna(dataset_id: str, question: str) -> List[Dict[str, Any]]:
             if genai is None:
                 raise RuntimeError("Gemini client library not installed")
             genai.configure(api_key=api_key)
-            model_name = os.getenv("AUTOEDA_GEMINI_MODEL", "gemini-1.5-flash")
+            model_name = os.getenv("AUTOEDA_GEMINI_MODEL", "gemini-2.5-flash")
             generation_config = {
                 "temperature": 0.2,
                 "max_output_tokens": 800,
@@ -127,7 +127,7 @@ def answer_qna(dataset_id: str, question: str) -> List[Dict[str, Any]]:
             api_key = config.get_openai_api_key()
             if OpenAI is None:
                 raise RuntimeError("OpenAI client library not installed")
-            model_name = os.getenv("AUTOEDA_LLM_MODEL", "gpt-4o-mini")
+            model_name = os.getenv("AUTOEDA_LLM_MODEL", "gpt-5-nano")
             client = OpenAI(api_key=api_key)
             response = client.responses.create(
                 model=model_name,
@@ -292,7 +292,7 @@ def _invoke_llm_agent(
             raise RuntimeError("Gemini client library not installed")
 
         genai.configure(api_key=api_key)
-        model_name = os.getenv("AUTOEDA_GEMINI_MODEL", "gemini-1.5-flash")
+        model_name = os.getenv("AUTOEDA_GEMINI_MODEL", "gemini-2.5-flash")
         generation_config = {
             "temperature": 0.3,
             "max_output_tokens": 1200,
@@ -306,7 +306,7 @@ def _invoke_llm_agent(
         )
         text = _extract_gemini_text(response)
     else:
-        model_name = os.getenv("AUTOEDA_LLM_MODEL", "gpt-4o-mini")
+        model_name = os.getenv("AUTOEDA_LLM_MODEL", "gpt-5-nano")
         try:
             api_key = config.get_openai_api_key()
         except config.CredentialsError as exc:

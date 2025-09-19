@@ -69,6 +69,11 @@ uvicorn apps.api.main:app --reload   # FastAPI (http://localhost:8000)
 
 `apps/web` は `import.meta.env.VITE_API_BASE` を参照します。API を別ポートで動かす場合は `apps/web/.env.local` に `VITE_API_BASE=http://localhost:8000` を設定してください。
 
+既定モデル（環境変数で上書き可能）:
+
+- Gemini: `AUTOEDA_GEMINI_MODEL`（デフォルト: `gemini-2.5-flash`）
+- OpenAI: `AUTOEDA_LLM_MODEL`（デフォルト: `gpt-5-nano`）
+
 ## LLM 資格情報の取り扱い
 
 - `config/credentials.example.json` を複製して `config/credentials.json` を作成します。
