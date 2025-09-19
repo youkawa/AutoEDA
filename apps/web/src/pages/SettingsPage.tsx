@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { getLlmCredentialStatus, setLlmCredentials, type LlmProvider } from '@autoeda/client-sdk';
+import { getLlmCredentialStatus, setLlmCredentials, setLlmActiveProvider, type LlmProvider } from '@autoeda/client-sdk';
 import { Button } from '@autoeda/ui-kit';
 import {
   Card,
@@ -25,6 +25,7 @@ export function SettingsPage(): JSX.Element {
   });
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -83,6 +84,26 @@ export function SettingsPage(): JSX.Element {
       setError(String(detail));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSwitchProvider = async () => {
+    if (!providerStates[activeProvider]) {
+      setError(`${PROVIDER_LABELS[activeProvider]} の API Key を先に保存してください`);
+      return;
+    }
+    if (switching) return;
+    setSwitching(true);
+    setMessage(null);
+    setError(null);
+    try {
+      await setLlmActiveProvider(activeProvider);
+      await loadStatus();
+      setMessage(`使用プロバイダを ${PROVIDER_LABELS[activeProvider]} に切り替えました`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '切り替えに失敗しました');
+    } finally {
+      setSwitching(false);
     }
   };
 
@@ -145,7 +166,10 @@ export function SettingsPage(): JSX.Element {
             </label>
             {message ? <p className="text-sm text-emerald-600">{message}</p> : null}
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
-            <div className="flex justify-end">
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" variant="secondary" loading={switching} onClick={handleSwitchProvider}>
+                使用プロバイダを適用
+              </Button>
               <Button type="submit" variant="primary" loading={saving}>
                 保存
               </Button>

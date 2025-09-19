@@ -310,3 +310,19 @@ export async function setLlmCredentials(provider: LlmProvider, apiKey: string): 
 export async function setOpenAIApiKey(openaiApiKey: string): Promise<void> {
   await setLlmCredentials('openai', openaiApiKey);
 }
+
+export async function setLlmActiveProvider(provider: LlmProvider): Promise<void> {
+  const res = await fetch(`${API_BASE ?? ''}/api/credentials/llm/provider`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ provider }),
+  });
+  if (!res.ok) {
+    let message = 'Failed to switch provider';
+    try {
+      const payload: any = await res.json();
+      if (typeof payload?.detail === 'string') message = payload.detail;
+    } catch (_) {}
+    throw new Error(message);
+  }
+}

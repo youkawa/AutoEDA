@@ -222,6 +222,9 @@ class CredentialUpdateRequest(BaseModel):
     class Config:
         allow_population_by_field_name = True
 
+class ProviderUpdateRequest(BaseModel):
+    provider: Literal["openai", "gemini"]
+
 
 def log_event(event_name: str, properties: dict) -> None:
     # 簡易な観測イベント出力（JSON）
@@ -443,3 +446,12 @@ def credentials_llm_update(req: CredentialUpdateRequest) -> None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
     log_event("LLMCredentialsUpdated", {"provider": req.provider, "configured": True})
+
+
+@app.post("/api/credentials/llm/provider", status_code=status.HTTP_204_NO_CONTENT)
+def credentials_llm_set_active(req: ProviderUpdateRequest) -> None:
+    try:
+        app_config.set_active_provider(req.provider)
+    except app_config.CredentialsError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    log_event("LLMProviderSwitched", {"provider": req.provider})

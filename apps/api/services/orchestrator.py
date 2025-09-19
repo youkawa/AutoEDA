@@ -255,7 +255,10 @@ def _retrieve_context(report: Dict[str, Any]) -> List[Dict[str, Any]]:
     for issue in issues[:5]:
         query_terms.append(f"issue {issue.get('column')} {issue.get('description')}")
     query = " ".join(filter(None, query_terms)) or "autoeda requirements"
-    return rag.retrieve(query, top_k=5)
+    try:
+        return rag.retrieve(query, top_k=5)
+    except Exception:
+        return []
 
 
 def _enrich_references(report: Dict[str, Any], pii: Optional[Dict[str, Any]], leakage: Optional[Dict[str, Any]]) -> Dict[str, Any]:
