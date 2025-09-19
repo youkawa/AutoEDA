@@ -312,7 +312,10 @@ def charts_suggest(req: ChartsSuggestRequest) -> ChartsSuggestResponse:
 @app.post("/api/qna", response_model=QnAResponse)
 def qna(req: QnARequest) -> QnAResponse:
     t0 = time.perf_counter()
-    raw = tools.stats_qna(req.dataset_id, req.question)
+    try:
+        raw = orchestrator.answer_qna(req.dataset_id, req.question)
+    except Exception:
+        raw = tools.stats_qna(req.dataset_id, req.question)
     answers = [Answer(**a) for a in raw]
     refs: List[Reference] = []
     for a in answers:

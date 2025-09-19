@@ -88,6 +88,129 @@ def generate_eda_report(dataset_id: str, sample_ratio: Optional[float] = None) -
 
 
 # ---------------------------------------------------------------------------
+# QnA (B1)
+# ---------------------------------------------------------------------------
+
+def answer_qna(dataset_id: str, question: str) -> List[Dict[str, Any]]:
+    """Return grounded answers for a question. Uses RAG + LLM when possible.
+
+    Falls back to tool-only stats_qna when LLM is unavailable or fails.
+    """
+    try:
+        # Build a light-weight context using EDA tools (no heavy profiling)
+        profile = tools.profile_api(dataset_id)
+        pii = _safe_tool_call(lambda: tools.pii_scan(dataset_id))
+        leakage = _safe_tool_call(lambda: tools.leakage_scan(dataset_id))
+        report = _ensure_defaults(profile)
+        context_docs = _retrieve_context(report)
+
+        provider = config.get_llm_provider()
+
+        prompt = _build_qna_prompt(dataset_id, question, report, pii, leakage, context_docs)
+
+        text: Optional[str] = None
+        if provider == "gemini":
+            api_key = config.get_gemini_api_key()
+            if genai is None:
+                raise RuntimeError("Gemini client library not installed")
+            genai.configure(api_key=api_key)
+            model_name = os.getenv("AUTOEDA_GEMINI_MODEL", "gemini-1.5-flash")
+            generation_config = {
+                "temperature": 0.2,
+                "max_output_tokens": 800,
+                "response_mime_type": "application/json",
+            }
+            model = genai.GenerativeModel(model_name, system_instruction=prompt["system"])
+            response = model.generate_content(prompt["user"], generation_config=generation_config)
+            text = _extract_gemini_text(response)
+        else:
+            api_key = config.get_openai_api_key()
+            if OpenAI is None:
+                raise RuntimeError("OpenAI client library not installed")
+            model_name = os.getenv("AUTOEDA_LLM_MODEL", "gpt-4o-mini")
+            client = OpenAI(api_key=api_key)
+            response = client.responses.create(
+                model=model_name,
+                input=[
+                    {"role": "system", "content": prompt["system"]},
+                    {"role": "user", "content": prompt["user"]},
+                ],
+                temperature=0.2,
+                max_output_tokens=800,
+            )
+            text = _extract_text(response)
+
+        if not text:
+            raise RuntimeError("empty response from LLM")
+
+        try:
+            obj = json.loads(text)
+        except json.JSONDecodeError:
+            from re import search, DOTALL
+            m = search(r"\{.*\}\s*$", text, DOTALL) or search(r"\{.*\}", text, DOTALL)
+            if not m:
+                raise
+            obj = json.loads(m.group(0))
+
+        answers = obj.get("answers") or obj
+        if isinstance(answers, dict):
+            answers = [answers]
+        result: List[Dict[str, Any]] = []
+        for ans in answers or []:
+            text = ans.get("text") or ans.get("answer")
+            refs = ans.get("references") or []
+            cov = float(ans.get("coverage", 0.85))
+            if not isinstance(refs, list):
+                refs = []
+            result.append({"text": text or "", "references": refs, "coverage": cov})
+
+        if not result:
+            raise RuntimeError("LLM returned empty answers")
+
+        return result
+    except Exception:
+        LOGGER.warning("QnA LLM failed; falling back to tool-only answer", exc_info=True)
+        return tools.stats_qna(dataset_id, question)
+
+
+def _build_qna_prompt(
+    dataset_id: str,
+    question: str,
+    report: Dict[str, Any],
+    pii: Optional[Dict[str, Any]],
+    leakage: Optional[Dict[str, Any]],
+    context_docs: List[Dict[str, Any]],
+) -> Dict[str, str]:
+    system_prompt = (
+        "あなたはAutoEDAのQ&Aアシスタントです。データの統計/品質レポートとRAG文書を根拠に、"
+        "日本語で簡潔な回答を返します。必ずJSONで返し、各回答は `text` と `references` と `coverage` を含めます。"
+        "references は {kind, locator} の配列です。hallucinationを避け、根拠が弱い場合はcoverageを低く設定します。"
+    )
+    summary = report.get("summary", {})
+    issues = report.get("data_quality_report", {}).get("issues", [])
+    context_parts = [
+        f"dataset_id: {dataset_id}",
+        f"question: {question}",
+        f"rows: {summary.get('rows')}",
+        f"cols: {summary.get('cols')}",
+        f"missing_rate: {summary.get('missing_rate')}",
+        f"issues: {json.dumps(issues, ensure_ascii=False)}",
+        f"pii: {json.dumps(pii, ensure_ascii=False)}",
+        f"leakage: {json.dumps(leakage, ensure_ascii=False)}",
+    ]
+    context_excerpt = "\n".join(
+        f"- {doc.get('text', '')[:400]}" for doc in context_docs if doc.get("text")
+    )
+    user_prompt = (
+        "\n".join(context_parts)
+        + "\n関連ドキュメント:\n"
+        + context_excerpt
+        + "\n返却形式: {\"answers\": [{\"text\": string, \"references\": Reference[], \"coverage\": number(0..1)}]}"
+    )
+    return {"system": system_prompt, "user": user_prompt}
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
