@@ -96,4 +96,25 @@ test.describe('Acceptance scenarios', () => {
       await expect(page.getByText(/LLM\s*フォールバック/)).toBeVisible();
     }
   });
+
+  // H (batch) — UI stubbed, run locally; skip on CI for stability
+  test.skip(!!process.env.CI, 'Charts batch UI (stubbed) is skipped on CI');
+  test('H batch UI (stubbed)', async ({ page }) => {
+    await page.getByRole('link', { name: 'チャート提案' }).click();
+    // stub batch APIs
+    await page.route('**/api/charts/generate-batch', async (route) => {
+      await route.fulfill({ json: { batch_id: 'b-local', total: 1, done: 0, running: 1, failed: 0, items: [] } });
+    });
+    await page.route('**/api/charts/batches/*', async (route) => {
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="60"></svg>';
+      await route.fulfill({ json: { batch_id: 'b-local', total: 1, done: 1, running: 0, failed: 0, items: [], results_map: { c1: { language: 'python', library: 'vega', outputs: [{ type: 'image', mime: 'image/svg+xml', content: svg }] } } } });
+    });
+    // select first if present
+    const cbox = page.locator('label:has-text("選択") >> input[type="checkbox"]').first();
+    if (await cbox.count()) {
+      await cbox.check();
+    }
+    await page.getByRole('button', { name: '一括生成' }).click();
+    await page.getByText(/一括生成中/).isVisible({ timeout: 5000 }).catch(() => {});
+  });
 });

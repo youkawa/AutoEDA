@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { listDatasets, type Dataset } from '@autoeda/client-sdk';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { listDatasets, uploadDataset, type Dataset } from '@autoeda/client-sdk';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '@autoeda/ui-kit';
+import { Button, useToast } from '@autoeda/ui-kit';
 import { Upload, FolderOpen, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { useLastDataset } from '../contexts/LastDatasetContext';
@@ -22,8 +22,11 @@ function formatUpdatedAt(value?: string) {
 export function DatasetsPage() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const navigate = useNavigate();
   const { setLastDataset } = useLastDataset();
+  const toast = useToast();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -73,10 +76,35 @@ export function DatasetsPage() {
           <Button
             variant="primary"
             icon={<Upload className="h-4 w-4" />}
-            onClick={() => navigate('/')}
+            loading={uploading}
+            onClick={() => fileInputRef.current?.click()}
           >
             新しいデータセットをアップロード
           </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={async (e) => {
+              const f = e.currentTarget.files?.[0];
+              if (!f) return;
+              setUploading(true);
+              try {
+                const res = await uploadDataset(f);
+                toast('アップロードに成功しました', 'success');
+                setLastDataset({ id: res.dataset_id, name: f.name });
+                navigate(`/eda/${res.dataset_id}`);
+              } catch (err) {
+                const message = err instanceof Error ? err.message : 'アップロードに失敗しました';
+                toast(message, 'error');
+              } finally {
+                setUploading(false);
+                // allow re-selecting the same file
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }
+            }}
+          />
         </div>
       </header>
 

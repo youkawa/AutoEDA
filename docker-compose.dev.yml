@@ -1,0 +1,29 @@
+version: '3.9'
+services:
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.dev
+    command: bash -lc "pip install -r apps/api/requirements.txt && uvicorn apps.api.main:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/workspace
+    working_dir: /workspace
+    environment:
+      - AUTOEDA_CREDENTIALS_FILE=/workspace/config/credentials.json
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.dev
+    command: bash -lc "npm ci || npm i && npm run -w @autoeda/web dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./:/workspace
+    working_dir: /workspace
+    environment:
+      - VITE_API_BASE=http://localhost:8000
+    depends_on:
+      - api
+

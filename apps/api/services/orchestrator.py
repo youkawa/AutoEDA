@@ -397,15 +397,44 @@ def _build_system_prompt(
 
 
 def _extract_text(response: Any) -> Optional[str]:  # pragma: no cover - depends on SDK version
+    """Robustly extract text from OpenAI Responses/Chat responses.
+
+    優先順:
+    1) response.output_text（Responses API の便利プロパティ）
+    2) response.output[*].content[*].text（type は output_text もしくは text）
+    3) legacy chat.completions: choices[0].message.content
+    """
     try:
-        # OpenAI responses API (>=2024-05) shape
-        chunks = response.output or []
+        txt = getattr(response, "output_text", None)
+        if isinstance(txt, str) and txt.strip():
+            return txt
+    except Exception:
+        pass
+    try:
+        chunks = getattr(response, "output", None) or []
         for chunk in chunks:
-            for item in getattr(chunk, "content", []) or []:
-                if item.type == "output_text":
-                    return item.text
+            contents = getattr(chunk, "content", None) or []
+            for item in contents:
+                # item may be a pydantic-like obj or dict
+                item_type = getattr(item, "type", None) if not isinstance(item, dict) else item.get("type")
+                text_val = getattr(item, "text", None) if not isinstance(item, dict) else item.get("text")
+                if isinstance(text_val, str) and text_val.strip() and item_type in {None, "output_text", "text"}:
+                    return text_val
+    except Exception:
+        pass
+    try:
         if hasattr(response, "choices"):
-            return response.choices[0].message["content"]  # legacy fallback
+            choice0 = response.choices[0]
+            # OpenAI python SDKは message が dict の場合がある
+            msg = getattr(choice0, "message", None)
+            if isinstance(msg, dict):
+                content = msg.get("content")
+                if isinstance(content, str) and content.strip():
+                    return content
+            else:
+                content = getattr(msg, "content", None)
+                if isinstance(content, str) and content.strip():
+                    return content
     except Exception:
         pass
     return None

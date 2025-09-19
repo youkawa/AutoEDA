@@ -98,7 +98,7 @@ graph LR
   API -.-> UploadController["/api/datasets/upload"]
   API -.-> DatasetController["/api/datasets"]
   API -.-> EDAController["/api/eda"]
-  API -.-> ChartsController["/api/charts/suggest"]
+  API -.-> ChartsController["/api/charts/suggest, /api/charts/generate, /api/charts/generate:batch, /api/charts/jobs/{id}, /api/charts/batches/{id}"]
   API -.-> QnAController["/api/qna, /api/followup"]
   API -.-> ActionsController["/api/actions/prioritize"]
   API -.-> PIIController["/api/pii/*"]
@@ -113,6 +113,12 @@ graph LR
   Orchestrator --> RAG["rag.retrieve"]
   Orchestrator --> LLM["OpenAI / Gemini SDK"]
   Orchestrator --> Metrics["metrics.record_event"]
+
+  ChartsController --> ChartsService["services/charts.py (予定)"]
+  ChartsService --> CodeGen["LLM(JSON): language/library/code/outputs"]
+  ChartsService --> Sandbox["SandboxRunner (NW遮断/制限)"]
+  ChartsService --> Store["data/charts/<job_id>/*"]
+  ChartsService --> Metrics2["metrics.record_event"]
 ```
 
 ---
@@ -150,6 +156,92 @@ graph LR
 - 生成物の SHA-256 ハッシュを 16 文字で返し、再計測統計を ±1% の許容内で照合。
 
 ---
+
+### 3.6 H: チャート生成（LLM コード生成・安全実行・一括処理）
+
+requirements_v2（Capability H: CH-01〜CH-21）に基づき、提案→生成→表示→一括生成の基本設計を定義する。
+
+#### 3.6.1 概要
+
+- 単発生成（CH-01〜08）と一括生成（CH-20/21）を共通の `ChartsService` で処理。
+- 生成コードはネットワーク遮断・CPU/メモリ/時間制限付きのサンドボックスで実行。成果は PNG/SVG または Vega-Lite JSON。
+- LLM 応答が空/不正/ブロック時はテンプレート可視化へ段階フォールバック（CH-05, CH-13）。
+
+#### 3.6.2 API 契約（ドラフト）
+
+- `POST /api/charts/generate` → 単発ジョブを登録し `{job_id,status}` を返す。
+- `POST /api/charts/generate:batch` → バッチを登録し `{batch_id,submitted}` を返す（並列度は環境で可変）。
+- `GET /api/charts/jobs/{job_id}` / `GET /api/charts/batches/{batch_id}` → 進捗/結果/エラーを返す。
+- ChartResult 例: `{ language, library, code, seed, outputs:[{type:'image'|'vega', mime, content(base64|json)}] }`
+
+#### 3.6.3 サービス構成（Backend）
+
+- `services/charts.py`（新設）
+  - `suggest()`（内部で `tools.chart_api` を使用）
+  - `enqueue_generate(item) -> job_id`
+  - `enqueue_batch(items, parallelism) -> batch_id`
+  - `get_job(job_id)` / `get_batch(batch_id)`
+- `CodeGen` … LLM で構造化 JSON を取得。`orchestrator` の JSON 強制/クレンジングを再利用。
+- `SandboxRunner` … 許可パッケージのみ、NW遮断、`timeout=10s`, `mem=512MB` を強制。
+- ストレージ … `data/charts/<job_id>/{code.py,result.json,image.png,spec.json,meta.json}` を保存。
+
+設定（ENV 既定）: `AUTOEDA_CHARTS_PARALLELISM=3`, `AUTOEDA_CHART_EXEC_TIMEOUT_SEC=10`, `AUTOEDA_CHART_EXEC_MEM_MB=512`, `AUTOEDA_SANDBOX_ALLOW_PKGS="pandas,numpy,altair,vega-lite,matplotlib"`, `AUTOEDA_CHARTS_MAX_BATCH_SIZE=20`。
+
+#### 3.6.4 フロントエンド（ChartsPage）
+
+- 各提案カード: 「チャート作成」ボタン、進捗、結果タブ（可視化/コード/メタ）。
+- 複数選択（CH-20）: チェックボックス＋ヘッダー「全選択/一括生成」バー（選択数バッジ表示）。
+- 一括生成（CH-21）: バッチ進捗（N中M）と個別進捗を同時に表示。失敗は個別に再試行可。
+- A11y: role=checkbox, aria-checked, キーボード操作対応、モーション抑制。
+
+#### 3.6.5 シーケンス（単発）
+
+```mermaid
+sequenceDiagram
+  participant UI as Web UI
+  participant SDK as client-sdk
+  participant API as FastAPI
+  participant SVC as ChartsService
+  participant LLM as LLM
+  participant SBX as Sandbox
+  participant ST as Storage
+  UI->>SDK: POST /api/charts/generate
+  SDK->>API: generate(item)
+  API->>SVC: enqueue(item)
+  SVC->>LLM: JSON(code/spec)
+  alt success
+    SVC->>SBX: run(code, dataset)
+    SBX->>SVC: outputs
+  else fallback
+    SVC->>SVC: TemplateGen
+  end
+  SVC->>ST: persist
+  API-->>SDK: {status:'succeeded', result}
+  SDK-->>UI: render
+```
+
+#### 3.6.6 シーケンス（バッチ・並列度3）
+
+```mermaid
+sequenceDiagram
+  participant UI
+  participant API
+  participant SVC
+  UI->>API: POST /generate:batch (k items)
+  API->>SVC: create batch(parallel=3)
+  loop workers
+    SVC->>SVC: dequeue -> generate(item)
+  end
+  SVC-->>API: {done, failed, running}
+  API-->>UI: progress + per-item status
+```
+
+#### 3.6.7 エラー処理 / メトリクス
+
+- 人間可読エラー: Gemini の安全フィルタはカテゴリ併記、OpenAI は JSON 不整合/空応答の明示。
+- 監視イベント: `ChartGenerationRequested/Started/Progress/Completed/Failed`, `ChartBatch*`（dataset_id/job_id/batch_id を必須付帯）。
+- KPI: バッチ成功率、平均レイテンシ、失敗理由内訳、VR 差分率。
+
 
 ## 4. フォールバックとエラー処理
 

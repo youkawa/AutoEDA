@@ -9,6 +9,7 @@ from .services import tools
 from .services import evaluator
 from .services import orchestrator
 from .services import metrics
+from .services import charts as chartsvc
 from . import config as app_config
 
 
@@ -255,6 +256,19 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/api/metrics/slo")
+def metrics_slo() -> Dict[str, Any]:
+    """Return in-memory SLO snapshot with simple threshold evaluation."""
+    snapshot = metrics.slo_snapshot()
+    thresholds = {
+        "EDAReportGenerated": {"p95": 5000, "groundedness": 0.9},
+        "ChartJobFinished": {"p95": 2000},
+        "ChartBatchFinished": {"p95": 4000},
+    }
+    evaluation = metrics.detect_violations(thresholds)
+    return {"snapshot": snapshot, "evaluation": evaluation, "thresholds": thresholds}
+
+
 # --- Datasets Upload (A1 前段) ---
 class UploadResponse(BaseModel):
     dataset_id: str
@@ -455,3 +469,95 @@ def credentials_llm_set_active(req: ProviderUpdateRequest) -> None:
     except app_config.CredentialsError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     log_event("LLMProviderSwitched", {"provider": req.provider})
+
+
+# --- H: Chart Generation (MVP synchronous) ---
+class ChartGenerateItem(BaseModel):
+    dataset_id: str
+    spec_hint: Optional[str] = None
+    columns: Optional[List[str]] = None
+    library: Optional[str] = None
+    seed: Optional[int] = None
+
+
+class ChartOutput(BaseModel):
+    type: Literal["image", "vega"]
+    mime: str
+    content: Any
+
+
+class ChartResult(BaseModel):
+    language: str = "python"
+    library: str = "vega"
+    code: Optional[str] = None
+    seed: Optional[int] = None
+    outputs: List[ChartOutput]
+
+
+class ChartJob(BaseModel):
+    job_id: str
+    status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
+    result: Optional[ChartResult] = None
+    error: Optional[str] = None
+
+
+class ChartBatchStatus(BaseModel):
+    batch_id: str
+    total: int
+    done: int
+    running: int
+    failed: int
+    items: List[Dict[str, Any]]
+    results: Optional[List[ChartResult]] = None
+    results_map: Optional[Dict[str, ChartResult]] = None
+
+
+@app.post("/api/charts/generate", response_model=ChartJob)
+def charts_generate(item: ChartGenerateItem) -> ChartJob:
+    # metrics: requested -> completed
+    log_event("ChartGenerationRequested", {"dataset_id": item.dataset_id, "hint": item.spec_hint})
+    job = chartsvc.generate(item.dict())
+    log_event(
+        "ChartGenerationCompleted",
+        {"dataset_id": item.dataset_id, "status": job.get("status"), "job_id": job.get("job_id")},
+    )
+    return ChartJob(**job)
+
+
+@app.post("/api/charts/generate-batch", response_model=ChartBatchStatus)
+def charts_generate_batch(payload: Dict[str, Any]) -> ChartBatchStatus:
+    items = payload.get("items") or []
+    try:
+        parallelism = int(payload.get("parallelism") or 3)
+    except Exception:
+        parallelism = 3
+    log_event("ChartBatchStarted", {"total": len(items), "parallelism": parallelism})
+    status_obj = chartsvc.generate_batch(items, parallelism=parallelism)
+    log_event("ChartBatchCompleted", {"batch_id": status_obj.get("batch_id"), "total": status_obj.get("total")})
+    return ChartBatchStatus(**status_obj)
+
+
+@app.get("/api/charts/jobs/{job_id}", response_model=ChartJob)
+def charts_job(job_id: str) -> ChartJob:
+    job = chartsvc.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found")
+    return ChartJob(**job)
+
+
+@app.get("/api/charts/batches/{batch_id}", response_model=ChartBatchStatus)
+def charts_batch(batch_id: str) -> ChartBatchStatus:
+    st = chartsvc.get_batch(batch_id)
+    if not st:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="batch not found")
+    return ChartBatchStatus(**st)
+
+
+class ChartBatchCancelRequest(BaseModel):
+    job_ids: Optional[List[str]] = None
+
+
+@app.post("/api/charts/batches/{batch_id}/cancel")
+def charts_batch_cancel(batch_id: str, req: ChartBatchCancelRequest) -> Dict[str, Any]:
+    cancelled = chartsvc.cancel_batch(batch_id, req.job_ids or [])
+    return {"batch_id": batch_id, "cancelled": cancelled}

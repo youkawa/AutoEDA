@@ -43,6 +43,21 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function getJSON<T>(path: string): Promise<T> {
+  const url = `${API_BASE ?? ''}${path}`;
+  const res = await fetch(url, { method: 'GET' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<T>;
+}
+async function postFile<T>(path: string, file: File): Promise<T> {
+  const url = `${API_BASE ?? ''}${path}`;
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(url, { method: 'POST', body: form });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
 // Mock fallback used when fetch fails (dev/test without API)
 function makeReference(locator: string, kind: Reference['kind'] = 'figure'): Reference {
   return { kind, locator };
@@ -137,6 +152,95 @@ export async function suggestCharts(datasetId: string, k = 5): Promise<ChartCand
       },
     ];
   }
+}
+
+// --- H: Chart Generation ---
+import type { ChartResult, ChartJob } from '@autoeda/schemas';
+
+type GenerateItem = {
+  dataset_id: string;
+  spec_hint?: string;
+  columns?: string[];
+  library?: 'vega' | 'altair' | 'matplotlib';
+  seed?: number;
+};
+
+export async function generateChart(datasetId: string, specHint?: string, columns: string[] = []): Promise<ChartResult> {
+  const job = await postJSON<ChartJob>('/api/charts/generate', {
+    dataset_id: datasetId,
+    spec_hint: specHint,
+    columns,
+  } as GenerateItem);
+  if (job.status === 'succeeded' && job.result) return job.result;
+  if (job.status === 'failed') throw new Error(job.error || 'chart generation failed');
+  // queued/running: poll until complete (≤ 10s)
+  const started = Date.now();
+  const deadline = started + 10_000;
+  let last: ChartJob = job;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 200));
+    last = await getJSON<ChartJob>(`/api/charts/jobs/${job.job_id}`);
+    if (last.status === 'succeeded' && last.result) return last.result;
+    if (last.status === 'failed') throw new Error(last.error || 'chart generation failed');
+  }
+  throw new Error('chart generation timeout');
+}
+
+export async function generateChartsBatch(datasetId: string, hints: string[]): Promise<ChartResult[]> {
+  const items: GenerateItem[] = hints.map((h) => ({ dataset_id: datasetId, spec_hint: h }));
+  const batch = await postJSON<any>('/api/charts/generate-batch', { dataset_id: datasetId, items });
+  if (Array.isArray(batch.results)) return batch.results as ChartResult[];
+  // async path: poll batches/{id}
+  const batchId = (batch.batch_id as string) || '';
+  if (!batchId) return [];
+  const started = Date.now();
+  const deadline = started + 15_000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 250));
+    const st = await getJSON<any>(`/api/charts/batches/${batchId}`);
+    if (Array.isArray(st.results)) return st.results as ChartResult[];
+  }
+  throw new Error('chart batch generation timeout');
+}
+
+// --- Helpers for UI-driven progress (explicit batch control) ---
+export async function beginChartsBatch(datasetId: string, hints: string[]): Promise<string> {
+  const items: GenerateItem[] = hints.map((h) => ({ dataset_id: datasetId, spec_hint: h }));
+  const batch = await postJSON<any>('/api/charts/generate-batch', { dataset_id: datasetId, items });
+  return (batch.batch_id as string) || '';
+}
+
+export async function getChartsBatchStatus(batchId: string): Promise<{ total: number; done: number; running: number; failed: number; results?: ChartResult[]; items: { job_id: string; status: string }[]; }> {
+  return getJSON(`/api/charts/batches/${batchId}`);
+}
+
+// New helpers to retain chart-card mapping in batches
+export type ChartGenPair = { chartId: string; hint: string };
+export type ChartsBatchStatus = {
+  total: number;
+  done: number;
+  running: number;
+  failed: number;
+  items: { job_id: string; status: string; chart_id?: string }[];
+  results?: ChartResult[];
+  results_map?: Record<string, ChartResult>;
+};
+
+export async function beginChartsBatchWithIds(datasetId: string, pairs: ChartGenPair[]): Promise<string> {
+  const items = pairs.map((p) => ({ dataset_id: datasetId, spec_hint: p.hint, chart_id: p.chartId }));
+  const batch = await postJSON<any>('/api/charts/generate-batch', { dataset_id: datasetId, items });
+  return (batch.batch_id as string) || '';
+}
+
+export async function getChartsBatchStatusWithMap(batchId: string): Promise<ChartsBatchStatus> {
+  return getJSON(`/api/charts/batches/${batchId}`);
+}
+
+// --- U: Dataset Upload ---
+export type UploadResponse = { dataset_id: string };
+
+export async function uploadDataset(file: File): Promise<UploadResponse> {
+  return postFile<UploadResponse>('/api/datasets/upload', file);
 }
 
 export async function askQnA(datasetId: string, question: string): Promise<Answer[]> {

@@ -51,3 +51,6 @@ sample/
 
 *storybook.log
 storybook-static
+ 
+# Runtime data artifacts (uploads, metrics, generated charts)
+data/
