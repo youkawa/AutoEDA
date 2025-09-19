@@ -258,8 +258,15 @@ def health():
 
 @app.get("/api/metrics/slo")
 def metrics_slo() -> Dict[str, Any]:
-    """Return in-memory SLO snapshot for UI/monitoring."""
-    return metrics.slo_snapshot()
+    """Return in-memory SLO snapshot with simple threshold evaluation."""
+    snapshot = metrics.slo_snapshot()
+    thresholds = {
+        "EDAReportGenerated": {"p95": 5000, "groundedness": 0.9},
+        "ChartJobFinished": {"p95": 2000},
+        "ChartBatchFinished": {"p95": 4000},
+    }
+    evaluation = metrics.detect_violations(thresholds)
+    return {"snapshot": snapshot, "evaluation": evaluation, "thresholds": thresholds}
 
 
 # --- Datasets Upload (A1 前段) ---
@@ -489,7 +496,7 @@ class ChartResult(BaseModel):
 
 class ChartJob(BaseModel):
     job_id: str
-    status: Literal["queued", "running", "succeeded", "failed"]
+    status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
     result: Optional[ChartResult] = None
     error: Optional[str] = None
 
@@ -544,3 +551,13 @@ def charts_batch(batch_id: str) -> ChartBatchStatus:
     if not st:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="batch not found")
     return ChartBatchStatus(**st)
+
+
+class ChartBatchCancelRequest(BaseModel):
+    job_ids: Optional[List[str]] = None
+
+
+@app.post("/api/charts/batches/{batch_id}/cancel")
+def charts_batch_cancel(batch_id: str, req: ChartBatchCancelRequest) -> Dict[str, Any]:
+    cancelled = chartsvc.cancel_batch(batch_id, req.job_ids or [])
+    return {"batch_id": batch_id, "cancelled": cancelled}

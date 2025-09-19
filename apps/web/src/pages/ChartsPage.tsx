@@ -20,6 +20,8 @@ export function ChartsPage() {
   const [batchInFlight, setBatchInFlight] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ total: number; done: number; failed: number } | null>(null);
   const [batchItems, setBatchItems] = useState<{ chart_id?: string; status: string }[]>([]);
+  const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
+  const [announce, setAnnounce] = useState<string | null>(null);
   type Step = 'preparing' | 'generating' | 'running' | 'rendering' | 'done';
   type ChartMeta = { dataset_id?: string; hint?: string };
   type ChartRender = { loading: boolean; step?: Step; error?: string; src?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: ChartMeta };
@@ -95,6 +97,12 @@ export function ChartsPage() {
             ) : (
               <span>{selectedIds.size} 件選択中</span>
             )}
+            {/* live region for screen readers */}
+            {batchInFlight && batchProgress ? (
+              <div className="sr-only" aria-live="polite">
+                バッチ進捗 {batchProgress.done} 件完了（全 {batchProgress.total} 件）
+              </div>
+            ) : null}
           </div>
           <div className="flex gap-2">
             {batchInFlight && batchProgress ? (
@@ -119,6 +127,7 @@ export function ChartsPage() {
                 setBatchProgress({ total: pairs.length, done: 0, failed: 0 });
                 try {
                   const batchId = await beginChartsBatchWithIds(datasetId, pairs);
+                  setCurrentBatchId(batchId || null);
                   if (!batchId) {
                     // 同期モードの可能性: 従来の関数で取得
                     const res = await generateChartsBatch(datasetId, pairs.map(p => p.hint));
@@ -151,6 +160,7 @@ export function ChartsPage() {
                         }
                         setResults(next);
                         finished = true;
+                        setAnnounce('バッチが完了しました');
                       } else if (Array.isArray(st.results)) {
                         const next: Record<string, ChartRender> = { ...results };
                         for (let i = 0; i < pairs.length; i++) {
@@ -162,6 +172,7 @@ export function ChartsPage() {
                         }
                         setResults(next);
                         finished = true;
+                        setAnnounce('バッチが完了しました');
                       }
                     }
                   }
@@ -170,11 +181,34 @@ export function ChartsPage() {
                   toast(message, 'error');
                 } finally {
                   setBatchInFlight(false);
+                  setCurrentBatchId(null);
                 }
               }}
             >
               一括生成
             </Button>
+            {batchInFlight && currentBatchId ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const queued = batchItems.filter((it) => it.status === 'queued').map((it) => it.chart_id).filter(Boolean) as string[];
+                    if (queued.length === 0) return;
+                    await fetch(`${(import.meta as unknown as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE ?? ''}/api/charts/batches/${currentBatchId}/cancel`, {
+                      method: 'POST',
+                      headers: { 'content-type': 'application/json' },
+                      body: JSON.stringify({ job_ids: queued }),
+                    });
+                    toast('キュー中のジョブをキャンセルしました', 'success');
+                  } catch {
+                    toast('キャンセルに失敗しました', 'error');
+                  }
+                }}
+              >
+                キャンセル（キュー）
+              </Button>
+            ) : null}
             {!batchInFlight && batchItems.some((it) => it.status === 'failed') ? (
               <Button
                 variant="secondary"
@@ -247,7 +281,12 @@ export function ChartsPage() {
                       <CardTitle className="text-lg capitalize">{chart.type}</CardTitle>
                       <CardDescription>{chart.explanation}</CardDescription>
                     </div>
-                    <Pill tone={isHighConfidence ? 'emerald' : 'amber'}>{confidence}%</Pill>
+                    <div className="flex items-center gap-2">
+                      {batchItems.find((it) => it.chart_id === chart.id)?.status === 'cancelled' ? (
+                        <Pill tone="amber">キャンセル</Pill>
+                      ) : null}
+                      <Pill tone={isHighConfidence ? 'emerald' : 'amber'}>{confidence}%</Pill>
+                    </div>
                   </div>
                   <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
                     根拠: {chart.source_ref?.locator ?? 'N/A'}
@@ -459,6 +498,8 @@ export function ChartsPage() {
           </div>
         ) : null}
       </Modal>
+      {/* screen reader announcements */}
+      <div className="sr-only" aria-live="polite" aria-atomic="true">{announce ?? ''}</div>
     </div>
   );
 }

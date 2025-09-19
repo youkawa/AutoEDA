@@ -297,3 +297,36 @@ def get_batch(batch_id: str) -> Optional[Dict[str, Any]]:
             st["results_map"] = results_map
         return st
     return st
+
+
+def cancel_batch(batch_id: str, job_ids: List[str]) -> int:
+    """Cancel queued jobs in a batch. Returns the number of jobs cancelled.
+
+    Notes:
+    - Only jobs with status 'queued' are removed from the queue and marked 'cancelled'.
+    - Running jobs are not interrupted (future: cooperative checks).
+    """
+    st = _BATCHES.get(batch_id)
+    if not st:
+        return 0
+    targets = set(job_ids) if job_ids else {it.get("job_id") for it in st.get("items", [])}
+    # remove from queue
+    removed = 0
+    with _CV:
+        remaining: list[Dict[str, Any]] = []
+        for job in _QUEUE:
+            if job.get("job_id") in targets:
+                jid = job.get("job_id")
+                _JOBS.setdefault(jid, {})
+                _JOBS[jid]["status"] = "cancelled"
+                removed += 1
+            else:
+                remaining.append(job)
+        _QUEUE[:] = remaining
+    # reflect into batch items
+    for it in st.get("items", []):
+        if it.get("job_id") in targets and it.get("status") == "queued":
+            it["status"] = "cancelled"
+    # update counters via get_batch recompute path
+    _BATCHES[batch_id] = st
+    return removed

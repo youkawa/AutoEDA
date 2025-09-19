@@ -86,7 +86,13 @@ class SandboxRunner:
         with open(in_path, "w", encoding="utf-8") as f:
             f.write(_json.dumps(payload))
         try:
-            proc = subprocess.run(["python3", "-c", code], cwd=tmpdir, capture_output=True, text=True, timeout=self.timeout_sec, check=True)
+            def _preexec():  # POSIX only
+                with contextlib.suppress(Exception):
+                    resource.setrlimit(resource.RLIMIT_AS, (self.mem_limit_mb * 1024 * 1024, self.mem_limit_mb * 1024 * 1024))
+                    resource.setrlimit(resource.RLIMIT_CPU, (2, 2))
+                    resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
+            env = {"PYTHONUNBUFFERED": "1", "PATH": "/usr/bin:/bin"}
+            proc = subprocess.run(["python3", "-I", "-c", code], cwd=tmpdir, capture_output=True, text=True, timeout=self.timeout_sec, check=True, env=env, preexec_fn=_preexec if hasattr(os, 'setuid') else None)
             out = proc.stdout.strip()
             obj = _json.loads(out)
         except Exception:
