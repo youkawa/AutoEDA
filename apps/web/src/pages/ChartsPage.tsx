@@ -19,6 +19,7 @@ export function ChartsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchInFlight, setBatchInFlight] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ total: number; done: number; failed: number } | null>(null);
+  const [batchItems, setBatchItems] = useState<{ chart_id?: string; status: string }[]>([]);
   type Step = 'preparing' | 'generating' | 'running' | 'rendering' | 'done';
   type ChartMeta = { dataset_id?: string; hint?: string };
   type ChartRender = { loading: boolean; step?: Step; error?: string; src?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: ChartMeta };
@@ -96,6 +97,16 @@ export function ChartsPage() {
             )}
           </div>
           <div className="flex gap-2">
+            {batchInFlight && batchProgress ? (
+              <div className="hidden md:block w-40 self-center">
+                <div className="h-2 w-full rounded bg-slate-100">
+                  <div
+                    className="h-2 rounded bg-brand-500 transition-all"
+                    style={{ width: `${Math.round((batchProgress.done / Math.max(1, batchProgress.total)) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            ) : null}
             <Button
               variant="primary"
               size="sm"
@@ -120,6 +131,7 @@ export function ChartsPage() {
                       }
                     }
                     setResults(next);
+                    setBatchItems(pairs.map(() => ({ status: 'succeeded' })));
                   } else {
                     // ポーリングして進捗反映
                     let finished = false;
@@ -127,6 +139,7 @@ export function ChartsPage() {
                       await new Promise((r) => setTimeout(r, 300));
                       const st: ChartsBatchStatus = await getChartsBatchStatusWithMap(batchId);
                       setBatchProgress({ total: st.total, done: st.done, failed: st.failed });
+                      setBatchItems(st.items ?? []);
                       if (st.results_map && Object.keys(st.results_map).length > 0) {
                         const next: Record<string, ChartRender> = { ...results };
                         for (const cid of Object.keys(st.results_map)) {
@@ -162,6 +175,49 @@ export function ChartsPage() {
             >
               一括生成
             </Button>
+            {!batchInFlight && batchItems.some((it) => it.status === 'failed') ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={async () => {
+                  if (!datasetId) return;
+                  const failedIds = batchItems.filter((it) => it.status === 'failed' && it.chart_id).map((it) => it.chart_id!)
+                    .filter((id) => selectedIds.has(id));
+                  if (failedIds.length === 0) return;
+                  setBatchInFlight(true);
+                  setBatchProgress({ total: failedIds.length, done: 0, failed: 0 });
+                  try {
+                    const pairs = charts.filter((c) => failedIds.includes(c.id)).map((c) => ({ chartId: c.id, hint: c.type }));
+                    const batchId = await beginChartsBatchWithIds(datasetId, pairs);
+                    let finished = false;
+                    while (!finished) {
+                      await new Promise((r) => setTimeout(r, 300));
+                      const st: ChartsBatchStatus = await getChartsBatchStatusWithMap(batchId);
+                      setBatchProgress({ total: st.total, done: st.done, failed: st.failed });
+                      if (st.results_map && Object.keys(st.results_map).length > 0) {
+                        const next: Record<string, ChartRender> = { ...results };
+                        for (const cid of Object.keys(st.results_map)) {
+                          const r = st.results_map[cid]!;
+                          const out = r?.outputs?.[0];
+                          if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
+                            next[cid] = { loading: false, step: 'done', tab: 'viz', src: `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}` };
+                          }
+                        }
+                        setResults(next);
+                        finished = true;
+                      }
+                    }
+                  } catch (err) {
+                    const message = err instanceof Error ? err.message : '再試行に失敗しました';
+                    toast(message, 'error');
+                  } finally {
+                    setBatchInFlight(false);
+                  }
+                }}
+              >
+                失敗のみ再試行
+              </Button>
+            ) : null}
             <Button variant="secondary" size="sm" onClick={() => setSelectedIds(new Set())}>
               キャンセル
             </Button>
