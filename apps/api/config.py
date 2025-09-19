@@ -169,6 +169,22 @@ def set_llm_credentials(provider: str, api_key: str, make_active: bool = True) -
 def set_openai_api_key(value: str) -> None:
     set_llm_credentials("openai", value, make_active=True)
 
+def set_active_provider(provider: str) -> None:
+    """Switch active LLM provider without changing stored API keys.
+
+    Raises CredentialsError if the provider is unsupported or its API key is not configured.
+    """
+    provider = provider.lower()
+    if provider not in SUPPORTED_PROVIDERS:
+        raise CredentialsError(f"unsupported provider: {provider}")
+
+    section = _normalise_llm_section(_load_credentials_optional().get("llm"))
+    if not _provider_has_key(section, provider):
+        raise CredentialsError(f"{provider} api key is not configured")
+
+    section["provider"] = provider
+    _save_llm_section(section)
+
 
 def reset_cache() -> None:
     get_openai_api_key.cache_clear()

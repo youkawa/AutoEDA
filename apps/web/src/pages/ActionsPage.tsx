@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from '../components/ui/Card';
-import { Button } from '@autoeda/ui-kit';
+import { Button, useToast } from '@autoeda/ui-kit';
 import { ClipboardCheck, BarChart3, ArrowRight } from 'lucide-react';
 import { Callout } from '../components/ui/Callout';
 import { Pill } from '../components/ui/Pill';
@@ -29,21 +29,60 @@ export function ActionsPage() {
   const [ranked, setRanked] = useState<PrioritizedAction[]>([]);
   const [report, setReport] = useState<EDAReport | null>(null);
   const [mode, setMode] = useState<'stats' | 'references'>('stats');
+  const toast = useToast();
+
+  const exportPlan = () => {
+    try {
+      if (!datasetId) return;
+      if (!ranked.length) {
+        toast('エクスポート対象のアクションがありません', 'warning');
+        return;
+      }
+      const plan = {
+        dataset_id: datasetId,
+        generated_at: new Date().toISOString(),
+        algorithm: 'WSJF/RICE',
+        count: ranked.length,
+        items: ranked,
+      };
+      const blob = new Blob([JSON.stringify(plan, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const name = `action-plan_${datasetId}_${new Date().toISOString().replace(/[:]/g, '-').slice(0, 19)}.json`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast('プランをエクスポートしました', 'success');
+    } catch {
+      toast('エクスポートに失敗しました', 'error');
+    }
+  };
 
   useEffect(() => {
     if (!datasetId) return;
-    void prioritizeActions(datasetId, items).then((res) => {
+    let done = false; // React StrictMode 二重実行対策
+    void (async () => {
+      if (done) return;
+      done = true;
+      const res = await prioritizeActions(datasetId, items);
       setRanked(res);
-    });
+    })();
   }, [datasetId, items]);
 
   useEffect(() => {
     if (!datasetId) return;
     setLastDataset({ id: datasetId });
     let active = true;
-    void getEDAReport(datasetId).then((result) => {
+    let done = false; // React StrictMode 二重実行対策
+    void (async () => {
+      if (done) return;
+      done = true;
+      const result = await getEDAReport(datasetId);
       if (active) setReport(result);
-    });
+    })();
     return () => {
       active = false;
     };
@@ -119,7 +158,7 @@ export function ActionsPage() {
           )}
         </CardContent>
         <CardFooter className="flex flex-wrap gap-3">
-          <Button variant="primary" icon={<BarChart3 className="h-4 w-4" />}>
+          <Button variant="primary" icon={<BarChart3 className="h-4 w-4" />} onClick={exportPlan} disabled={!ranked.length}>
             プランをエクスポート
           </Button>
           <Button variant="secondary" icon={<ArrowRight className="h-4 w-4" />} onClick={() => setMode('references')}>

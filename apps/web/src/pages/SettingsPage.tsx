@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { getLlmCredentialStatus, setLlmCredentials, type LlmProvider } from '@autoeda/client-sdk';
+import { getLlmCredentialStatus, setLlmCredentials, setLlmActiveProvider, type LlmProvider } from '@autoeda/client-sdk';
 import { Button } from '@autoeda/ui-kit';
 import {
   Card,
@@ -25,6 +25,7 @@ export function SettingsPage(): JSX.Element {
   });
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,8 +55,18 @@ export function SettingsPage(): JSX.Element {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (saving) return; // 二重送信ガード
     if (!apiKey.trim()) {
       setError('APIキーを入力してください');
+      return;
+    }
+    const trimmed = apiKey.trim();
+    if (trimmed.length < 8) {
+      setError('APIキーは8文字以上で入力してください');
+      return;
+    }
+    if (trimmed.startsWith('<')) {
+      setError('APIキーにプレースホルダ（<...>）が含まれています');
       return;
     }
 
@@ -63,15 +74,36 @@ export function SettingsPage(): JSX.Element {
     setMessage(null);
     setError(null);
     try {
-      await setLlmCredentials(activeProvider, apiKey.trim());
+      await setLlmCredentials(activeProvider, trimmed);
       setApiKey('');
       await loadStatus();
       setMessage('設定が更新されました');
     } catch (err) {
       const detail = err instanceof Error ? err.message : '更新に失敗しました';
-      setError(detail);
+      // より読みやすく（Pydantic配列など）
+      setError(String(detail));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSwitchProvider = async () => {
+    if (!providerStates[activeProvider]) {
+      setError(`${PROVIDER_LABELS[activeProvider]} の API Key を先に保存してください`);
+      return;
+    }
+    if (switching) return;
+    setSwitching(true);
+    setMessage(null);
+    setError(null);
+    try {
+      await setLlmActiveProvider(activeProvider);
+      await loadStatus();
+      setMessage(`使用プロバイダを ${PROVIDER_LABELS[activeProvider]} に切り替えました`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '切り替えに失敗しました');
+    } finally {
+      setSwitching(false);
     }
   };
 
@@ -134,7 +166,10 @@ export function SettingsPage(): JSX.Element {
             </label>
             {message ? <p className="text-sm text-emerald-600">{message}</p> : null}
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
-            <div className="flex justify-end">
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" variant="secondary" loading={switching} onClick={handleSwitchProvider}>
+                使用プロバイダを適用
+              </Button>
               <Button type="submit" variant="primary" loading={saving}>
                 保存
               </Button>

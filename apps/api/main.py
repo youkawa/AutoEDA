@@ -4,7 +4,7 @@ from typing import List, Literal, Optional, Dict, Any
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, Field
 from .services import tools
 from .services import evaluator
 from .services import orchestrator
@@ -215,19 +215,15 @@ class CredentialStatus(BaseModel):
 
 class CredentialUpdateRequest(BaseModel):
     provider: Literal["openai", "gemini"] = "openai"
-    api_key: Optional[str] = Field(default=None, min_length=8)
+    # サーバ側で明示バリデーションするため Optional にする
+    api_key: Optional[str] = Field(default=None)
     openai_api_key: Optional[str] = Field(default=None, alias="openai_api_key")
-
-    @root_validator(skip_on_failure=True)
-    def _ensure_api_key(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        key = values.get("api_key") or values.get("openai_api_key")
-        if not key or not str(key).strip():
-            raise ValueError("api_key is required")
-        values["api_key"] = str(key).strip()
-        return values
 
     class Config:
         allow_population_by_field_name = True
+
+class ProviderUpdateRequest(BaseModel):
+    provider: Literal["openai", "gemini"]
 
 
 def log_event(event_name: str, properties: dict) -> None:
@@ -319,7 +315,10 @@ def charts_suggest(req: ChartsSuggestRequest) -> ChartsSuggestResponse:
 @app.post("/api/qna", response_model=QnAResponse)
 def qna(req: QnARequest) -> QnAResponse:
     t0 = time.perf_counter()
-    raw = tools.stats_qna(req.dataset_id, req.question)
+    try:
+        raw = orchestrator.answer_qna(req.dataset_id, req.question)
+    except Exception:
+        raw = tools.stats_qna(req.dataset_id, req.question)
     answers = [Answer(**a) for a in raw]
     refs: List[Reference] = []
     for a in answers:
@@ -431,9 +430,28 @@ def credentials_llm_status() -> CredentialStatus:
 
 @app.post("/api/credentials/llm", status_code=status.HTTP_204_NO_CONTENT)
 def credentials_llm_update(req: CredentialUpdateRequest) -> None:
+    # 人間可読な一貫フォーマットで 400 を返す
+    key = (req.api_key or req.openai_api_key or "").strip()
+    if not key:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="api_key is required")
+    if len(key) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="api_key must be at least 8 characters")
+    if key.startswith("<"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="api_key still contains placeholder value")
+
     try:
-        app_config.set_llm_credentials(req.provider, req.api_key)
+        app_config.set_llm_credentials(req.provider, key)
     except app_config.CredentialsError as exc:
+        # app_config 側の検証も 400 に正規化
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
     log_event("LLMCredentialsUpdated", {"provider": req.provider, "configured": True})
+
+
+@app.post("/api/credentials/llm/provider", status_code=status.HTTP_204_NO_CONTENT)
+def credentials_llm_set_active(req: ProviderUpdateRequest) -> None:
+    try:
+        app_config.set_active_provider(req.provider)
+    except app_config.CredentialsError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    log_event("LLMProviderSwitched", {"provider": req.provider})

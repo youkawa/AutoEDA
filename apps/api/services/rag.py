@@ -47,10 +47,14 @@ def _ensure_chroma() -> Optional[Any]:
         except config.CredentialsError:
             api_key = None
         if api_key and embedding_functions is not None:
-            _embedding_fn = embedding_functions.OpenAIEmbeddingFunction(
-                api_key=api_key,
-                model_name=os.getenv("AUTOEDA_EMBEDDING_MODEL", "text-embedding-3-small"),
-            )
+            try:
+                _embedding_fn = embedding_functions.OpenAIEmbeddingFunction(
+                    api_key=api_key,
+                    model_name=os.getenv("AUTOEDA_EMBEDDING_MODEL", "text-embedding-3-small"),
+                )
+            except Exception:
+                # openai パッケージ未インストールなど、埋め込み利用不可 → フォールバック
+                return None
         else:
             return None
     if _collection is None:
