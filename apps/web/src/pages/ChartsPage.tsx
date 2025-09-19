@@ -201,19 +201,21 @@ export function ChartsPage() {
                       size="sm"
                       onClick={async () => {
                         if (!datasetId) return;
-                        setResults((s) => ({ ...s, [chart.id]: { loading: true } }));
+                        setResults((s) => ({ ...s, [chart.id]: { loading: true, step: 'preparing', tab: 'viz' } }));
+                        setTimeout(() => setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), loading: true, step: 'generating', tab: 'viz' } })), 200);
+                        setTimeout(() => setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), loading: true, step: 'running', tab: 'viz' } })), 400);
                         try {
                           const r = await generateChart(datasetId, chart.type);
                           const out = r.outputs?.[0];
                           if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
                             const src = `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}`;
-                            setResults((s) => ({ ...s, [chart.id]: { loading: false, src, code: r.code, tab: 'viz' } }));
+                            setResults((s) => ({ ...s, [chart.id]: { loading: false, step: 'done', src, code: r.code, tab: 'viz' } }));
                           } else {
-                            setResults((s) => ({ ...s, [chart.id]: { loading: false, error: '出力形式に未対応' } }));
+                            setResults((s) => ({ ...s, [chart.id]: { loading: false, step: 'done', error: '出力形式に未対応' } }));
                           }
                         } catch (err) {
                           const message = err instanceof Error ? err.message : '生成に失敗';
-                          setResults((s) => ({ ...s, [chart.id]: { loading: false, error: message } }));
+                          setResults((s) => ({ ...s, [chart.id]: { loading: false, step: 'done', error: message } }));
                         }
                       }}
                     >
@@ -222,7 +224,9 @@ export function ChartsPage() {
                   </div>
                 </CardFooter>
                 {results[chart.id]?.loading ? (
-                  <div className="mt-3 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">生成中…</div>
+                  <div className="mt-3 rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-600">
+                    <div className="flex items-center gap-2"><span className={results[chart.id]?.step==='preparing'?'font-semibold':''}>準備</span>→<span className={results[chart.id]?.step==='generating'?'font-semibold':''}>コード生成</span>→<span className={results[chart.id]?.step==='running'?'font-semibold':''}>実行</span>→<span className={results[chart.id]?.step==='rendering'?'font-semibold':''}>レンダリング</span></div>
+                  </div>
                 ) : null}
                 {results[chart.id]?.error ? (
                   <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">{results[chart.id]?.error}</div>

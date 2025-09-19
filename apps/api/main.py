@@ -500,8 +500,13 @@ class ChartBatchStatus(BaseModel):
 
 @app.post("/api/charts/generate", response_model=ChartJob)
 def charts_generate(item: ChartGenerateItem) -> ChartJob:
+    # metrics: requested -> completed
+    log_event("ChartGenerationRequested", {"dataset_id": item.dataset_id, "hint": item.spec_hint})
     job = chartsvc.generate(item.dict())
-    log_event("ChartGenerationCompleted", {"dataset_id": item.dataset_id, "status": job.get("status"), "job_id": job.get("job_id")})
+    log_event(
+        "ChartGenerationCompleted",
+        {"dataset_id": item.dataset_id, "status": job.get("status"), "job_id": job.get("job_id")},
+    )
     return ChartJob(**job)
 
 
@@ -512,6 +517,7 @@ def charts_generate_batch(payload: Dict[str, Any]) -> ChartBatchStatus:
         parallelism = int(payload.get("parallelism") or 3)
     except Exception:
         parallelism = 3
+    log_event("ChartBatchStarted", {"total": len(items), "parallelism": parallelism})
     status_obj = chartsvc.generate_batch(items, parallelism=parallelism)
     log_event("ChartBatchCompleted", {"batch_id": status_obj.get("batch_id"), "total": status_obj.get("total")})
     return ChartBatchStatus(**status_obj)
