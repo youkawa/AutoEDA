@@ -18,7 +18,8 @@ export function ChartsPage() {
   const [selectedDetail, setSelectedDetail] = useState<ChartCandidate | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   type Step = 'preparing' | 'generating' | 'running' | 'rendering' | 'done';
-  type ChartRender = { loading: boolean; step?: Step; error?: string; src?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: Record<string, unknown> };
+  type ChartMeta = { dataset_id?: string; hint?: string };
+  type ChartRender = { loading: boolean; step?: Step; error?: string; src?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: ChartMeta };
   const [results, setResults] = useState<Record<string, ChartRender>>({});
   const toast = useToast();
 
@@ -210,7 +211,8 @@ export function ChartsPage() {
                           const out = r.outputs?.[0];
                           if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
                             const src = `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}`;
-                            setResults((s) => ({ ...s, [chart.id]: { loading: false, step: 'done', src, code: r.code, tab: 'viz' } }));
+                            const meta = (r as unknown as { meta?: ChartMeta }).meta;
+                            setResults((s) => ({ ...s, [chart.id]: { loading: false, step: 'done', src, code: r.code, tab: 'viz', meta } }));
                           } else {
                             setResults((s) => ({ ...s, [chart.id]: { loading: false, step: 'done', error: '出力形式に未対応' } }));
                           }
@@ -286,8 +288,8 @@ export function ChartsPage() {
                       ) : null}
                       {results[chart.id]?.tab === 'meta' ? (
                         <div className="grid gap-1 text-xs text-slate-600">
-                          <div>dataset_id: {(results[chart.id]?.meta as any)?.dataset_id ?? '-'}</div>
-                          <div>hint: {(results[chart.id]?.meta as any)?.hint ?? '-'}</div>
+                          <div>dataset_id: {results[chart.id]?.meta?.dataset_id ?? '-'}</div>
+                          <div>hint: {results[chart.id]?.meta?.hint ?? '-'}</div>
                         </div>
                       ) : null}
                     </div>
