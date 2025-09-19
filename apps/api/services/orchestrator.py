@@ -12,6 +12,7 @@ import logging
 import os
 import time
 from typing import Any, Dict, List, Optional, Tuple
+import threading
 
 from apps.api import config
 
@@ -43,6 +44,7 @@ _REQUIRED_KEYS: Tuple[str, ...] = (
 OrchestrationResult = Tuple[Dict[str, Any], Dict[str, Any]]
 
 _rag_seeded = False
+_rag_seed_lock = threading.Lock()
 
 
 def generate_eda_report(dataset_id: str, sample_ratio: Optional[float] = None) -> OrchestrationResult:
@@ -50,8 +52,10 @@ def generate_eda_report(dataset_id: str, sample_ratio: Optional[float] = None) -
 
     global _rag_seeded
     if not _rag_seeded:
-        rag.load_default_corpus()
-        _rag_seeded = True
+        with _rag_seed_lock:
+            if not _rag_seeded:
+                rag.load_default_corpus()
+                _rag_seeded = True
 
     profile = tools.profile_api(dataset_id, sample_ratio)
     pii = _safe_tool_call(lambda: tools.pii_scan(dataset_id))
@@ -124,6 +128,10 @@ def answer_qna(dataset_id: str, question: str) -> List[Dict[str, Any]]:
             model = genai.GenerativeModel(model_name, system_instruction=prompt["system"])
             response = model.generate_content(prompt["user"], generation_config=generation_config)
             text = _extract_gemini_text(response)
+            if not text:
+                msg = _gemini_block_message(response)
+                if msg:
+                    raise RuntimeError(msg)
         else:
             api_key = config.get_openai_api_key()
             if OpenAI is None:
@@ -309,6 +317,10 @@ def _invoke_llm_agent(
             generation_config=generation_config,
         )
         text = _extract_gemini_text(response)
+        if not text:
+            msg = _gemini_block_message(response)
+            if msg:
+                raise RuntimeError(msg)
     else:
         model_name = os.getenv("AUTOEDA_LLM_MODEL", "gpt-5-nano")
         try:
@@ -399,8 +411,11 @@ def _extract_text(response: Any) -> Optional[str]:  # pragma: no cover - depends
     return None
 
 def _extract_gemini_text(response: Any) -> Optional[str]:  # pragma: no cover - SDK-dependent
-    # 1) 直接text
-    txt = getattr(response, "text", None)
+    # 1) 直接text（プロパティアクセスが例外を投げるSDKがあるため保護）
+    try:
+        txt = getattr(response, "text")
+    except Exception:
+        txt = None
     if isinstance(txt, str) and txt.strip():
         return txt
     # 2) candidates -> content -> parts[].text
@@ -419,6 +434,36 @@ def _extract_gemini_text(response: Any) -> Optional[str]:  # pragma: no cover - 
             return joined
     except Exception:
         pass
+    return None
+
+def _gemini_block_message(response: Any) -> Optional[str]:  # pragma: no cover - SDK-dependent
+    """候補の safety_ratings からブロック理由を抽出し、表示用メッセージに整形。"""
+    try:
+        candidates = getattr(response, "candidates", None) or []
+        blocked: list[str] = []
+        for cand in candidates:
+            ratings = (
+                getattr(cand, "safety_ratings", None)
+                or getattr(cand, "safetyRatings", None)
+                or []
+            )
+            for r in ratings:
+                # オブジェクト/辞書の両対応
+                category = getattr(r, "category", None) if not isinstance(r, dict) else r.get("category")
+                blocked_flag = getattr(r, "blocked", None) if not isinstance(r, dict) else r.get("blocked")
+                probability = getattr(r, "probability", None) if not isinstance(r, dict) else r.get("probability")
+                severity = getattr(r, "severity", None) if not isinstance(r, dict) else r.get("severity")
+                if isinstance(blocked_flag, bool) and blocked_flag:
+                    blocked.append(str(category or "unknown"))
+                elif isinstance(probability, str) and probability.upper() in {"VERY_HIGH", "HIGH", "VERY_LIKELY", "LIKELY"}:
+                    blocked.append(str(category or "unknown"))
+                elif isinstance(severity, str) and severity.upper() in {"BLOCKED", "HIGH"}:
+                    blocked.append(str(category or "unknown"))
+        if blocked:
+            cats = ", ".join(sorted(set(blocked)))
+            return f"Gemini の安全フィルタにより応答がブロックされました（カテゴリ: {cats}）。質問を具体化するか、機微表現を避けて再試行してください。"
+    except Exception:
+        return None
     return None
 
 def _coerce_json_string(text: str) -> str:
