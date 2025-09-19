@@ -6,6 +6,9 @@ Stores job results under data/charts/<job_id>/result.json for traceability.
 from __future__ import annotations
 
 import json
+import os
+import threading
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
@@ -13,10 +16,47 @@ from uuid import uuid4
 _DATA_DIR = Path("data/charts")
 _JOBS: Dict[str, Dict[str, Any]] = {}
 _BATCHES: Dict[str, Dict[str, Any]] = {}
+_QUEUE: "list[Dict[str, Any]]" = []
+_CV = threading.Condition()
+_ASYNC = os.environ.get("AUTOEDA_CHARTS_ASYNC", "0") in {"1", "true", "TRUE"}
+_WORKER_STARTED = False
 
 
 def _ensure_dir() -> None:
     _DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _start_worker_once() -> None:
+    global _WORKER_STARTED
+    if _WORKER_STARTED:
+        return
+    if not _ASYNC:
+        return
+
+    def _worker():
+        while True:
+            with _CV:
+                while not _QUEUE:
+                    _CV.wait()
+                job = _QUEUE.pop(0)
+            job_id = job["job_id"]
+            _JOBS[job_id]["status"] = "running"
+            try:
+                item = job["item"]
+                result = _template_result(item.get("spec_hint"), item.get("dataset_id"))
+                outdir = _DATA_DIR / job_id
+                outdir.mkdir(parents=True, exist_ok=True)
+                payload = {"job_id": job_id, "status": "succeeded", "result": result}
+                (outdir / "result.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+                _JOBS[job_id].update(payload)
+            except Exception as exc:
+                _JOBS[job_id].update({"status": "failed", "error": str(exc)})
+            # small yield
+            time.sleep(0.01)
+
+    t = threading.Thread(target=_worker, daemon=True, name="charts-worker")
+    t.start()
+    _WORKER_STARTED = True
 
 
 def _svg_bar(title: str = "Bar Chart") -> str:
@@ -98,16 +138,30 @@ def _template_result(spec_hint: Optional[str], dataset_id: Optional[str] = None)
 
 
 def generate(item: Dict[str, Any]) -> Dict[str, Any]:
-    """Generate a chart result synchronously (MVP)."""
+    """Generate a chart result.
+
+    - synchronous (default): returns succeeded with result
+    - asynchronous (AUTOEDA_CHARTS_ASYNC=1): returns queued job; worker will complete it
+    """
     _ensure_dir()
-    job_id = uuid4().hex[:12]
-    result = _template_result(item.get("spec_hint"), item.get("dataset_id"))
-    job = {"job_id": job_id, "status": "succeeded", "result": result}
-    _JOBS[job_id] = job
-    outdir = _DATA_DIR / job_id
-    outdir.mkdir(parents=True, exist_ok=True)
-    (outdir / "result.json").write_text(json.dumps(job, ensure_ascii=False, indent=2), encoding="utf-8")
-    return job
+    if _ASYNC:
+        _start_worker_once()
+        job_id = uuid4().hex[:12]
+        job = {"job_id": job_id, "status": "queued"}
+        _JOBS[job_id] = job
+        with _CV:
+            _QUEUE.append({"job_id": job_id, "item": item})
+            _CV.notify()
+        return job
+    else:
+        job_id = uuid4().hex[:12]
+        result = _template_result(item.get("spec_hint"), item.get("dataset_id"))
+        job = {"job_id": job_id, "status": "succeeded", "result": result}
+        _JOBS[job_id] = job
+        outdir = _DATA_DIR / job_id
+        outdir.mkdir(parents=True, exist_ok=True)
+        (outdir / "result.json").write_text(json.dumps(job, ensure_ascii=False, indent=2), encoding="utf-8")
+        return job
 
 
 def get_job(job_id: str) -> Optional[Dict[str, Any]]:
@@ -115,26 +169,68 @@ def get_job(job_id: str) -> Optional[Dict[str, Any]]:
 
 
 def generate_batch(items: List[Dict[str, Any]], parallelism: int = 3) -> Dict[str, Any]:
-    # MVP: synchronous loop; parallelism is accepted but not used
     batch_id = uuid4().hex[:12]
-    results: List[Dict[str, Any]] = []
     job_items: List[Dict[str, Any]] = []
-    for it in items:
-        job = generate(it)
-        results.append(job.get("result"))
-        job_items.append({"job_id": job["job_id"], "status": job["status"]})
-    status = {
-        "batch_id": batch_id,
-        "total": len(items),
-        "done": len(items),
-        "running": 0,
-        "failed": 0,
-        "items": job_items,
-        "results": results,
-    }
-    _BATCHES[batch_id] = status
-    return status
+    results: List[Dict[str, Any]] = []
+
+    if _ASYNC:
+        _start_worker_once()
+        for it in items:
+            job = generate(it)  # queued
+            job_items.append({"job_id": job["job_id"], "status": job["status"]})
+        status = {
+            "batch_id": batch_id,
+            "total": len(items),
+            "done": 0,
+            "running": len(items),
+            "failed": 0,
+            "items": job_items,
+            # no results yet in async mode
+        }
+        _BATCHES[batch_id] = status
+        return status
+    else:
+        for it in items:
+            job = generate(it)
+            results.append(job.get("result"))
+            job_items.append({"job_id": job["job_id"], "status": job["status"]})
+        status = {
+            "batch_id": batch_id,
+            "total": len(items),
+            "done": len(items),
+            "running": 0,
+            "failed": 0,
+            "items": job_items,
+            "results": results,
+        }
+        _BATCHES[batch_id] = status
+        return status
 
 
 def get_batch(batch_id: str) -> Optional[Dict[str, Any]]:
-    return _BATCHES.get(batch_id)
+    st = _BATCHES.get(batch_id)
+    if not st:
+        return None
+    if _ASYNC:
+        # recompute progress
+        items = st.get("items", [])
+        done = 0
+        running = 0
+        failed = 0
+        results: List[Dict[str, Any]] = []
+        for it in items:
+            j = _JOBS.get(it["job_id"], {})
+            it["status"] = j.get("status", it.get("status"))
+            if it["status"] == "succeeded":
+                done += 1
+                if j.get("result"):
+                    results.append(j["result"])
+            elif it["status"] == "failed":
+                failed += 1
+            else:
+                running += 1
+        st.update({"done": done, "running": running, "failed": failed})
+        if done + failed == st.get("total", 0):
+            st["results"] = results
+        return st
+    return st

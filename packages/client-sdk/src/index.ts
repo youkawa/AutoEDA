@@ -43,6 +43,12 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function getJSON<T>(path: string): Promise<T> {
+  const url = `${API_BASE ?? ''}${path}`;
+  const res = await fetch(url, { method: 'GET' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<T>;
+}
 async function postFile<T>(path: string, file: File): Promise<T> {
   const url = `${API_BASE ?? ''}${path}`;
   const form = new FormData();
@@ -165,17 +171,36 @@ export async function generateChart(datasetId: string, specHint?: string, column
     spec_hint: specHint,
     columns,
   } as GenerateItem);
-  if (job.status !== 'succeeded' || !job.result) {
-    throw new Error(job.error || 'chart generation failed');
+  if (job.status === 'succeeded' && job.result) return job.result;
+  if (job.status === 'failed') throw new Error(job.error || 'chart generation failed');
+  // queued/running: poll until complete (≤ 10s)
+  const started = Date.now();
+  const deadline = started + 10_000;
+  let last: ChartJob = job;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 200));
+    last = await getJSON<ChartJob>(`/api/charts/jobs/${job.job_id}`);
+    if (last.status === 'succeeded' && last.result) return last.result;
+    if (last.status === 'failed') throw new Error(last.error || 'chart generation failed');
   }
-  return job.result;
+  throw new Error('chart generation timeout');
 }
 
 export async function generateChartsBatch(datasetId: string, hints: string[]): Promise<ChartResult[]> {
   const items: GenerateItem[] = hints.map((h) => ({ dataset_id: datasetId, spec_hint: h }));
   const batch = await postJSON<any>('/api/charts/generate-batch', { dataset_id: datasetId, items });
-  const results: ChartResult[] = (batch.results ?? []) as ChartResult[];
-  return results;
+  if (Array.isArray(batch.results)) return batch.results as ChartResult[];
+  // async path: poll batches/{id}
+  const batchId = (batch.batch_id as string) || '';
+  if (!batchId) return [];
+  const started = Date.now();
+  const deadline = started + 15_000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 250));
+    const st = await getJSON<any>(`/api/charts/batches/${batchId}`);
+    if (Array.isArray(st.results)) return st.results as ChartResult[];
+  }
+  throw new Error('chart batch generation timeout');
 }
 
 // --- U: Dataset Upload ---

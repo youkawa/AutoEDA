@@ -44,11 +44,11 @@
 | ID | スコープ | 状態 | リファレンス | 受け入れ基準/次アクション |
 |----|----------|------|--------------|---------------------------|
 | T-H0-00 | 基本設計・要件反映 | **Done** | `docs/requirements_v2.md`（CH-01〜21）, `docs/design.md` 3.6H, `docs/diagram.md`, `docs/wireframe.md` | 設計/図/ワイヤー/Storybook ガイド同期済み |
-| T-H1-API | 単発生成API `/api/charts/generate` | **TODO** | `services/charts.py`（新規）, `orchestrator` JSON整形を再利用 | 200/4xx/5xx, timeout/mem/allowlist。ジョブ保存 `data/charts/<job_id>` |
-| T-H1-FE | 「チャート作成」ボタン〜結果表示 | **TODO** | `ChartsPage` | 生成ステップUI、成功タブ（可視化/コード/メタ/DL）、エラー理由提示＋テンプレ/再試行 |
+| T-H1-API | 単発生成API `/api/charts/generate` | **Done(MVP/非同期キュー)** | `services/charts.py` | 同期/非同期（`AUTOEDA_CHARTS_ASYNC`）両対応。ジョブ保存 `data/charts/<job_id>` |
+| T-H1-FE | 「チャート作成」ボタン〜結果表示 | **Done(MVP)** | `ChartsPage`, `client-sdk` | SDKポーリング対応で非同期完了待ち。タブ/ダウンロード/エラー提示実装済み |
 | T-H1-VR | Charts 単発 Story + VR | **Done(初期)** | `ChartsPage.stories.tsx`, `tests/storybook/charts.spec.ts` | ConsistentOnly/Empty のスナップショット（Linuxベースライン） |
-| T-H2-API | 一括生成 `/api/charts/generate-batch` + ジョブ/バッチステータス | **TODO** | `services/charts.py`（キュー/並列度=ENV） | 並列度 cap=3 既定、部分成功、失敗個別再試行(最大3回) |
-| T-H2-FE | 複数選択・一括生成バー/進捗 | **TODO** | `ChartsPage` | チェックボックス/全選択、N/M 進捗、失敗のみ再試行、キャンセル導線(P1) |
+| T-H2-API | 一括生成 `/api/charts/generate-batch` + ジョブ/バッチステータス | **Done(MVP/非同期ポーリング)** | `services/charts.py` | 非同期時は`batch_id`のみ返却→進捗/結果は`GET /api/charts/batches/{id}`で集計 |
+| T-H2-FE | 複数選択・一括生成バー/進捗 | **WIP** | `ChartsPage` | UIは実装済み。一括はSDKポーリングで結果反映（進捗/再試行は次イテレーション） |
 | T-HSEC | サンドボックス実行基盤 | **TODO** | `SandboxRunner`（新規） | NW遮断、時間≤10s、メモリ≤512MB、許可PKGのみ（pandas/numpy/altair/vega-lite/mpl） |
 | T-HOBS | メトリクス/監視 | **TODO** | `metrics.record_event` | `Chart*` と `ChartBatch*` イベント、KPI（成功率/平均LT/失敗内訳/VR差分率） |
 
