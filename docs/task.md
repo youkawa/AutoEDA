@@ -34,7 +34,7 @@
 | T-TEST-01 | API 単体テスト拡充 | **WIP** | `tests/python` | `test_upload.py` 追加、今後 `test_tools_profile.py` などを拡充 |
 | T-TEST-02 | フロント UI テスト拡充 | **WIP** | `apps/web/src/tests` | `breadcrumbs.test.tsx` 追加。ページスナップショットは順次拡充 |
 | T-TEST-03 | Playwright シナリオ更新 | **TODO** | `tests/e2e` | Settings/Recipes/Leakage を包含する E2E |
-| T-INF-01 | Docker サンドボックス | **TODO** | `infra/README.md` | `docker-compose.dev.yml` を作成し README の手順を実装 |
+| T-INF-01 | Docker サンドボックス | **Done** | `infra/docker/*`, `docker-compose.dev.yml` | `docker compose up` で web/api 同時起動 (Node20+Py3) |
 | T-INF-02 | GitHub Actions ワークフロー | **Done** | `.github/workflows/ci.yml` | 既存のwebジョブにてLint/Type/Vitest/OpenAPI/Storybook/VR 実行 |
 | T-DOC-01 | Storybook/Wireframe 同期 | **Done** | `docs/storybook.md`, `docs/wireframe.md` | 今後の UI 変更時に更新 |
 | T-DOC-02 | 設計/要件同期 | **Done** | `docs/design.md`, `docs/requirements.md` | SLO/フォールバック値のモニタリング継続 |

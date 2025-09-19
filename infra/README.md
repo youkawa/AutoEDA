@@ -16,17 +16,17 @@ AutoEDA のインフラ・CI 設計メモ。現時点ではコード実装は未
 
 1. **Docker サンドボックス (T-INF-01)**
    - 目的: Node 20 + Python 3.11 + Playwright + pandas 等を同梱した開発用環境。
-   - 作業指針:
-     - `infra/docker/Dockerfile.dev` を作成し、`pip install -r apps/api/requirements.txt` / `npm install` を実行。
-     - `docker-compose.dev.yml` で `web` (Vite) と `api` (FastAPI) をまとめて起動。
-     - `.env.example` に `AUTOEDA_CREDENTIALS_FILE` など必要な環境変数を追記。
+   - 実装: `infra/docker/Dockerfile.dev`, `docker-compose.dev.yml`, `.dockerignore` を追加。
+   - 起動手順:
+     ```sh
+     docker compose -f docker-compose.dev.yml up --build
+     # Web: http://localhost:5173  API: http://localhost:8000
+     ```
+   - 備考: 依存のインストールはコンテナ起動時コマンドで実行（bind mountで高速化）。
 
 2. **GitHub Actions ワークフロー (T-INF-02)**
    - 目的: push/pr 時に lint/typecheck/test/SLO を自動実行。
-   - 作業指針:
-     - `infra/ci/main.yml` を作成 (`uses: actions/setup-node@v4`, `actions/setup-python@v5`).
-     - 以下のジョブを作成: `lint-web`, `test-web`, `pytest-api`, `playwright`, `slo-check`。
-     - LLM 資格情報は不要 (フォールバックでテスト可能)。
+   - 実装状況: `.github/workflows/ci.yml` に統合（Lint/Type/Vitest/OpenAPI/Playwright/VR/SLO）。
 
 3. **アーティファクト保存**
    - Playwright のスクリーンショット/動画 (`test-results/`) を GitHub Actions のアーティファクトとしてアップロード。

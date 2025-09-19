@@ -1,0 +1,15 @@
+node_modules
+dist
+playwright-report
+test-results
+.git
+.gitignore
+.husky
+.vscode
+.serena
+.gemini
+data
+reports
+sample
+**/.DS_Store
+
