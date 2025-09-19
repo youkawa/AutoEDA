@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { suggestCharts, generateChart, generateChartsBatch } from '@autoeda/client-sdk';
+import { suggestCharts, generateChart, generateChartsBatch, beginChartsBatch, getChartsBatchStatus } from '@autoeda/client-sdk';
 import type { ChartCandidate } from '@autoeda/schemas';
 import { Button, useToast } from '@autoeda/ui-kit';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/Card';
@@ -17,6 +17,8 @@ export function ChartsPage() {
   const [showConsistentOnly, setShowConsistentOnly] = useState(true);
   const [selectedDetail, setSelectedDetail] = useState<ChartCandidate | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchInFlight, setBatchInFlight] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ total: number; done: number; failed: number } | null>(null);
   type Step = 'preparing' | 'generating' | 'running' | 'rendering' | 'done';
   type ChartMeta = { dataset_id?: string; hint?: string };
   type ChartRender = { loading: boolean; step?: Step; error?: string; src?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: ChartMeta };
@@ -83,30 +85,71 @@ export function ChartsPage() {
 
       {selectedIds.size > 0 ? (
         <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4">
-          <div className="text-sm text-slate-700">{selectedIds.size} 件選択中</div>
+          <div className="text-sm text-slate-700">
+            {batchInFlight && batchProgress ? (
+              <span>
+                一括生成中… {batchProgress.done}/{batchProgress.total}
+                {batchProgress.failed > 0 ? `（失敗 ${batchProgress.failed}）` : ''}
+              </span>
+            ) : (
+              <span>{selectedIds.size} 件選択中</span>
+            )}
+          </div>
           <div className="flex gap-2">
             <Button
               variant="primary"
               size="sm"
+              disabled={batchInFlight}
               onClick={async () => {
                 if (!datasetId) return;
+                const hints = charts.filter((c) => selectedIds.has(c.id)).map((c) => c.type);
+                if (hints.length === 0) return;
+                setBatchInFlight(true);
+                setBatchProgress({ total: hints.length, done: 0, failed: 0 });
                 try {
-                  const hints = charts.filter((c) => selectedIds.has(c.id)).map((c) => c.type);
-                  const res = await generateChartsBatch(datasetId, hints);
-                  // 簡易反映: 各カードに最初の出力(SVG)を描画
-                  const next: Record<string, ChartRender> = { ...results };
-                  charts.forEach((c, idx) => {
-                    if (!selectedIds.has(c.id)) return;
-                    const r = res[Math.min(idx, res.length - 1)];
-                    const out = r?.outputs?.[0];
-                    if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
-                      next[c.id] = { loading: false, step: 'done', tab: 'viz', src: `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}` };
+                  const batchId = await beginChartsBatch(datasetId, hints);
+                  if (!batchId) {
+                    // 同期モードの可能性: 従来の関数で取得
+                    const res = await generateChartsBatch(datasetId, hints);
+                    const next: Record<string, ChartRender> = { ...results };
+                    let k = 0;
+                    charts.forEach((c) => {
+                      if (!selectedIds.has(c.id)) return;
+                      const r = res[k++] ?? null;
+                      const out = r?.outputs?.[0];
+                      if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
+                        next[c.id] = { loading: false, step: 'done', tab: 'viz', src: `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}` };
+                      }
+                    });
+                    setResults(next);
+                  } else {
+                    // ポーリングして進捗反映
+                    let finished = false;
+                    while (!finished) {
+                      await new Promise((r) => setTimeout(r, 300));
+                      const st = await getChartsBatchStatus(batchId);
+                      setBatchProgress({ total: st.total, done: st.done, failed: st.failed });
+                      if (Array.isArray(st.results)) {
+                        const next: Record<string, ChartRender> = { ...results };
+                        let k = 0;
+                        charts.forEach((c) => {
+                          if (!selectedIds.has(c.id)) return;
+                          const r = st.results![k++] ?? null;
+                          const out = r?.outputs?.[0];
+                          if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
+                            next[c.id] = { loading: false, step: 'done', tab: 'viz', src: `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}` };
+                          }
+                        });
+                        setResults(next);
+                        finished = true;
+                      }
                     }
-                  });
-                  setResults(next);
+                  }
                 } catch (err) {
                   const message = err instanceof Error ? err.message : '一括生成に失敗しました';
                   toast(message, 'error');
+                } finally {
+                  setBatchInFlight(false);
                 }
               }}
             >

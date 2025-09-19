@@ -203,6 +203,17 @@ export async function generateChartsBatch(datasetId: string, hints: string[]): P
   throw new Error('chart batch generation timeout');
 }
 
+// --- Helpers for UI-driven progress (explicit batch control) ---
+export async function beginChartsBatch(datasetId: string, hints: string[]): Promise<string> {
+  const items: GenerateItem[] = hints.map((h) => ({ dataset_id: datasetId, spec_hint: h }));
+  const batch = await postJSON<any>('/api/charts/generate-batch', { dataset_id: datasetId, items });
+  return (batch.batch_id as string) || '';
+}
+
+export async function getChartsBatchStatus(batchId: string): Promise<{ total: number; done: number; running: number; failed: number; results?: ChartResult[]; items: { job_id: string; status: string }[]; }> {
+  return getJSON(`/api/charts/batches/${batchId}`);
+}
+
 // --- U: Dataset Upload ---
 export type UploadResponse = { dataset_id: string };
 
