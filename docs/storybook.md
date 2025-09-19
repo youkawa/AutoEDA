@@ -1,166 +1,217 @@
-# AutoEDA Storybook 設計ノート (プロトタイプ)
+# AutoEDA Storybook 運用ガイド（2025-09-19）
 
-> 目的: `apps/web` の UI を Storybook で再現し、A1〜D1/C1/C2/S1 のストーリーをコンポーネント単位で検証できるようにする。現状はまだ Storybook を導入していないため、既存コンポーネントの棚卸しと導入計画をまとめる。
+目的
+- `apps/web` の UI を Storybook で再現し、A1〜D1/C1/C2/S1 と Capability H（チャート生成：CH-01〜CH-21）を安全・再現可能に検証する。
+- CI に Storybook build と Playwright のビジュアルリグレッション（VR）を組み込み、UI崩れを自動検知する。
 
----
+前提
+- Storybook 9（react-vite）を採用。MSW と React Router のアドオンでページ状態を再現。
+- 既存ストーリーと Docs(MDX) を活用し、Foundations/UI Blocks/Layout/Page の4層で管理。
 
-## 1. 現状サマリ（2025-09-18 リファクタ後）
-
-- UI は Tailwind ベースに統一し、`AppLayout` + `SideNav` + `TopBar` の構造に刷新。
-- 共通 UI は `@autoeda/ui-kit` の強化済み `Button` と、`apps/web/src/components/ui/Card` などの再利用コンポーネントで構成。
-- ページは `LastDatasetProvider` 経由で状態を共有しつつ、カードレイアウトやグラデーションヒーローなどを採用。
-- API 呼び出しは引き続き `packages/client-sdk` に集約されており、MSW や Storybook のモックが容易。
-
-Storybook では以下 4 層で管理する方針とする:
-
-1. **Foundations** (`packages/ui-kit`, `apps/web/src/index.css`) — Button, カラー/タイポグラフィ。
-2. **Layout** (`AppLayout`, `SideNav`, `TopBar`) — ナビゲーションやレスポンシブハンドリングを担うコンテナ。
-3. **UI Blocks** (`Card`, `MetricPill` など) — ページ内で組み合わせるブロック単位。
-4. **Page Containers** (`apps/web/src/pages/*.tsx`) — Storybook では React Router + MSW を用いてフルページ状態を再現。
-
----
-
-## 2. コンポーネント在庫 (2025-09-18 UI リニューアル版)
-
-| レベル | 名称 | ファイル | 主な役割 |
-| ------ | ---- | -------- | -------- |
-| Foundation | `Button` | `packages/ui-kit/src/index.tsx` | variant/size/loading/icon を持つ共通ボタン |
-| Foundation | `Card*` | `apps/web/src/components/ui/Card.tsx` | ラウンド角 + シャドウ付きカードの共通ラッパー |
-| Layout | `AppLayout` | `apps/web/src/components/layout/AppLayout.tsx` | サイドナビ + トップバー + Responsive タブ |
-| Layout | `SideNav` | `apps/web/src/components/navigation/SideNav.tsx` | ルート別のナビゲーションとアイコン表示 |
-| Layout | `TopBar` | `apps/web/src/components/layout/TopBar.tsx` | ページタイトル、ヘルプ/設定ボタン、検索バー |
-| Context | `LastDatasetProvider` | `apps/web/src/contexts/LastDatasetContext.tsx` | 最近操作したデータセット ID/名称を共有 |
-| Page | `HomePage` | `apps/web/src/pages/HomePage.tsx` | グラデーションヒーロー + 機能ハイライトカード |
-| Page | `DatasetsPage` | 同上 | テーブル表示 + サマリー統計 + CTA |
-| Page | `EdaPage` | 同上 | メトリックカード / 品質カード / 分布ハイライト / 引用切替 |
-| Page | `ChartsPage` | 同上 | チャートカード (信頼度バッジ) + フィルタ切替 |
-| Page | `QnaPage` | 同上 | 質問フォーム + サジェスト + 回答/引用ビュー |
-| Page | `ActionsPage` | 同上 | WSJF/RICE カード + MetricPill + ビュー切替 |
-| Page | `PiiPage` | 同上 | ポリシーカード + 適用済みステータス表示 |
-| Page | `LeakagePage` | 同上 | ルール別フラグ + 除外/承認/リセット CTA |
-| Page | `RecipesPage` | 同上 | アーティファクトハッシュ / 再現統計差分 / 引用ビュー |
-| Page | `SettingsPage` | 同上 | プロバイダステータス + API Key フォーム |
+既存セットアップ（抜粋）
+- 依存（apps/web/package.json）:
+  - `@storybook/react-vite@^9.1.6`, `@storybook/addon-docs`, `@storybook/addon-a11y`
+  - `msw@^2`, `msw-storybook-addon@^2.0.5`
+  - `storybook-addon-react-router-v6@^2.0.15`
+- 代表ストーリー/Docs:
+  - UI: `Button.stories.tsx`, `Card.stories.tsx`, `Pill.stories.tsx`, `StatCard.stories.tsx`, `Toast.stories.tsx`
+  - Docs(MDX): `Pill.docs.mdx`, `StatCard.docs.mdx`, `Toast.docs.mdx`
+  - Layout/Page: `AppLayout.stories.tsx`, `PiiPage.stories.tsx`, `LeakagePage.stories.tsx`
 
 ---
 
-## 3. Storybook 導入計画
+## 1. ディレクトリと基本設定
 
-1. `packages/ui-kit` に Storybook をセットアップ (`npx storybook@latest init --builder vite`)。
-2. `apps/web/.storybook/main.ts` を追加し、パスエイリアス (`@autoeda/...`) を Vite 設定と揃える。
-3. MSW を利用し `client-sdk` の Fetch をモック。標準フォールバックをそのまま利用する場合は `client-sdk` のメソッドをスタブ化。
-4. 優先ストーリー (推奨):
-   1. **Foundations** — `Button` (variant/size/loading) + `Card`.
-   2. **Layout** — `AppLayout` を `reactRouter` addon と組み合わせ、サイドナビ動作を確認。
-   3. **Pages** — 各ページで「標準」「LLM フォールバック」「データ無し」など複数状態を用意。
-      - `HomePage`: default / lastDataset あり。
-      - `DatasetsPage`: empty / populated。
-      - `EdaPage`: normal / fallback / loading。
-      - `ChartsPage`: consistentOnly true/false。
-      - `QnaPage`: 未回答 / 回答済み。
-      - `ActionsPage`: fallback true/false。
-      - `PiiPage`: 検出あり/なし。
-      - `LeakagePage`: flagged/none。
-      - `RecipesPage`: tolerance OK/NG。
-      - `SettingsPage`: OpenAI 設定済み / Gemini 設定済み / 未設定。
+構成（apps/web）
+- `.storybook/main.ts`（フレームワーク/アドオン設定）
+- `.storybook/preview.ts`（decorators: MSW/Router、全体パラメータ、reduce motion）
+- `src/components/**.stories.tsx|.docs.mdx`（UI/Docs）
+- `src/pages/**.stories.tsx`（Page再現：MSW+Router）
+- `src/tests/msw/{handlers.ts, server.ts}`（APIモックを再利用）
 
----
-
-## 4. サンプル Story スニペット
-
-```tsx
-// apps/web/src/pages/EdaPage.stories.tsx
-import type { Meta, StoryObj } from '@storybook/react';
-import { MemoryRouter } from 'react-router-dom';
-import { EdaPage } from './EdaPage';
-import { AppLayout } from '../components/layout/AppLayout';
-import { LastDatasetProvider } from '../contexts/LastDatasetContext';
-import { rest } from 'msw';
-
-const meta: Meta<typeof EdaPage> = {
-  title: 'Pages/EDA/Overview',
-  decorators: [
-    (Story) => (
-      <MemoryRouter initialEntries={['/eda/ds_mock']}>
-        <LastDatasetProvider>
-          <AppLayout />
-          <Story />
-        </LastDatasetProvider>
-      </MemoryRouter>
-    ),
+main.ts（例）
+```ts
+import type { StorybookConfig } from '@storybook/react-vite';
+const config: StorybookConfig = {
+  framework: '@storybook/react-vite',
+  stories: ['../src/**/*.stories.@(ts|tsx)', '../src/**/*.docs.mdx'],
+  addons: [
+    '@storybook/addon-docs',
+    '@storybook/addon-a11y',
+    'msw-storybook-addon',
+    'storybook-addon-react-router-v6',
   ],
-  parameters: {
-    reactRouter: {
-      routePath: '/eda/:datasetId',
-      routeParams: { datasetId: 'ds_mock' },
-    },
-    msw: {
-      handlers: [
-        rest.post('/api/eda', (_req, res, ctx) => {
-          return res(ctx.status(200), ctx.json({
-            summary: { rows: 1000, cols: 20, missing_rate: 0.12, type_mix: { int: 8, float: 4, cat: 8 } },
-            distributions: [],
-            key_features: ['価格と割引率が高い相関'],
-            outliers: [],
-            data_quality_report: { issues: [] },
-            next_actions: [],
-            references: [{ kind: 'doc', locator: 'policy:pii' }],
-          }));
-        }),
-      ],
-    },
-  },
+};
+export default config;
+```
+
+preview.ts（例）
+```ts
+import { initialize, mswDecorator } from 'msw-storybook-addon';
+import { withRouter } from 'storybook-addon-react-router-v6';
+
+initialize({ onUnhandledRequest: 'bypass' });
+export const decorators = [withRouter, mswDecorator];
+export const parameters = {
+  actions: { argTypesRegex: '^on[A-Z].*' },
+  controls: { expanded: true },
+  a11y: { disable: false },
 };
 
-export default meta;
-export default meta;
+// Reduce motion for deterministic VR
+const style = document.createElement('style');
+style.innerHTML = '*{animation: none !important; transition: none !important;}';
+document.head.appendChild(style);
+```
 
-type Story = StoryObj<typeof EdaPage>;
+---
 
-export const Default: Story = {};
-export const Fallback: Story = {
+## 2. ストーリー作法（Foundations → Page）
+
+Foundations（UI Kit / Blocks）
+- アトミックに props/variants を列挙（argTypes/controls）。
+- Docs(MDX) を併設し、デザイン指針とアクセシビリティを明文化。
+
+Layout/Page
+- ルーティングは `MemoryRouter` または `withRouter` を利用。初期URLは `initialEntries` で制御。
+- API は MSW ハンドラで再現。成功系/空データ/エラーを `parameters.msw.handlers` で切替。
+
+例: Page ストーリー（抜粋）
+```tsx
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { MemoryRouter } from 'react-router-dom';
+import { http, HttpResponse } from 'msw';
+import { EdaPage } from '../pages/EdaPage';
+
+const meta: Meta<typeof EdaPage> = {
+  title: 'Pages/EdaPage',
+  component: EdaPage,
   parameters: {
-    msw: {
-      handlers: [
-        rest.post('/api/eda', (_req, res, ctx) => {
-          return res(ctx.status(200), ctx.json({
-            summary: { rows: 1000, cols: 20, missing_rate: 0.12, type_mix: { int: 8, float: 4, cat: 8 } },
-            distributions: [],
-            key_features: [],
-            outliers: [],
-            data_quality_report: { issues: [] },
-            next_actions: [],
-            references: [{ kind: 'doc', locator: 'tool:fallback' }],
-          }));
-        }),
-      ],
-    },
+    msw: { handlers: [http.post('/api/eda', () => HttpResponse.json(/* mocked */))] },
   },
+};
+export default meta;
+
+export const Default: StoryObj<typeof EdaPage> = {
+  render: () => (
+    <MemoryRouter initialEntries={["/eda/ds_001"]}>
+      <EdaPage />
+    </MemoryRouter>
+  ),
 };
 ```
 
 ---
 
-## 5. カバレッジマトリクス (Story ↔ 要件)
+## 3. Visual Regression（VR）運用（Playwright）
 
-| ストーリー | 充足コンポーネント | Storybook ステータス |
-| ---------- | ---------------- | -------------------- |
-| A1 (EDA Summary) | `EdaPage` + `AppLayout` | `Default`, `Fallback`, `Loading` |
-| A2 (Charts) | `ChartsPage` | `AllCharts`, `ConsistentOnly` |
-| B1 (Q&A) | `QnaPage` | `Idle`, `Answered` |
-| B2 (Next Actions) | `ActionsPage` | `Standard`, `Fallback` |
-| C1 (PII) | `PiiPage` | `Detected`, `None` |
-| C2 (Leakage) | `LeakagePage` | `Flagged`, `Resolved` |
-| D1 (Recipes) | `RecipesPage` | `WithinTolerance`, `ToleranceExceeded` |
-| S1 (LLM Credentials) | `SettingsPage` | `OpenAIConfigured`, `GeminiConfigured`, `Unconfigured` |
+目的
+- Storybook を静的ビルドし、Playwright で代表ストーリーを撮影→差分検知。
+
+方針
+- OS別にベースラインを保持（`*-linux.png`, `*-darwin.png`）。CI（Linux）は初回ランで自動生成、次回以降で比較。
+- 微小差分は `maxDiffPixelRatio` 0.01–0.03 で許容。モーションは `preview.ts` で抑止。
+- 待機は role/aria で安定化（例: `[aria-label="loading"]` の消失待ち）。
+
+例: Playwright テスト（概念）
+```ts
+import { test, expect } from '@playwright/test';
+
+test('Pill tone variants', async ({ page }) => {
+  await page.goto('http://localhost:6006/iframe.html?id=components-pill--tone-variants');
+  await expect(page.locator('body')).toHaveScreenshot('pill-tone-variants-linux.png', {
+    maxDiffPixelRatio: 0.02,
+  });
+});
+```
+
+命名規約
+- `story-id-scenario-<os>.png`（例: `eda-page-default-linux.png`）。OSはスクリプトで付与。
+
+CI との連携（概要）
+- ジョブ順序: Nodeセットアップ → Lint/Type/Vitest → Python/OpenAPI検証 → Storybook build → Playwright VR。
+- 初回 Linux ベースラインは自動生成（以降は差分検知）。失敗時はレポート（HTML）をアーティファクト化。
 
 ---
 
-## 6. 実装指針
+## 4. アドオン/デコレータ詳細
 
-- Story では `client-sdk` を直接呼ばず、MSW で HTTP レイヤーをモックすることで実運用に近い挙動を再現する。
-- 戻り値のスキーマは `packages/schemas` から import し、型安全なモックを生成する。
-- フォールバックメッセージ (例: `tool:` プレフィックス) を切り替えられるよう、Story args で `references` を差し替える。
-- UI キット拡充時は Atomic Design に再整理し、本ファイルの在庫表を随時更新する。
-- `AppLayout` 系の Story では `MemoryRouter` + `reactRouter` addon を併用し、ナビゲーションの挙動を再現する。
+MSW（msw-storybook-addon）
+- `initialize()` を `preview.ts` で呼び、`parameters.msw.handlers` で各ストーリーのレスポンスを定義。
+- 既存の `src/tests/msw/handlers.ts` を流用可。
 
-Storybook 導入後は CI でビルドを実施し、主要ページのスクリーンショット回帰テスト (Playwright + Storybook) も検討する。
+Router（storybook-addon-react-router-v6）
+- `withRouter` を `decorators` に追加。Pageストーリーでは `MemoryRouter` でも可。
+
+Docs（@storybook/addon-docs）
+- MDX で使用例/バリエーション/アクセシビリティを記述。UIガイドとして参照。
+
+A11y（@storybook/addon-a11y）
+- 主要ストーリーでコントラストや landmark 構造を検査。VR と組み合わせて品質担保。
+
+---
+
+## 5. ベストプラクティス
+
+- 非決定的要素の固定: フォント/時刻/乱数/アニメーション（`preview.ts` で抑止）。
+- ネットワーク依存の廃止: すべて MSW で完結。Secrets を stories に直書きしない。
+- 大型コンポーネントは Page ストーリーで再現し、重要シナリオのみ VR 対象に。
+- ストーリーIDは固定（title/コンポーネント名の変更時はVR更新）。
+
+---
+
+## 6. よくある課題と対処
+
+- 警告: Browserslist 警告 → `npx update-browserslist-db@latest` で解消可（任意）。
+- React Router future flags の警告 → 実害なし。必要なら `preview.ts` で suppress。
+- CI とローカルの差分 → ベースラインは OS 別。`*-darwin.png` はローカル、CI は `*-linux.png`。
+
+---
+
+## 7. 変更フロー（開発者向け）
+
+1) 新規ストーリー/Docsを作成（UI → Page）。
+2) MSW ハンドラを用意し、状態バリエーション（空/多数/エラー）を定義。
+3) ローカルで `pnpm -C apps/web storybook` → 表示確認。
+4) VR 対象なら Playwright にテストを追加 → ベースライン生成をコミット。
+5) PR で CI 実行。差分が出た場合は意図有/無を評価し、必要最小限でベースライン更新。
+
+---
+
+## 8. 参考（本リポジトリの実装痕跡）
+
+- `apps/web/src/components/ui/*.stories.tsx`（Button/Card/Pill/StatCard/Toast）
+- `apps/web/src/components/ui/*.docs.mdx`（Pill/StatCard/Toast）
+- `apps/web/src/components/layout/AppLayout.stories.tsx`（MemoryRouter + MSW）
+- `apps/web/src/pages/*Page.stories.tsx`（PII/Leakage など）
+- `apps/web/src/tests/msw/*`（共通MSWハンドラ）
+
+---
+
+付録A: 代表ストーリー追加のテンプレ
+```tsx
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { Pill } from './Pill';
+
+const meta: Meta<typeof Pill> = {
+  title: 'Components/Pill',
+  component: Pill,
+};
+export default meta;
+
+export const ToneVariants: StoryObj<typeof Pill> = {
+  args: { children: 'High', tone: 'red' },
+};
+```
+
+付録B: Docs(MDX) テンプレ
+```mdx
+import { Meta, Canvas, Story, Subtitle, Description } from '@storybook/blocks';
+import { Pill } from './Pill';
+
+<Meta title="Components/Pill" of={Pill} />
+<Subtitle>重要度/状態を色で示すピル。</Subtitle>
+<Description>red/amber/emerald の3トーンを採用。</Description>
+
+<Canvas><Story of={Pill} name="Tone Variants" /></Canvas>
+```
