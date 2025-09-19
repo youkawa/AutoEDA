@@ -46,7 +46,10 @@ def _start_worker_once() -> None:
             try:
                 item = job["item"]
                 runner = SandboxRunner()
-                result = runner.run_template(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
+                if os.environ.get("AUTOEDA_SANDBOX_SUBPROCESS", "0") in {"1", "true", "TRUE"}:
+                    result = runner.run_template_subprocess(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
+                else:
+                    result = runner.run_template(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
                 outdir = _DATA_DIR / job_id
                 outdir.mkdir(parents=True, exist_ok=True)
                 payload = {"job_id": job_id, "status": "succeeded", "result": result}

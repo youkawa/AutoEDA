@@ -99,7 +99,7 @@ export function ChartsPage() {
           <div className="flex gap-2">
             {batchInFlight && batchProgress ? (
               <div className="hidden md:block w-40 self-center">
-                <div className="h-2 w-full rounded bg-slate-100">
+                <div className="h-2 w-full rounded bg-slate-100" role="progressbar" aria-valuenow={batchProgress.done} aria-valuemin={0} aria-valuemax={Math.max(1, batchProgress.total)} aria-label="バッチ進捗">
                   <div
                     className="h-2 rounded bg-brand-500 transition-all"
                     style={{ width: `${Math.round((batchProgress.done / Math.max(1, batchProgress.total)) * 100)}%` }}

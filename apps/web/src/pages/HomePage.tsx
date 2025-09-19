@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@autoeda/ui-kit';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
@@ -8,6 +8,14 @@ import { useLastDataset } from '../contexts/LastDatasetContext';
 export function HomePage() {
   const navigate = useNavigate();
   const { lastDataset } = useLastDataset();
+  const [slo, setSlo] = useState<{ events?: Record<string, { count?: number; p95?: number; groundedness_min?: number }> }>({});
+
+  useEffect(() => {
+    fetch(`${(import.meta as any).env?.VITE_API_BASE ?? ''}/api/metrics/slo`).then(async (r) => {
+      if (!r.ok) return;
+      try { setSlo(await r.json()); } catch {}
+    }).catch(() => {});
+  }, []);
 
   const featureHighlights = useMemo(
     () => [
@@ -110,9 +118,22 @@ export function HomePage() {
             </div>
             <div className="rounded-xl bg-white/20 p-4 text-xs text-white/80">
               <p className="font-semibold text-white">SLO モニタリング</p>
-              <p className="mt-1 leading-relaxed">
-                `python apps/api/scripts/check_slo.py` を実行すると、p95 レイテンシや groundedness を自動検証できます。
-              </p>
+              {slo?.events ? (
+                <ul className="mt-2 grid grid-cols-2 gap-2">
+                  {Object.entries(slo.events).slice(0,4).map(([name, v]) => (
+                    <li key={name} className="rounded bg-white/10 p-2">
+                      <div className="text-[11px] uppercase tracking-widest text-white/70">{name}</div>
+                      <div className="mt-1 flex items-center gap-3">
+                        <span>p95: {v.p95 ?? 0}ms</span>
+                        <span>minG: {(v.groundedness_min ?? 1).toFixed(2)}</span>
+                        <span>n={v.count ?? 0}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 leading-relaxed">`python apps/api/scripts/check_slo.py` で自動検証できます。</p>
+              )}
             </div>
           </div>
         </div>

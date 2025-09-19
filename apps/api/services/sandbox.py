@@ -10,6 +10,9 @@ import resource
 import socket
 import time
 from typing import Any, Dict, Optional
+import os
+import subprocess
+import tempfile
 
 
 class SandboxError(RuntimeError):
@@ -56,9 +59,42 @@ class SandboxRunner:
                 self._limit_memory()
                 result = chartsvc._template_result(spec_hint, dataset_id)
         except Exception:
-            # 非対応環境では無視
+            # 非対応環境では無視（フォールバック）
             result = chartsvc._template_result(spec_hint, dataset_id)
         dur_ms = int((time.perf_counter() - t0) * 1000)
         result.setdefault("meta", {})
         result["meta"].update({"duration_ms": dur_ms})
         return result
+
+    def run_template_subprocess(self, *, spec_hint: Optional[str], dataset_id: Optional[str]) -> Dict[str, Any]:
+        """Best-effort subprocess isolation（MVP）.
+
+        - FS: 作業は一時ディレクトリ
+        - NW: 明示ブロックはしない（将来のseccomp等に委ねる）
+        - Allowlist: 追加パッケージは使わない（標準ライブラリのみ）
+        """
+        import json as _json  # local alias
+        code = (
+            "import json;\n"
+            "kind=json.loads(open('in.json').read()).get('kind','bar');\n"
+            "spec={'mark': kind if kind in ('bar','line') else 'point','data':{'values':[{'x':0,'y':1}]}};\n"
+            "print(json.dumps({'language':'python','library':'vega','code':'# generated','outputs':[{'type':'vega','mime':'application/json','content':spec}]}, ensure_ascii=False))\n"
+        )
+        tmpdir = tempfile.mkdtemp(prefix="autoeda_sbx_")
+        payload = {"kind": (spec_hint or "bar").lower(), "dataset_id": dataset_id}
+        in_path = os.path.join(tmpdir, "in.json")
+        with open(in_path, "w", encoding="utf-8") as f:
+            f.write(_json.dumps(payload))
+        try:
+            proc = subprocess.run(["python3", "-c", code], cwd=tmpdir, capture_output=True, text=True, timeout=self.timeout_sec, check=True)
+            out = proc.stdout.strip()
+            obj = _json.loads(out)
+        except Exception:
+            # フォールバック
+            obj = chartsvc._template_result(spec_hint, dataset_id)
+        finally:
+            with contextlib.suppress(Exception):
+                for name in os.listdir(tmpdir):
+                    os.remove(os.path.join(tmpdir, name))
+                os.rmdir(tmpdir)
+        return obj

@@ -256,6 +256,12 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/api/metrics/slo")
+def metrics_slo() -> Dict[str, Any]:
+    """Return in-memory SLO snapshot for UI/monitoring."""
+    return metrics.slo_snapshot()
+
+
 # --- Datasets Upload (A1 前段) ---
 class UploadResponse(BaseModel):
     dataset_id: str
