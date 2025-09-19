@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { suggestCharts, generateChart, generateChartsBatch, beginChartsBatch, getChartsBatchStatus, beginChartsBatchWithIds, getChartsBatchStatusWithMap, type ChartsBatchStatus } from '@autoeda/client-sdk';
+import { suggestCharts, generateChart, generateChartsBatch, beginChartsBatchWithIds, getChartsBatchStatusWithMap, type ChartsBatchStatus } from '@autoeda/client-sdk';
 import type { ChartCandidate } from '@autoeda/schemas';
 import { Button, useToast } from '@autoeda/ui-kit';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/Card';
