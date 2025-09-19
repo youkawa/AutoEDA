@@ -101,8 +101,9 @@ export function ChartsPage() {
                     }
                   });
                   setResults(next);
-                } catch (e: any) {
-                  toast(e?.message ?? '一括生成に失敗しました', 'error');
+                } catch (err) {
+                  const message = err instanceof Error ? err.message : '一括生成に失敗しました';
+                  toast(message, 'error');
                 }
               }}
             >
@@ -209,8 +210,9 @@ export function ChartsPage() {
                           } else {
                             setResults((s) => ({ ...s, [chart.id]: { loading: false, error: '出力形式に未対応' } }));
                           }
-                        } catch (e: any) {
-                          setResults((s) => ({ ...s, [chart.id]: { loading: false, error: e?.message ?? '生成に失敗' } }));
+                        } catch (err) {
+                          const message = err instanceof Error ? err.message : '生成に失敗';
+                          setResults((s) => ({ ...s, [chart.id]: { loading: false, error: message } }));
                         }
                       }}
                     >
@@ -226,7 +228,6 @@ export function ChartsPage() {
                 ) : null}
                 {results[chart.id]?.src ? (
                   <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={results[chart.id]?.src} alt="generated chart" />
                   </div>
                 ) : null}
