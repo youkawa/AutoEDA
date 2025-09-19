@@ -8,10 +8,14 @@ import { useLastDataset } from '../contexts/LastDatasetContext';
 export function HomePage() {
   const navigate = useNavigate();
   const { lastDataset } = useLastDataset();
-  const [slo, setSlo] = useState<{ events?: Record<string, { count?: number; p95?: number; groundedness_min?: number }> }>({});
+  type SloEvent = { count?: number; p95?: number; groundedness_min?: number };
+  type SloSnapshot = { events?: Record<string, SloEvent> };
+  const [slo, setSlo] = useState<SloSnapshot>({});
 
   useEffect(() => {
-    fetch(`${(import.meta as any).env?.VITE_API_BASE ?? ''}/api/metrics/slo`).then(async (r) => {
+    const envBase = (import.meta as unknown as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE;
+    const base = envBase ?? '';
+    fetch(`${base}/api/metrics/slo`).then(async (r) => {
       if (!r.ok) return;
       try { setSlo(await r.json()); } catch {}
     }).catch(() => {});
