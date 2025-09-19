@@ -118,7 +118,12 @@ def retrieve(query: str, top_k: int = 5) -> List[Dict[str, Any]]:
 
     collection = _ensure_chroma()
     if collection:
-        results = collection.query(query_texts=[query], n_results=top_k)
+        try:
+            total = int(collection.count())
+        except Exception:
+            total = top_k
+        n_results = max(1, min(top_k, total)) if total else top_k
+        results = collection.query(query_texts=[query], n_results=n_results)
         docs = results.get("documents", [[]])[0]
         metadatas = results.get("metadatas", [[]])[0]
         ids = results.get("ids", [[]])[0]
