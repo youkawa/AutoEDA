@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { suggestCharts } from '@autoeda/client-sdk';
 import type { ChartCandidate } from '@autoeda/schemas';
-import { Button } from '@autoeda/ui-kit';
+import { Button, useToast } from '@autoeda/ui-kit';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/Card';
 import { useLastDataset } from '../contexts/LastDatasetContext';
 import { BarChart3, CheckCircle2, AlertTriangle, Info, Layers } from 'lucide-react';
 import { Pill } from '../components/ui/Pill';
+import { Modal } from '../components/ui/Modal';
 
 export function ChartsPage() {
   const { datasetId } = useParams();
@@ -14,6 +15,8 @@ export function ChartsPage() {
   const [loading, setLoading] = useState(true);
   const [charts, setCharts] = useState<ChartCandidate[]>([]);
   const [showConsistentOnly, setShowConsistentOnly] = useState(true);
+  const [selected, setSelected] = useState<ChartCandidate | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     let mounted = true;
@@ -148,7 +151,7 @@ export function ChartsPage() {
                   <Button
                     variant={isHighConfidence ? 'primary' : 'secondary'}
                     size="sm"
-                    onClick={() => setShowConsistentOnly(false)}
+                    onClick={() => setSelected(chart)}
                   >
                     詳細を検証
                   </Button>
@@ -158,6 +161,59 @@ export function ChartsPage() {
           })
         )}
       </div>
+
+      <Modal open={Boolean(selected)} onClose={() => setSelected(null)} title="チャートの詳細検証">
+        {selected ? (
+          <div className="grid gap-4 text-sm text-slate-700">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-slate-400">タイプ</p>
+              <p className="font-medium capitalize">{selected.type}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-widest text-slate-400">説明</p>
+              <p>{selected.explanation}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-widest text-slate-400">根拠</p>
+              <div className="flex items-center gap-2">
+                <span className="rounded-lg bg-slate-100 px-2 py-1">{selected.source_ref?.locator ?? 'N/A'}</span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(selected.source_ref?.locator ?? '');
+                      toast('引用をコピーしました', 'success');
+                    } catch {
+                      toast('クリップボードへのコピーに失敗しました', 'error');
+                    }
+                  }}
+                >
+                  引用をコピー
+                </Button>
+              </div>
+            </div>
+            {selected.diagnostics ? (
+              <div className="grid gap-2">
+                <p className="text-xs uppercase tracking-widest text-slate-400">診断情報</p>
+                {selected.diagnostics.trend && <p>トレンド: {selected.diagnostics.trend}</p>}
+                {selected.diagnostics.correlation !== undefined && (
+                  <p>相関: {Number(selected.diagnostics.correlation).toFixed(2)}</p>
+                )}
+                {selected.diagnostics.dominant_ratio !== undefined && (
+                  <p>支配率: {Math.round(Number(selected.diagnostics.dominant_ratio) * 100)}%</p>
+                )}
+              </div>
+            ) : null}
+
+            <div className="mt-2 flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setSelected(null)}>
+                閉じる
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }
