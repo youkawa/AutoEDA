@@ -29,13 +29,13 @@
 | T-D1-01 | レシピ生成 & ±1% 検証 | **Done** | `apps/api/services/tools.py::recipe_emit`, `RecipesPage` | notebooks/SQL の単体テストを pytest で追加 |
 | T-S1-01 | LLM 資格情報 API + UI | **Done** | `apps/api/main.py (credentials)`, `SettingsPage` | 401/403 ハンドリング (API Key 無効時) を実装 |
 | T-U1-01 | CSV アップロード UI | **Done** | API は `apps/api/main.py:95` | `Datasets` にアップロード導線を追加、`client-sdk.uploadDataset` 実装 |
-| T-UX-01 | ナビゲーション改善 | **TODO** | `App.tsx` | アクティブ表示 / Breadcrumbs |
+| T-UX-01 | ナビゲーション改善 | **Done** | `AppLayout`, `Breadcrumbs` | アクティブ表示/パンくず（Esc対応のModalと併せUX改善） |
 | T-UI-01 | Storybook 導入/運用 | **Done** | `docs/storybook.md`, `.storybook/*` | MSW/Router/Docs/A11y 設定、VR連携、reduce motion/フォント/日時固定 |
 | T-TEST-01 | API 単体テスト拡充 | **WIP** | `tests/python` | `test_upload.py` 追加、今後 `test_tools_profile.py` などを拡充 |
-| T-TEST-02 | フロント UI テスト拡充 | **TODO** | `apps/web/src/tests` | Vitest + MSW でページごとのスナップショット |
+| T-TEST-02 | フロント UI テスト拡充 | **WIP** | `apps/web/src/tests` | `breadcrumbs.test.tsx` 追加。ページスナップショットは順次拡充 |
 | T-TEST-03 | Playwright シナリオ更新 | **TODO** | `tests/e2e` | Settings/Recipes/Leakage を包含する E2E |
 | T-INF-01 | Docker サンドボックス | **TODO** | `infra/README.md` | `docker-compose.dev.yml` を作成し README の手順を実装 |
-| T-INF-02 | GitHub Actions ワークフロー | **TODO** | `infra/ci/` (未作成) | lint/test/build の workflow_yml を作成 |
+| T-INF-02 | GitHub Actions ワークフロー | **Done** | `.github/workflows/ci.yml` | 既存のwebジョブにてLint/Type/Vitest/OpenAPI/Storybook/VR 実行 |
 | T-DOC-01 | Storybook/Wireframe 同期 | **Done** | `docs/storybook.md`, `docs/wireframe.md` | 今後の UI 変更時に更新 |
 | T-DOC-02 | 設計/要件同期 | **Done** | `docs/design.md`, `docs/requirements.md` | SLO/フォールバック値のモニタリング継続 |
 
@@ -49,8 +49,8 @@
 | T-H1-VR | Charts 単発 Story + VR | **Done(初期)** | `ChartsPage.stories.tsx`, `tests/storybook/charts.spec.ts` | ConsistentOnly/Empty のスナップショット（Linuxベースライン） |
 | T-H2-API | 一括生成 `/api/charts/generate-batch` + ジョブ/バッチステータス | **Done(MVP/非同期ポーリング)** | `services/charts.py` | 非同期時は`batch_id`のみ返却→進捗/結果は`GET /api/charts/batches/{id}`で集計 |
 | T-H2-FE | 複数選択・一括生成バー/進捗 | **WIP** | `ChartsPage` | UIは実装済み。一括はSDKポーリングで結果反映（進捗/再試行は次イテレーション） |
-| T-HSEC | サンドボックス実行基盤 | **TODO** | `SandboxRunner`（新規） | NW遮断、時間≤10s、メモリ≤512MB、許可PKGのみ（pandas/numpy/altair/vega-lite/mpl） |
-| T-HOBS | メトリクス/監視 | **TODO** | `metrics.record_event` | `Chart*` と `ChartBatch*` イベント、KPI（成功率/平均LT/失敗内訳/VR差分率） |
+| T-HSEC | サンドボックス実行基盤 | **WIP** | `apps/api/services/sandbox.py` | MVP導入（NWブロック/メモ制限のフック）。将来subprocess隔離/allowlist導入 |
+| T-HOBS | メトリクス/監視 | **WIP** | `metrics.record_event` | ChartJobFinished/ChartBatchFinished を記録。KPI集計のAPI/可視化は今後 |
 
 ### 2.2 安定化・不具合修正（完了）
 
@@ -66,7 +66,7 @@
 | ID | 内容 | 状態 | リファレンス | 次アクション |
 |----|------|------|--------------|--------------|
 | T-CI-01 | main ブランチ保護（PR必須/レビュー/Auto-merge） | **Done** | GH 設定 | 必須チェック contexts を固定（例: `ci / web`） |
-| T-CI-02 | 必須チェック contexts 追加 | **TODO** | GH API | `gh api` で `ci / web`（必要なら `ci / api`）を登録 |
+| T-CI-02 | 必須チェック contexts 追加 | **Done** | GH API | `required_status_checks/contexts` に `ci / web` を登録済み |
 | T-CI-03 | Storybook VR を継続運用 | **WIP** | `tests/storybook/*.spec.ts` | OS別ベースライン運用、差分閾値 0.01–0.03、レポート保全 |
 
 ---

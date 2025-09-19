@@ -16,6 +16,7 @@ import { SideNav, type SideNavItem } from '../navigation/SideNav';
 import { TopBar } from './TopBar';
 import { Button } from '@autoeda/ui-kit';
 import { useLastDataset } from '../../contexts/LastDatasetContext';
+import { Breadcrumbs } from '../navigation/Breadcrumbs';
 
 export function AppLayout() {
   const location = useLocation();
@@ -190,6 +191,7 @@ export function AppLayout() {
 
           <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
             <div className="mx-auto w-full max-w-6xl">
+              <Breadcrumbs />
               <Outlet />
             </div>
           </main>
