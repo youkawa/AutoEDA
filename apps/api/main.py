@@ -561,3 +561,68 @@ class ChartBatchCancelRequest(BaseModel):
 def charts_batch_cancel(batch_id: str, req: ChartBatchCancelRequest) -> Dict[str, Any]:
     cancelled = chartsvc.cancel_batch(batch_id, req.job_ids or [])
     return {"batch_id": batch_id, "cancelled": cancelled}
+
+
+# --- F/G: Experimental skeleton endpoints (non-breaking stubs) ---
+class PlanTask(BaseModel):
+    id: str
+    title: str
+    why: Optional[str] = None
+    tool: Optional[str] = None
+    depends_on: Optional[List[str]] = None
+
+
+class PlanModel(BaseModel):
+    version: str
+    generated_at: datetime
+    tasks: List[PlanTask] = []
+
+
+class PlanGenerateRequest(BaseModel):
+    dataset_id: str
+    goals: Optional[str] = None
+    top_k: int = 5
+
+
+class PlanReviseRequest(BaseModel):
+    plan: PlanModel
+    instruction: str
+
+
+class ExecRunRequest(BaseModel):
+    task_id: str
+    code: Optional[str] = None
+    language: Literal["python", "sql"] = "python"
+
+
+class ExecRunResult(BaseModel):
+    task_id: str
+    status: Literal["succeeded", "failed", "skipped"] = "skipped"
+    logs: List[str] = []
+    outputs: List[Dict[str, Any]] = []
+
+
+@app.post("/api/plan/generate", response_model=PlanModel)
+def plan_generate(req: PlanGenerateRequest) -> PlanModel:
+    """Experimental stub: returns an empty plan structure (200).
+
+    実装方針（今後）: RAG+allowlist WebSearch→plan.tasks[] 草案→整合検査→返却。
+    非破壊のため、現段階では空 tasks を返す。
+    """
+    return PlanModel(version="v1", generated_at=datetime.utcnow(), tasks=[])
+
+
+@app.post("/api/plan/revise", response_model=PlanModel)
+def plan_revise(req: PlanReviseRequest) -> PlanModel:
+    """Experimental stub: echo back with version bump and no changes."""
+    base = req.plan
+    return PlanModel(version=f"{base.version}.1", generated_at=datetime.utcnow(), tasks=base.tasks)
+
+
+@app.post("/api/exec/run", response_model=ExecRunResult)
+def exec_run(req: ExecRunRequest) -> ExecRunResult:
+    """Experimental stub: does not execute code; returns skipped.
+
+    実装方針（今後）: SandboxRunner / allowlist / timeout / mem / NW遮断で実行し検証フック評価。
+    """
+    return ExecRunResult(task_id=req.task_id, status="skipped", logs=["experimental endpoint"], outputs=[])

@@ -9,7 +9,7 @@
 
 ## Capability U: データセット管理
 
-### Story U1: CSV アップロードと登録 (バックログ / API 実装済み)
+### Story U1: CSV アップロードと登録 (実装済み)
 
 - **Given** ユーザーが `sales.csv` をアップロードする
 - **When** `POST /api/datasets/upload` に渡す
@@ -18,7 +18,7 @@
   - 100MB 超または 50 列超は `413`/`400` を返す
   - 登録後に `GET /api/datasets` で一覧へ反映
   - `.meta.json` に PII 初期値 (`MASK`, 空配列) を格納
-- **実装状況**: API 完了 (`apps/api/main.py:95`)、UI 未実装 (`docs/wireframe.md` バックログ)
+- **実装状況**: API/UI 完了（API: `apps/api/main.py:95`、UI: `apps/web/src/pages/DatasetsPage.tsx`、SDK: `packages/client-sdk/src/index.ts::uploadDataset`）
 
 ### Story U2: データセット一覧 (実装済み)
 

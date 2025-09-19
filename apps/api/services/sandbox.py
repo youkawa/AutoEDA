@@ -86,6 +86,8 @@ class SandboxRunner:
         with open(in_path, "w", encoding="utf-8") as f:
             f.write(_json.dumps(payload))
         try:
+            # lazy import to avoid cycles
+            from . import charts as chartsvc  # type: ignore
             def _preexec():  # POSIX only
                 with contextlib.suppress(Exception):
                     resource.setrlimit(resource.RLIMIT_AS, (self.mem_limit_mb * 1024 * 1024, self.mem_limit_mb * 1024 * 1024))
@@ -97,6 +99,7 @@ class SandboxRunner:
             obj = _json.loads(out)
         except Exception:
             # フォールバック
+            from . import charts as chartsvc  # type: ignore
             obj = chartsvc._template_result(spec_hint, dataset_id)
         finally:
             with contextlib.suppress(Exception):
