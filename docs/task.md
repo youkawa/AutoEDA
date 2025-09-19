@@ -7,10 +7,11 @@
 ## 1. 現状サマリ
 
 - バックエンド API (A1〜D1, C1/C2, S1) は実装済みで、メトリクスイベントも出力。
-- Capability H（チャート生成：CH-01〜CH-21）は設計・ワイヤー・図・ドキュメントを反映済み（実装はこれから）。
+- Capability H（チャート生成：CH-01〜CH-21）は P0 の中核（CH-01/02/04/08/20/21）と一部P1（A11y: CH-15、キュー: CH-12の一部=queuedのみキャンセル）をMVP実装済み。未了: CH-03（LLM実行本番化）/CH-05（詳細理由の提示強化）/CH-06（パラメータ再実行・履歴1件保持）/CH-07（コードのコピー）/CH-11（running中断）/CH-12（並列度制御）/CH-13（段階的フォールバック）/CH-14（メタ拡充）/CH-16〜19（保存・共有系）。
+- Capability F/G（計画生成・カスタム分析）は未実装（要件・設計は v2 に定義済み）。
 - フロントは主要ページが実装済み。Storybook は導入済み（MSW/Router/Docs/A11y、VR運用まで整備）。
 - テスト: pytest + Vitest + Playwright（Storybook VR）。Charts の代表ケースをVR対象に追加済み。
-- CI: web ジョブで Lint/Type/Vitest/API検証/Storybook/VR まで実行。main 保護は有効、必須チェック contexts の確定が未了。
+- CI: web ジョブで Lint/Type/Vitest/API検証/Storybook/VR まで実行。main 保護は有効、必須チェック contexts は固定済み（"ci / web"）。
 - 安定化: RAG 初期化競合の逐次化、Gemini セーフティ理由表示、EDA StrictMode デデュープ、Mermaid 図の整備を完了。
 
 ---
@@ -52,6 +53,29 @@
 | T-HSEC | サンドボックス実行基盤 | **WIP** | `apps/api/services/sandbox.py` | MVP導入（NWブロック/メモ制限のフック）。将来subprocess隔離/allowlist導入 |
 | T-HOBS | メトリクス/監視 | **WIP** | `metrics.record_event` | ChartJobFinished/ChartBatchFinished を記録。KPI集計のAPI/可視化は今後 |
 
+#### 2.1.1 追加タスク（未実装の CH に対応）
+
+| ID | スコープ | 状態 | リファレンス | 受け入れ基準/次アクション |
+|----|----------|------|--------------|---------------------------|
+| T-H1-STEP | 単発ステップUIを実処理に連動（CH-02） | **TODO** | `ChartsPage`, `charts.py` | job/batch ステータスに応じて準備→生成→実行→描画を連動（擬似から実値へ） |
+| T-H1-EXEC | LLMコード生成＋安全実行（CH-03） | **TODO** | `sandbox.py`, `orchestrator` | SandboxRunner を本実行モードに拡張（allowlist/timeout/mem/NW遮断）＋LLM透過コード生成の最小経路 |
+| T-H1-FAIL | 失敗理由提示とテンプレフォールバック（CH-05） | **TODO** | FE/SDK 例外整形 | 空応答/安全フィルタ/JSON不正の理由を人間可読で提示、テンプレへ退避 |
+| T-H1-RERUN | パラメータ調整→再実行（履歴1件）（CH-06） | **TODO** | `ChartsPage` | 列/集計単位の編集UI、直前結果の履歴保持・復元 |
+| T-H1-COPY | コード表示＋コピー（CH-07） | **TODO** | `ChartsPage` | 「コードをコピー」ボタン追加（クリップボード書込） |
+| T-H1-META | メタデータ拡充（CH-14） | **TODO** | `charts.py`, `sandbox.py` | model_id/温度/シード/実行時間/行数などを `result.meta` に付与・記録 |
+| T-H2-CANCEL | running の協調中断（CH-11） | **TODO** | `charts.py` | running ジョブのチェックポイント中断、UIから中断操作 |
+| T-H2-QUEUE | 並列度cap/キュー制御（CH-12） | **TODO** | `charts.py` | worker の並列度=ENV、溢れた分を待機。batch parallelism を尊重 |
+| T-H2-BACKOFF | 段階的フォールバック+再試行（CH-13） | **TODO** | FE/SDK/API | テンプレ→軽量LLM→指数バックオフ再試行（最大3回） |
+
+#### 2.1.2 Capability H — 保存/共有（P2）
+
+| ID | スコープ | 状態 | リファレンス | 受け入れ基準/次アクション |
+|----|----------|------|--------------|---------------------------|
+| T-H3-SAVE | チャート保存/一覧（CH-16） | **TODO** | API/SDK/FE | `POST /api/charts/save` / `GET /api/charts` 的な最小API＋UI一覧（サムネ付） |
+| T-H3-VERS | バージョン管理（CH-17） | **TODO** | API/SDK/FE | v1/v2…の差分表示・復元。メタに `version` を保持 |
+| T-H3-SHARE | 共有リンク/エクスポート（CH-18） | **TODO** | API/FE | 読取専用リンク生成、Notebookセル（コード+画像）出力 |
+| T-H3-PIN | ダッシュボードへピン留め（CH-19） | **TODO** | FE | Home/Dashboard にカード配置・整列（ドラッグ） |
+
 ### 2.2 安定化・不具合修正（完了）
 
 | ID | 内容 | 状態 | リファレンス | 備考 |
@@ -73,16 +97,38 @@
 
 ## 3. 次のイテレーション候補
 
-1. **H1（単発生成）**: `T-H1-API`, `T-H1-FE` を並行実装→Storybookで状態再現→VR対象へ追加。
-2. **H2（一括生成）**: `T-H2-API`, `T-H2-FE` を実装。並列度=3 既定、失敗時の個別再試行・進捗UI。
-3. **Sandbox**: `T-HSEC` を先行実装し、許可ライブラリ/timeout/mem を強制。安全に失敗する設計。
-4. **CSV アップロード UI (T-U1-01)**: React Hook Form + `client-sdk`。413/422 のUXを整備。
-5. **CI 固定**: `T-CI-02` で contexts 固定、VRレポート/アーティファクトの保存期間見直し。
+1. **H1（単発生成の仕上げ）**: `T-H1-STEP`/`T-H1-EXEC`/`T-H1-FAIL`/`T-H1-RERUN`/`T-H1-COPY`/`T-H1-META` を順に実装。Storybookで状態再現→VR対象へ追加。
+2. **H2（一括生成の強化）**: `T-H2-CANCEL`/`T-H2-QUEUE`/`T-H2-BACKOFF` を実装。並列度=ENV、失敗時の個別再試行+指数バックオフ、進捗UI連動。
+3. **Sandbox 強化**: `T-HSEC` を継続（allowlist/NW遮断/timeout/mem をより厳格に）。安全に失敗する設計。
+4. **Capability F/G 着手**: `T-F1-PLAN`（計画生成API+UI）→`T-F2-REVISE`（差分適用）→`T-G1-EXEC`（コード生成/実行）→`T-G2-INTERACTIVE`（深掘り）を段階導入。
+5. **CI/観測**: VRレポート/アーティファクトの保存期間見直し。H系イベントのKPIダッシュ（p95/成功率/失敗理由）を `metrics.slo_snapshot` 拡張で可視化。
 6. **E2E 拡充 (T-TEST-03)**: Settings プロバイダ切替・Charts 成功/失敗・Recipes の一連シナリオ。
 
 ---
 
-## 4. リスクとフォロー
+## 4. 未実装ユーザーストーリー（requirements_v2 由来）
+
+| Story | 状態 | 対応タスク | 備考 |
+|-------|------|------------|------|
+| F1: 計画自動生成 | 未実装 | `T-F1-PLAN` | RAG+WebSearch/JSON Schema/整合検査含む |
+| F2: 人手レビュー・差分適用 | 未実装 | `T-F2-REVISE` | 循環/未解決入力=0、diff提示 |
+| G1: カスタム分析の生成・実行 | 未実装 | `T-G1-EXEC` | サンドボックス `code_exec` 実運用化 |
+| G2: 深掘り指示の再生成 | 未実装 | `T-G2-INTERACTIVE` | 差分パッチ生成・再実行・比較 |
+| CH-03/05/06/07/11/12/13/14 | 未実装/一部 | `T-H1-EXEC` ほか | 上記 2.1.1 の各タスクを参照 |
+| CH-16〜19 | 未実装 | `T-H3-*` | 保存/共有/バージョン/ピン留め |
+
+### 4.1 追加タスク定義（F/G）
+
+| ID | スコープ | 状態 | リファレンス | 受け入れ基準/次アクション |
+|----|----------|------|--------------|---------------------------|
+| T-F1-PLAN | 計画生成 API/UI | **TODO** | `docs/requirements_v2.md` F1 | `POST /api/plan/generate`（RAG+allowlist検索）→ `PlanPage` に表示・保存（coverage, acceptance 付き） |
+| T-F2-REVISE | 計画差分適用 | **TODO** | F2 | パッチ生成・循環/未解決=0 を満たす検証、`EDAPlanRevised` ログ |
+| T-G1-EXEC | カスタム実行基盤 | **TODO** | G1 | `code_exec`（NW遮断/timeout/mem/whitelist）で各タスク実行、検証フック合格/不合格表示 |
+| T-G2-INTERACTIVE | 深掘り対話 | **TODO** | G2 | プロンプト→差分コード→再実行→比較レポート、`CustomCodePatched` ログ |
+
+---
+
+## 5. リスクとフォロー
 
 - **LLM 未設定率が高い**: フォールバックが常態化しないよう、Settings での API Key 設定 UX を改善 (入力検証・成功トースト)。
 - **データ持ち出し**: `data/datasets` が Git 管理外だがローカルに残る。クリーンアップスクリプトを検討。
@@ -92,9 +138,9 @@
 
 ---
 
-## 5. 変更履歴
+## 6. 変更履歴
 
-- 2025-09-19: Capability H を設計/図/ワイヤー/Storybookに反映。RAG/Gemini/EDA 安定化、Storybook VR 運用、Mermaid修正、タスク表を全面更新。
+- 2025-09-19: Capability H の実装状況を反映（P0の一部=実装済み、未実装CHをタスク化）。Capability F/G の未実装を追加タスク化。RAG/Gemini/EDA 安定化、Storybook VR 運用、Mermaid修正、タスク表を更新。
 - 2025-09-18: バックエンド/フロント実装状況に合わせてタスク表を更新。Storybook/ワイヤーフレーム同期タスクを完了扱いに。
 - 2025-09-15: 初版。
 \n
