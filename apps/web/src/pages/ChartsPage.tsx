@@ -17,7 +17,8 @@ export function ChartsPage() {
   const [showConsistentOnly, setShowConsistentOnly] = useState(true);
   const [selectedDetail, setSelectedDetail] = useState<ChartCandidate | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  type ChartRender = { loading: boolean; error?: string; src?: string; code?: string; tab?: 'viz'|'code'|'meta' };
+  type Step = 'preparing' | 'generating' | 'running' | 'rendering' | 'done';
+  type ChartRender = { loading: boolean; step?: Step; error?: string; src?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: Record<string, unknown> };
   const [results, setResults] = useState<Record<string, ChartRender>>({});
   const toast = useToast();
 
@@ -98,7 +99,7 @@ export function ChartsPage() {
                     const r = res[Math.min(idx, res.length - 1)];
                     const out = r?.outputs?.[0];
                     if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
-                      next[c.id] = { loading: false, src: `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}` };
+                      next[c.id] = { loading: false, step: 'done', tab: 'viz', src: `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}` };
                     }
                   });
                   setResults(next);
@@ -243,7 +244,7 @@ export function ChartsPage() {
                           {k === 'viz' ? '可視化' : k === 'code' ? 'コード' : 'メタ'}
                         </button>
                       ))}
-                      <div className="ml-auto">
+                      <div className="ml-auto flex gap-2">
                         <Button
                           variant="secondary"
                           size="sm"
@@ -258,14 +259,37 @@ export function ChartsPage() {
                         >
                           ダウンロード
                         </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            const r = results[chart.id];
+                            const blob = new Blob([r?.code ?? '{}'], { type: 'application/json;charset=utf-8' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${chart.id}.json`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          }}
+                        >
+                          Vega JSON
+                        </Button>
                       </div>
                     </div>
                     <div className="p-3 text-sm">
-                      {results[chart.id]?.tab !== 'code' ? (
-                        results[chart.id]?.src ? <img src={results[chart.id]!.src} alt="generated chart" /> : null
-                      ) : (
+                      {results[chart.id]?.tab === 'viz' && results[chart.id]?.src ? (
+                        <img src={results[chart.id]!.src} alt="generated chart" />
+                      ) : null}
+                      {results[chart.id]?.tab === 'code' ? (
                         <pre className="overflow-auto rounded bg-slate-50 p-3 text-xs text-slate-800">{results[chart.id]?.code ?? '# 生成されたコードはありません'}</pre>
-                      )}
+                      ) : null}
+                      {results[chart.id]?.tab === 'meta' ? (
+                        <div className="grid gap-1 text-xs text-slate-600">
+                          <div>dataset_id: {(results[chart.id]?.meta as any)?.dataset_id ?? '-'}</div>
+                          <div>hint: {(results[chart.id]?.meta as any)?.hint ?? '-'}</div>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ) : null}
