@@ -28,10 +28,10 @@
 | T-C2-01 | リークリスク検査 | **Done** | `apps/api/services/tools.py::leakage_scan`, `LeakagePage` | 実データを用いた検証ケースを追加 |
 | T-D1-01 | レシピ生成 & ±1% 検証 | **Done** | `apps/api/services/tools.py::recipe_emit`, `RecipesPage` | notebooks/SQL の単体テストを pytest で追加 |
 | T-S1-01 | LLM 資格情報 API + UI | **Done** | `apps/api/main.py (credentials)`, `SettingsPage` | 401/403 ハンドリング (API Key 無効時) を実装 |
-| T-U1-01 | CSV アップロード UI | **TODO** | API は `apps/api/main.py:95` | `Home` にアップロードフォーム。`client-sdk` へ `upload` を追加 |
+| T-U1-01 | CSV アップロード UI | **Done** | API は `apps/api/main.py:95` | `Datasets` にアップロード導線を追加、`client-sdk.uploadDataset` 実装 |
 | T-UX-01 | ナビゲーション改善 | **TODO** | `App.tsx` | アクティブ表示 / Breadcrumbs |
 | T-UI-01 | Storybook 導入/運用 | **Done** | `docs/storybook.md`, `.storybook/*` | MSW/Router/Docs/A11y 設定、VR連携、reduce motion/フォント/日時固定 |
-| T-TEST-01 | API 単体テスト拡充 | **WIP** | `tests/python` | `test_tools_profile.py` 追加、LLM フォールバックパスを検証 |
+| T-TEST-01 | API 単体テスト拡充 | **WIP** | `tests/python` | `test_upload.py` 追加、今後 `test_tools_profile.py` などを拡充 |
 | T-TEST-02 | フロント UI テスト拡充 | **TODO** | `apps/web/src/tests` | Vitest + MSW でページごとのスナップショット |
 | T-TEST-03 | Playwright シナリオ更新 | **TODO** | `tests/e2e` | Settings/Recipes/Leakage を包含する E2E |
 | T-INF-01 | Docker サンドボックス | **TODO** | `infra/README.md` | `docker-compose.dev.yml` を作成し README の手順を実装 |

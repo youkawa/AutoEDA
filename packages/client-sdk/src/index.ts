@@ -43,6 +43,15 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function postFile<T>(path: string, file: File): Promise<T> {
+  const url = `${API_BASE ?? ''}${path}`;
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(url, { method: 'POST', body: form });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
 // Mock fallback used when fetch fails (dev/test without API)
 function makeReference(locator: string, kind: Reference['kind'] = 'figure'): Reference {
   return { kind, locator };
@@ -167,6 +176,13 @@ export async function generateChartsBatch(datasetId: string, hints: string[]): P
   const batch = await postJSON<any>('/api/charts/generate-batch', { dataset_id: datasetId, items });
   const results: ChartResult[] = (batch.results ?? []) as ChartResult[];
   return results;
+}
+
+// --- U: Dataset Upload ---
+export type UploadResponse = { dataset_id: string };
+
+export async function uploadDataset(file: File): Promise<UploadResponse> {
+  return postFile<UploadResponse>('/api/datasets/upload', file);
 }
 
 export async function askQnA(datasetId: string, question: string): Promise<Answer[]> {
