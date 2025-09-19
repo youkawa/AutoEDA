@@ -8,17 +8,17 @@
 
 ```mermaid
 graph LR
-  Home[/Home (/)/]
-  Datasets[/Datasets (/datasets)/]
-  Settings[/Settings (/settings)/]
-  EDA[/EDA Summary (/eda/:datasetId)/]
-  Charts[/Charts (/charts/:datasetId)/]
-  ChartsBulk[[選択バー（チェックボックス/一括生成）]]
-  QnA[/Q&A (/qna/:datasetId)/]
-  Actions[/Next Actions (/actions/:datasetId)/]
-  PII[/PII (/pii/:datasetId)/]
-  Leakage[/Leakage (/leakage/:datasetId)/]
-  Recipes[/Recipes (/recipes/:datasetId)/]
+  Home[Home (/)]
+  Datasets[Datasets (/datasets)]
+  Settings[Settings (/settings)]
+  EDA[EDA Summary (/eda/:datasetId)]
+  Charts[Charts (/charts/:datasetId)]
+  ChartsBulk[選択バー: チェック/一括生成]
+  QnA[QnA (/qna/:datasetId)]
+  Actions[Next Actions (/actions/:datasetId)]
+  PII[PII (/pii/:datasetId)]
+  Leakage[Leakage (/leakage/:datasetId)]
+  Recipes[Recipes (/recipes/:datasetId)]
 
   Home --> Datasets
   Datasets --> EDA
@@ -31,7 +31,7 @@ graph LR
   Charts --> Recipes
   Charts --> ChartsBulk
   Actions --> Recipes
-  Settings -.-> API["/api/credentials/llm"]
+  Settings -.-> API[API: /api/credentials/llm]
 ```
 
 ---
@@ -141,20 +141,20 @@ sequenceDiagram
 
 ```mermaid
 graph TD
-  PIIPage[PII ページ] -->|初期ロード| PiiScan[/POST /api/pii/scan/]
+  PIIPage[PII ページ] -->|初期ロード| PiiScan[POST /api/pii/scan]
   PiiScan --> Detected{検出フィールドあり?}
   Detected -->|Yes| Toggle[チェックボックスで選択]
-  Toggle --> Apply[/POST /api/pii/apply/]
-  Apply --> Refresh[/再度 /api/pii/scan]
+  Toggle --> Apply[POST /api/pii/apply]
+  Apply --> Refresh[再度 /api/pii/scan]
   Refresh --> PIIPage
   Detected -->|No| PIIPage
 
-  LeakagePage[Leakage ページ] --> LeakScan[/POST /api/leakage/scan/]
+  LeakagePage[Leakage ページ] --> LeakScan[POST /api/leakage/scan]
   LeakScan --> Flags{flagged_columns}
   Flags -->|Yes| Select[チェックボックス]
   Select --> Action[exclude / acknowledge / reset]
-  Action --> Resolve[/POST /api/leakage/resolve/]
-  Resolve --> ReScan[/再度 /api/leakage/scan]
+  Action --> Resolve[POST /api/leakage/resolve]
+  Resolve --> ReScan[再度 /api/leakage/scan]
   ReScan --> LeakagePage
   Flags -->|No| LeakagePage
 ```
@@ -204,7 +204,7 @@ sequenceDiagram
 ## 6. データセット状態遷移（H を含む）
 
 ```mermaid
-stateDiagram
+stateDiagram-v2
   [*] --> Uploaded : /api/datasets/upload
   Uploaded --> Profiled : /api/eda
   Profiled --> PiiScanned : /api/pii/scan
@@ -226,9 +226,9 @@ stateDiagram
   end note
   note right of ChartsSuggested
     H: チャート生成
-    ・単発: job_id で追跡しプレビュー表示
-    ・一括: batch_id で進捗管理（並列度デフォルト3）
-    失敗は個別に再試行/テンプレへフォールバック
+    単発は job_id で追跡しプレビュー表示。
+    一括は batch_id で進捗管理（並列度=3）。
+    失敗は個別に再試行しテンプレへフォールバック。
   end note
 ```
 
