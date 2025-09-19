@@ -12,6 +12,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
+from . import metrics
+from .sandbox import SandboxRunner
 
 _DATA_DIR = Path("data/charts")
 _JOBS: Dict[str, Dict[str, Any]] = {}
@@ -43,12 +45,26 @@ def _start_worker_once() -> None:
             _JOBS[job_id]["status"] = "running"
             try:
                 item = job["item"]
-                result = _template_result(item.get("spec_hint"), item.get("dataset_id"))
+                runner = SandboxRunner()
+                result = runner.run_template(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
                 outdir = _DATA_DIR / job_id
                 outdir.mkdir(parents=True, exist_ok=True)
                 payload = {"job_id": job_id, "status": "succeeded", "result": result}
                 (outdir / "result.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
                 _JOBS[job_id].update(payload)
+                # metrics
+                try:
+                    t0 = _JOBS[job_id].get("t0") or time.perf_counter()
+                    dur = int((time.perf_counter() - t0) * 1000)
+                    metrics.record_event("ChartJobFinished", duration_ms=dur)
+                    metrics.persist_event({
+                        "event_name": "ChartJobFinished",
+                        "duration_ms": dur,
+                        "dataset_id": item.get("dataset_id"),
+                        "hint": item.get("spec_hint"),
+                    })
+                except Exception:
+                    pass
             except Exception as exc:
                 _JOBS[job_id].update({"status": "failed", "error": str(exc)})
             # small yield
@@ -147,7 +163,7 @@ def generate(item: Dict[str, Any]) -> Dict[str, Any]:
     if _ASYNC:
         _start_worker_once()
         job_id = uuid4().hex[:12]
-        job = {"job_id": job_id, "status": "queued"}
+        job = {"job_id": job_id, "status": "queued", "t0": time.perf_counter(), "item": item}
         _JOBS[job_id] = job
         with _CV:
             _QUEUE.append({"job_id": job_id, "item": item})
@@ -155,12 +171,25 @@ def generate(item: Dict[str, Any]) -> Dict[str, Any]:
         return job
     else:
         job_id = uuid4().hex[:12]
-        result = _template_result(item.get("spec_hint"), item.get("dataset_id"))
+        t0 = time.perf_counter()
+        runner = SandboxRunner()
+        result = runner.run_template(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
         job = {"job_id": job_id, "status": "succeeded", "result": result}
         _JOBS[job_id] = job
         outdir = _DATA_DIR / job_id
         outdir.mkdir(parents=True, exist_ok=True)
         (outdir / "result.json").write_text(json.dumps(job, ensure_ascii=False, indent=2), encoding="utf-8")
+        try:
+            dur = int((time.perf_counter() - t0) * 1000)
+            metrics.record_event("ChartJobFinished", duration_ms=dur)
+            metrics.persist_event({
+                "event_name": "ChartJobFinished",
+                "duration_ms": dur,
+                "dataset_id": item.get("dataset_id"),
+                "hint": item.get("spec_hint"),
+            })
+        except Exception:
+            pass
         return job
 
 
@@ -190,6 +219,7 @@ def generate_batch(items: List[Dict[str, Any]], parallelism: int = 3) -> Dict[st
         _BATCHES[batch_id] = status
         return status
     else:
+        t0 = time.perf_counter()
         for it in items:
             job = generate(it)
             results.append(job.get("result"))
@@ -204,6 +234,17 @@ def generate_batch(items: List[Dict[str, Any]], parallelism: int = 3) -> Dict[st
             "results": results,
         }
         _BATCHES[batch_id] = status
+        try:
+            dur = int((time.perf_counter() - t0) * 1000)
+            metrics.record_event("ChartBatchFinished", duration_ms=dur)
+            metrics.persist_event({
+                "event_name": "ChartBatchFinished",
+                "duration_ms": dur,
+                "batch_id": batch_id,
+                "total": len(items),
+            })
+        except Exception:
+            pass
         return status
 
 
