@@ -8,30 +8,30 @@
 
 ```mermaid
 graph LR
-  Home[Home (/)]
-  Datasets[Datasets (/datasets)]
-  Settings[Settings (/settings)]
-  EDA[EDA Summary (/eda/:datasetId)]
-  Charts[Charts (/charts/:datasetId)]
-  ChartsBulk[選択バー: チェック/一括生成]
-  QnA[QnA (/qna/:datasetId)]
-  Actions[Next Actions (/actions/:datasetId)]
-  PII[PII (/pii/:datasetId)]
-  Leakage[Leakage (/leakage/:datasetId)]
-  Recipes[Recipes (/recipes/:datasetId)]
+  Home[Home /];
+  Datasets[Datasets /datasets];
+  Settings[Settings /settings];
+  EDA[EDA Summary /eda/{id}];
+  Charts[Charts /charts/{id}];
+  ChartsBulk[Bulk select & generate];
+  QnA[QnA /qna/{id}];
+  Actions[Next Actions /actions/{id}];
+  PII[PII /pii/{id}];
+  Leakage[Leakage /leakage/{id}];
+  Recipes[Recipes /recipes/{id}];
 
-  Home --> Datasets
-  Datasets --> EDA
-  EDA --> Charts
-  EDA --> QnA
-  EDA --> Actions
-  EDA --> PII
-  EDA --> Leakage
-  EDA --> Recipes
-  Charts --> Recipes
-  Charts --> ChartsBulk
-  Actions --> Recipes
-  Settings -.-> API[API: /api/credentials/llm]
+  Home --> Datasets;
+  Datasets --> EDA;
+  EDA --> Charts;
+  EDA --> QnA;
+  EDA --> Actions;
+  EDA --> PII;
+  EDA --> Leakage;
+  EDA --> Recipes;
+  Charts --> Recipes;
+  Charts --> ChartsBulk;
+  Actions --> Recipes;
+  Settings -.-> API[API /api/credentials/llm];
 ```
 
 ---
@@ -213,7 +213,7 @@ stateDiagram-v2
   LeakageChecked --> LeakageResolved : /api/leakage/resolve
   Profiled --> ChartsSuggested : /api/charts/suggest
   ChartsSuggested --> ChartGenerated : /api/charts/generate
-  ChartsSuggested --> ChartsBatchGenerated : /api/charts/generate:batch
+  ChartsSuggested --> ChartsBatchGenerated : /api/charts/generate-batch
   Profiled --> QnAAnswered : /api/qna
   QnAAnswered --> ActionsPrioritized : /api/actions/prioritize
   ChartsSuggested --> RecipesEmitted : /api/recipes/emit
