@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { suggestCharts, generateChart, generateChartsBatch, beginChartsBatch, getChartsBatchStatus } from '@autoeda/client-sdk';
+import { suggestCharts, generateChart, generateChartsBatch, beginChartsBatch, getChartsBatchStatus, beginChartsBatchWithIds, getChartsBatchStatusWithMap, type ChartsBatchStatus } from '@autoeda/client-sdk';
 import type { ChartCandidate } from '@autoeda/schemas';
 import { Button, useToast } from '@autoeda/ui-kit';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/Card';
@@ -102,44 +102,51 @@ export function ChartsPage() {
               disabled={batchInFlight}
               onClick={async () => {
                 if (!datasetId) return;
-                const hints = charts.filter((c) => selectedIds.has(c.id)).map((c) => c.type);
-                if (hints.length === 0) return;
+                const pairs = charts.filter((c) => selectedIds.has(c.id)).map((c) => ({ chartId: c.id, hint: c.type }));
+                if (pairs.length === 0) return;
                 setBatchInFlight(true);
-                setBatchProgress({ total: hints.length, done: 0, failed: 0 });
+                setBatchProgress({ total: pairs.length, done: 0, failed: 0 });
                 try {
-                  const batchId = await beginChartsBatch(datasetId, hints);
+                  const batchId = await beginChartsBatchWithIds(datasetId, pairs);
                   if (!batchId) {
                     // 同期モードの可能性: 従来の関数で取得
-                    const res = await generateChartsBatch(datasetId, hints);
+                    const res = await generateChartsBatch(datasetId, pairs.map(p => p.hint));
                     const next: Record<string, ChartRender> = { ...results };
-                    let k = 0;
-                    charts.forEach((c) => {
-                      if (!selectedIds.has(c.id)) return;
-                      const r = res[k++] ?? null;
+                    for (let i = 0; i < pairs.length; i++) {
+                      const r = res[i];
                       const out = r?.outputs?.[0];
                       if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
-                        next[c.id] = { loading: false, step: 'done', tab: 'viz', src: `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}` };
+                        next[pairs[i].chartId] = { loading: false, step: 'done', tab: 'viz', src: `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}` };
                       }
-                    });
+                    }
                     setResults(next);
                   } else {
                     // ポーリングして進捗反映
                     let finished = false;
                     while (!finished) {
                       await new Promise((r) => setTimeout(r, 300));
-                      const st = await getChartsBatchStatus(batchId);
+                      const st: ChartsBatchStatus = await getChartsBatchStatusWithMap(batchId);
                       setBatchProgress({ total: st.total, done: st.done, failed: st.failed });
-                      if (Array.isArray(st.results)) {
+                      if (st.results_map && Object.keys(st.results_map).length > 0) {
                         const next: Record<string, ChartRender> = { ...results };
-                        let k = 0;
-                        charts.forEach((c) => {
-                          if (!selectedIds.has(c.id)) return;
-                          const r = st.results![k++] ?? null;
+                        for (const cid of Object.keys(st.results_map)) {
+                          const r = st.results_map[cid]!;
                           const out = r?.outputs?.[0];
                           if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
-                            next[c.id] = { loading: false, step: 'done', tab: 'viz', src: `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}` };
+                            next[cid] = { loading: false, step: 'done', tab: 'viz', src: `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}` };
                           }
-                        });
+                        }
+                        setResults(next);
+                        finished = true;
+                      } else if (Array.isArray(st.results)) {
+                        const next: Record<string, ChartRender> = { ...results };
+                        for (let i = 0; i < pairs.length; i++) {
+                          const r = st.results![i];
+                          const out = r?.outputs?.[0];
+                          if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
+                            next[pairs[i].chartId] = { loading: false, step: 'done', tab: 'viz', src: `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}` };
+                          }
+                        }
                         setResults(next);
                         finished = true;
                       }

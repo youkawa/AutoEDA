@@ -496,6 +496,7 @@ class ChartBatchStatus(BaseModel):
     failed: int
     items: List[Dict[str, Any]]
     results: Optional[List[ChartResult]] = None
+    results_map: Optional[Dict[str, ChartResult]] = None
 
 
 @app.post("/api/charts/generate", response_model=ChartJob)

@@ -214,6 +214,28 @@ export async function getChartsBatchStatus(batchId: string): Promise<{ total: nu
   return getJSON(`/api/charts/batches/${batchId}`);
 }
 
+// New helpers to retain chart-card mapping in batches
+export type ChartGenPair = { chartId: string; hint: string };
+export type ChartsBatchStatus = {
+  total: number;
+  done: number;
+  running: number;
+  failed: number;
+  items: { job_id: string; status: string; chart_id?: string }[];
+  results?: ChartResult[];
+  results_map?: Record<string, ChartResult>;
+};
+
+export async function beginChartsBatchWithIds(datasetId: string, pairs: ChartGenPair[]): Promise<string> {
+  const items = pairs.map((p) => ({ dataset_id: datasetId, spec_hint: p.hint, chart_id: p.chartId }));
+  const batch = await postJSON<any>('/api/charts/generate-batch', { dataset_id: datasetId, items });
+  return (batch.batch_id as string) || '';
+}
+
+export async function getChartsBatchStatusWithMap(batchId: string): Promise<ChartsBatchStatus> {
+  return getJSON(`/api/charts/batches/${batchId}`);
+}
+
 // --- U: Dataset Upload ---
 export type UploadResponse = { dataset_id: string };
 

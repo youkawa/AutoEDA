@@ -164,6 +164,8 @@ def generate(item: Dict[str, Any]) -> Dict[str, Any]:
         _start_worker_once()
         job_id = uuid4().hex[:12]
         job = {"job_id": job_id, "status": "queued", "t0": time.perf_counter(), "item": item}
+        if item.get("chart_id"):
+            job["chart_id"] = item.get("chart_id")
         _JOBS[job_id] = job
         with _CV:
             _QUEUE.append({"job_id": job_id, "item": item})
@@ -175,6 +177,8 @@ def generate(item: Dict[str, Any]) -> Dict[str, Any]:
         runner = SandboxRunner()
         result = runner.run_template(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
         job = {"job_id": job_id, "status": "succeeded", "result": result}
+        if item.get("chart_id"):
+            job["chart_id"] = item.get("chart_id")
         _JOBS[job_id] = job
         outdir = _DATA_DIR / job_id
         outdir.mkdir(parents=True, exist_ok=True)
@@ -206,7 +210,10 @@ def generate_batch(items: List[Dict[str, Any]], parallelism: int = 3) -> Dict[st
         _start_worker_once()
         for it in items:
             job = generate(it)  # queued
-            job_items.append({"job_id": job["job_id"], "status": job["status"]})
+            entry = {"job_id": job["job_id"], "status": job["status"]}
+            if job.get("chart_id"):
+                entry["chart_id"] = job.get("chart_id")
+            job_items.append(entry)
         status = {
             "batch_id": batch_id,
             "total": len(items),
@@ -220,10 +227,17 @@ def generate_batch(items: List[Dict[str, Any]], parallelism: int = 3) -> Dict[st
         return status
     else:
         t0 = time.perf_counter()
+        results_map: Dict[str, Any] = {}
         for it in items:
             job = generate(it)
-            results.append(job.get("result"))
-            job_items.append({"job_id": job["job_id"], "status": job["status"]})
+            result = job.get("result")
+            results.append(result)
+            entry = {"job_id": job["job_id"], "status": job["status"]}
+            if job.get("chart_id"):
+                entry["chart_id"] = job.get("chart_id")
+                if result is not None:
+                    results_map[job["chart_id"]] = result
+            job_items.append(entry)
         status = {
             "batch_id": batch_id,
             "total": len(items),
@@ -232,6 +246,7 @@ def generate_batch(items: List[Dict[str, Any]], parallelism: int = 3) -> Dict[st
             "failed": 0,
             "items": job_items,
             "results": results,
+            "results_map": results_map or None,
         }
         _BATCHES[batch_id] = status
         try:
@@ -259,6 +274,7 @@ def get_batch(batch_id: str) -> Optional[Dict[str, Any]]:
         running = 0
         failed = 0
         results: List[Dict[str, Any]] = []
+        results_map: Dict[str, Any] = {}
         for it in items:
             j = _JOBS.get(it["job_id"], {})
             it["status"] = j.get("status", it.get("status"))
@@ -266,6 +282,8 @@ def get_batch(batch_id: str) -> Optional[Dict[str, Any]]:
                 done += 1
                 if j.get("result"):
                     results.append(j["result"])
+                    if it.get("chart_id"):
+                        results_map[it["chart_id"]] = j["result"]
             elif it["status"] == "failed":
                 failed += 1
             else:
@@ -273,5 +291,6 @@ def get_batch(batch_id: str) -> Optional[Dict[str, Any]]:
         st.update({"done": done, "running": running, "failed": failed})
         if done + failed == st.get("total", 0):
             st["results"] = results
+            st["results_map"] = results_map
         return st
     return st

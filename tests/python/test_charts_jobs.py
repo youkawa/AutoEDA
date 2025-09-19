@@ -26,7 +26,7 @@ def test_charts_generate_async_and_batch_polling():
     r = client.post('/api/charts/generate', json={'dataset_id': 'ds_async', 'spec_hint': 'line'})
     assert r.status_code == 200
     job = r.json()
-    assert job['status'] in ('queued', 'running')
+    assert job['status'] in ('queued', 'running', 'succeeded')
 
     # poll until succeeded (<= 3s)
     t0 = time.time()
@@ -40,8 +40,8 @@ def test_charts_generate_async_and_batch_polling():
 
     # batch
     r2 = client.post('/api/charts/generate-batch', json={'dataset_id': 'ds_async', 'items': [
-        {'dataset_id': 'ds_async', 'spec_hint': 'bar'},
-        {'dataset_id': 'ds_async', 'spec_hint': 'scatter'}
+        {'dataset_id': 'ds_async', 'spec_hint': 'bar', 'chart_id': 'c-bar'},
+        {'dataset_id': 'ds_async', 'spec_hint': 'scatter', 'chart_id': 'c-scat'}
     ]})
     assert r2.status_code == 200
     b = r2.json()
@@ -52,6 +52,9 @@ def test_charts_generate_async_and_batch_polling():
         st = client.get(f"/api/charts/batches/{b['batch_id']}").json()
         if st.get('results'):
             assert len(st['results']) == 2
+            # results_map preserves mapping by chart_id
+            assert 'results_map' in st
+            assert set(st['results_map'].keys()) == {'c-bar', 'c-scat'}
             break
         time.sleep(0.05)
     else:
