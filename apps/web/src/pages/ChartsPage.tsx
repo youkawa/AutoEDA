@@ -99,7 +99,9 @@ export function ChartsPage() {
             {spark.length > 0 ? (
               <span className="inline-flex items-center gap-2" title="直近の served 比率（%）。served% = served/total * 100">
                 <span className="text-xs text-slate-400">served%</span>
-                <span className="flex h-5 items-end gap-0.5">
+                <span className="relative flex h-5 items-end gap-0.5">
+                  {/* しきい値ライン 80% */}
+                  <span className="absolute left-0 right-0 border-t border-dashed border-emerald-400/60" style={{ top: `${Math.max(0, 16 - Math.round(16 * 0.8))}px` }} title="しきい値 80%" />
                   {spark.map((e, i) => (
                     <span
                       key={`sp-${i}`}
@@ -113,12 +115,17 @@ export function ChartsPage() {
                   const vals = spark.map((e) => e.served_pct);
                   const min = Math.min(...vals);
                   const max = Math.max(...vals);
-                  return <span className="text-[10px] text-slate-400">min {min}% / max {max}%</span>;
+                  const p95 = (() => {
+                    const a = [...vals].sort((a,b)=>a-b); if (a.length===0) return 0;
+                    const pos = (a.length - 1) * 0.95; const li = Math.floor(pos); const ui = Math.min(li+1, a.length-1);
+                    const frac = pos - li; return Math.round(a[li] + (a[ui]-a[li]) * frac);
+                  })();
+                  return <span className="text-[10px] text-slate-400" title={`p95 ${p95}%`}>min {min}% / max {max}%</span>;
                 })()}
                 {(() => {
                   const last = spark[spark.length-1]?.served_pct ?? 0;
                   const good = last >= 80;
-                  return <span className={`rounded px-1.5 py-0.5 text-[11px] ${good?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}`}>{last}%</span>;
+                  return <span className={`rounded px-1.5 py-0.5 text-[11px] ${good?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}`} title={`served% 現在値 ${last}%`}>{last}%</span>;
                 })()}
               </span>
             ) : null}

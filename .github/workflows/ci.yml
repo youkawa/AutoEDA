@@ -44,7 +44,24 @@ jobs:
       - name: Check OpenAPI paths and responses
         run: python3 apps/api/scripts/check_openapi_paths.py
       - name: Check OpenAPI compatibility (ChartJob.error_code)
+        id: openapi_compat
         run: npm run schema:check:openapi-compat
+      - name: Comment OpenAPI compat result
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const outcome = `${{ steps.openapi_compat.outcome }}`;
+            const ok = outcome === 'success';
+            const body = ok
+              ? `✅ OpenAPI compat check passed (ChartJob.error_code).`
+              : `❌ OpenAPI compat check failed. Please review ChartJob.error_code enum or schema.`;
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
       - name: Evaluate API NFR (p95 & thresholds)
         run: python3 apps/api/scripts/evaluate_nfr.py
       - name: Check SLO thresholds

@@ -11,6 +11,7 @@ export function PlanPage() {
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<PlanModel | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [issuesMap, setIssuesMap] = useState<Record<string, string[]>>({});
   const [sortKey, setSortKey] = useState<'id'|'title'|'tool'>(() => {
     const q = new URLSearchParams(window.location.search);
     const qs = q.get('sort');
@@ -88,10 +89,22 @@ export function PlanPage() {
                   const body = await res.json().catch(() => ({}));
                   const msg = typeof body?.detail === 'string' ? body.detail : `HTTP ${res.status}`;
                   setValidationError(msg);
+                  // 例: "missing dependency: a depends on b; ambiguous acceptance in t1"
+                  const map: Record<string,string[]> = {};
+                  msg.split(';').map(s=>s.trim()).filter(Boolean).forEach((line) => {
+                    const m1 = line.match(/^missing dependency: (\S+) depends on (\S+)/);
+                    const m2 = line.match(/^ambiguous acceptance in (\S+)/);
+                    const m3 = line.match(/^cycle detected at (\S+)/);
+                    if (m1) { const id=m1[1]; (map[id] ||= []).push(line); }
+                    else if (m2) { const id=m2[1]; (map[id] ||= []).push(line); }
+                    else if (m3) { const id=m3[1]; (map[id] ||= []).push(line); }
+                  });
+                  setIssuesMap(map);
                   toast('検証エラーがあります', 'error');
                 } else {
                   const obj = await res.json();
                   setPlan({ version: obj.version, tasks: obj.tasks ?? [] });
+                  setIssuesMap({});
                   toast('計画は有効です', 'success');
                 }
               } catch (err) {
@@ -157,9 +170,11 @@ export function PlanPage() {
                 .map((t) => {
                   const deps = t.depends_on ?? [];
                   const ids = new Set(plan.tasks.map((x) => x.id));
-                  const ok = deps.every((d) => ids.has(d));
+                  const okDeps = deps.every((d) => ids.has(d));
+                  const issues = issuesMap[t.id] ?? [];
+                  const ok = okDeps && issues.length === 0;
                   return (
-                <tr key={t.id} className="border-t border-slate-100">
+                <tr key={t.id} className={`border-t border-slate-100 ${ok ? '' : 'bg-amber-50'}`} title={issues.join('; ')}>
                   <td className="px-2 py-1">{ok ? <Pill tone="emerald">OK</Pill> : <Pill tone="amber">NG</Pill>}</td>
                   <td className="px-2 py-1 font-mono text-xs">{t.id}</td>
                   <td className="px-2 py-1">{t.title}</td>
@@ -211,6 +226,19 @@ export function PlanPage() {
                 a.href = url; a.download = `plan_${datasetId}.json`; a.click(); URL.revokeObjectURL(url);
               }}
             >計画JSONをダウンロード</Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="ml-2"
+              onClick={() => {
+                if (!plan) return;
+                const header = ['id','title','tool','depends_on','acceptance'];
+                const rows = plan.tasks.map(t => [t.id, t.title, t.tool??'', (t.depends_on??[]).join('|'), t.acceptance??'']);
+                const csv = [header.join(','), ...rows.map(r => r.map(v => String(v).replace(/"/g,'""')).map(v=>`"${v}"`).join(','))].join('\n');
+                const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+                const a = document.createElement('a'); a.href = url; a.download = `plan_${datasetId}.csv`; a.click(); URL.revokeObjectURL(url);
+              }}
+            >CSV エクスポート</Button>
           </div>
         </div>
       ) : (
