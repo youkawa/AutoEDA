@@ -13,6 +13,7 @@ export function PlanPage() {
   const [sortKey, setSortKey] = useState<'id'|'title'|'tool'>('id');
   const [filterText, setFilterText] = useState('');
   const toast = useToast();
+  const [missingDeps, setMissingDeps] = useState<string[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -31,7 +32,13 @@ export function PlanPage() {
       .then((obj: unknown) => {
         const data = obj as { version?: string; tasks?: PlanTask[] };
         if (!mounted) return;
-        setPlan({ version: data.version ?? 'v1', tasks: data.tasks ?? [] });
+        const tasks = data.tasks ?? [];
+        setPlan({ version: data.version ?? 'v1', tasks });
+        // compute missing deps (UI用の即席検証)
+        const ids = new Set(tasks.map((t) => t.id));
+        const missing: string[] = [];
+        tasks.forEach((t) => (t.depends_on ?? []).forEach((d) => { if (!ids.has(d)) missing.push(`${t.id} -> ${d}`); }));
+        setMissingDeps(missing);
       })
       .catch((err) => {
         toast(err instanceof Error ? err.message : '計画の取得に失敗しました', 'error');
@@ -145,6 +152,11 @@ export function PlanPage() {
               ))}
             </tbody>
           </table>
+          {missingDeps.length > 0 ? (
+            <div className="mt-3 rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+              依存未解決: {missingDeps.slice(0,5).join(', ')}{missingDeps.length>5?' …':''}
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-slate-600">計画がありません</div>

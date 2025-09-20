@@ -201,7 +201,8 @@ class SandboxRunner:
             try:
                 tree = _ast.parse(code)
                 allowed_imports = {"json", "csv", "os"}
-                banned_calls = {"eval", "exec", "compile", "__import__"}
+                banned_calls = {"eval", "exec", "compile", "__import__", "open"}
+                banned_os_calls = {"system", "popen", "remove", "unlink", "rmdir", "rename", "chdir", "chmod", "chown"}
                 for node in _ast.walk(tree):
                     if isinstance(node, _ast.Import):
                         for alias in node.names:
@@ -215,6 +216,9 @@ class SandboxRunner:
                     elif isinstance(node, _ast.Call):
                         if isinstance(node.func, _ast.Name) and node.func.id in banned_calls:
                             raise SandboxError(f"forbidden call: {node.func.id}")
+                        if isinstance(node.func, _ast.Attribute) and isinstance(node.func.value, _ast.Name):
+                            if node.func.value.id == 'os' and node.func.attr in banned_os_calls:
+                                raise SandboxError(f"forbidden os call: os.{node.func.attr}")
             except SandboxError:
                 raise
             except Exception:
