@@ -41,7 +41,6 @@ export const EmptyResults: Story = {
 };
 
 export const WithResult: Story = {
-  name: 'With Result',
   parameters: {
     msw: {
       handlers: [

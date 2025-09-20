@@ -157,6 +157,30 @@ export function PlanPage() {
               依存未解決: {missingDeps.slice(0,5).join(', ')}{missingDeps.length>5?' …':''}
             </div>
           ) : null}
+          <div className="mt-3 text-xs text-slate-500">
+            <p className="font-semibold text-slate-600">依存グラフ（簡易）</p>
+            <ul className="mt-1 list-disc pl-5">
+              {plan.tasks.map((t) => (
+                <li key={`dep-${t.id}`}>
+                  <span className="font-mono">{t.id}</span>
+                  <span className="mx-1">→</span>
+                  <span>{(t.depends_on ?? []).join(', ') || '-'}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="mt-3">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                const blob = new Blob([JSON.stringify(plan, null, 2)], { type: 'application/json;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = `plan_${datasetId}.json`; a.click(); URL.revokeObjectURL(url);
+              }}
+            >計画JSONをダウンロード</Button>
+          </div>
         </div>
       ) : (
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-slate-600">計画がありません</div>

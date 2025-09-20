@@ -13,7 +13,7 @@
   - CH-02: 単発ステップUIをサーバ `stage` 同期（generating/rendering/done） — Done(単発)
 - CH-12: 並列ワーカープール（ENV: `AUTOEDA_CHARTS_PARALLELISM`） — Done(初期)
   - バッチ: `parallelism_effective` 厳守とフェアスケジューラ（RR） — Done(初期)
-  - CH-11: 協調キャンセル（runningにcancel flag伝播） — WIP
+  - CH-11: 協調キャンセル（runningにcancel flag伝播） — WIP（UIはキュー/実行中の一括キャンセルに対応）
   - CH-14: メタ拡充（engine/sandbox/parallelism/duration） — Done(初期)
   - CH-03: 実行MVP（`AUTOEDA_SANDBOX_EXECUTE=1` で安全サブプロセス実行） — WIP（LLM透過は未）
   - バッチ: `parallelism`受理＋`parallelism_effective` 返却（ENV上限内）。スケジューラでバッチ単位の同時実行上限を遵守 — Done(初期)
@@ -62,7 +62,7 @@
 | T-H1-FE | 「チャート作成」ボタン〜結果表示 | **Done(MVP)** | `ChartsPage`, `client-sdk` | SDKポーリング対応で非同期完了待ち。タブ/ダウンロード/エラー提示実装済み |
 | T-H1-VR | Charts 単発 Story + VR | **Done(初期)** | `ChartsPage.stories.tsx`, `tests/storybook/charts.spec.ts` | ConsistentOnly/Empty のスナップショット（Linuxベースライン） |
 | T-H2-API | 一括生成 `/api/charts/generate-batch` + ジョブ/バッチステータス | **Done(MVP/非同期ポーリング)** | `services/charts.py` | 非同期時は`batch_id`のみ返却→進捗/結果は`GET /api/charts/batches/{id}`で集計 |
-| T-H2-FE | 複数選択・一括生成バー/進捗 | **WIP(分解表示)** | `ChartsPage` | R/Q/F/C の分解表示と live region 統一。avg_wait/served は次イテで表示 |
+| T-H2-FE | 複数選択・一括生成バー/進捗 | **WIP(分解表示)** | `ChartsPage` | R/Q/F/C/served の分解表示と live region 統一。avg_wait を表示 |
 | T-HSEC | サンドボックス実行基盤 | **WIP** | `apps/api/services/sandbox.py` | MVP導入（NWブロック/メモ制限のフック）。将来subprocess隔離/allowlist導入 |
 | T-HOBS | メトリクス/監視 | **WIP** | `metrics.record_event` | ChartJobFinished/ChartBatchFinished を記録。KPI集計のAPI/可視化は今後 |
 
