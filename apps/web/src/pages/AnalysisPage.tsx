@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Button, useToast } from '@autoeda/ui-kit';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { deepDive, runCustomAnalysis, type DeepDiveSuggestion } from '@autoeda/client-sdk';
+import { VegaView } from '../components/vis/VegaView';
 
 export function AnalysisPage() {
   const { datasetId } = useParams();
@@ -128,8 +129,8 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
                   {o.mime === 'image/svg+xml' && typeof o.content === 'string' ? (
                     <img alt="result" src={`data:image/svg+xml;utf8,${encodeURIComponent(o.content)}`} className="rounded border" />
                   ) : null}
-                  {o.type === 'vega' ? (
-                    <pre className="max-h-40 overflow-auto rounded bg-slate-50 p-2 text-[11px]">{JSON.stringify(o.content, null, 2)}</pre>
+                  {o.type === 'vega' && o.content ? (
+                    <VegaView spec={o.content} className="rounded border" />
                   ) : null}
                 </div>
               ))}
@@ -140,4 +141,3 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
     </div>
   );
 }
-
