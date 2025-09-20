@@ -1,6 +1,6 @@
 # AutoEDA 実装計画 (タスクトラッカー)
 
-更新日: 2025-09-20 / 担当: AutoEDA Tech Lead
+更新日: 2025-09-20 / 担当: AutoEDA Tech Lead（追記: H2 公正度UI/SLO/Plan UI 反映）
 
 ---
 
@@ -11,8 +11,9 @@
   - CH-07: コードコピー（UI） — Done
   - CH-06: 再実行＋履歴1件保持（単発） — Partial
   - CH-02: 単発ステップUIをサーバ `stage` 同期（generating/rendering/done） — Done(単発)
-- CH-12: 並列ワーカープール（ENV: `AUTOEDA_CHARTS_PARALLELISM`） — Done(初期)
+  - CH-12: 並列ワーカープール（ENV: `AUTOEDA_CHARTS_PARALLELISM`） — Done(初期)
   - バッチ: `parallelism_effective` 厳守とフェアスケジューラ（RR） — Done(初期)
+  - 公正性メトリクス: `/api/charts/batches/{id}` で `served`/`avg_wait_ms` を返却、`ChartsPage` の進捗バーに R/Q/F/C/S（served）と平均待機(ms)を表示、live region 読み上げ — Done(初期)
   - CH-11: 協調キャンセル（runningにcancel flag伝播） — WIP（UIはキュー/実行中の一括キャンセルに対応）
   - CH-14: メタ拡充（engine/sandbox/parallelism/duration） — Done(初期)
   - CH-03: 実行MVP（`AUTOEDA_SANDBOX_EXECUTE=1` で安全サブプロセス実行） — WIP（LLM透過は未）
@@ -21,10 +22,12 @@
 - Capability F/G：
   - F1: `/api/plan/generate` — Done(MVP/API)
   - F2: `/api/plan/revise` — Done(MVP/検証のみ)（循環/未解決/曖昧受入の検証、400整形）。差分パッチ生成は今後
+  - PlanPage（UI雛形）を追加し、ソート/フィルタ/未解決依存の可視化/JSONダウンロードを提供 — Done(初期)
   - G系は未実装（実行基盤はHのMVPを流用可能）
 - フロントは主要ページが実装済み。Storybook は導入済み（MSW/Router/Docs/A11y、VR運用まで整備）。
 - テスト: pytest + Vitest + Playwright（Storybook VR）。Charts の代表ケースをVR対象に追加済み。
 - CI: web ジョブで Lint/Type/Vitest/API検証/Storybook/VR まで実行。main 保護は有効、必須チェック contexts は固定済み（"ci / web"）。
+- 観測: `/api/metrics/slo` の閾値を `AUTOEDA_SLO_THRESHOLDS` で上書き可能にし、Home の SLO タイルに OK/NG バッジを表示 — Done(初期)
 - 安定化: RAG 初期化競合の逐次化、Gemini セーフティ理由表示、EDA StrictMode デデュープ、Mermaid 図の整備を完了。
 
 ---
@@ -132,7 +135,7 @@
 
 ## 3. 次のイテレーション（優先順）
 
-1. H2 スケジューラ仕上げ（中〜高）：/batches/{id} の集計（queued/running/succeeded/failed/cancelled）をUI進捗バーと live region に完全連動。公正性のメトリクス化
+1. H2 スケジューラ仕上げ（中〜高）：announcer 文言の完全統一、served/avg_wait の説明（ツールチップ/ヘルプ）を恒常化。公正性の可視化（served比率/平均待機の時系列）
 2. H1‑EXEC 強化（高）：AST deny‑list拡張（import/exec系）、詳細エラーのAPI整形（type=timeout/cancelled/forbidden_import/format_error）、テンプレ系にも協調中断
 3. F2 UI 雛形拡充（中）：Plan の並べ替え/フィルタ、依存の視覚化、検証結果の強調表示
 4. CH‑13（中）：段階フォールバック（テンプレ→軽量LLM→指数バックオフ再試行）
@@ -175,7 +178,7 @@
 
 ## 6. 変更履歴
 
-- 2025-09-20: H1-STEP(単発)完了、CH-07/14 Done(初期)、CH-06 部分、CH-11 協調、CH-12 並列/バッチ有効化、CH-03 実行MVPを追加。F1/F2 のAPI実装（MVP）を反映。
+- 2025-09-20: H1-STEP(単発)完了、CH-07/14 Done(初期)、CH-06 部分、CH-11 協調、CH-12 並列/バッチ有効化、CH-03 実行MVPを追加。F1/F2 のAPI実装（MVP）を反映。H2: `served`/`avg_wait_ms` を追加し `ChartsPage` に表示、PlanPage(初期) 追加、SLOタイルに OK/NG バッジ追加。
 - 2025-09-19: Capability H の実装状況を反映（P0の一部=実装済み、未実装CHをタスク化）。Capability F/G の未実装を追加タスク化。RAG/Gemini/EDA 安定化、Storybook VR 運用、Mermaid修正、タスク表を更新。
 - 2025-09-18: バックエンド/フロント実装状況に合わせてタスク表を更新。Storybook/ワイヤーフレーム同期タスクを完了扱いに。
 - 2025-09-15: 初版。

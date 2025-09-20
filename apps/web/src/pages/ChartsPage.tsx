@@ -104,7 +104,7 @@ export function ChartsPage() {
             )}
             {/* live region for screen readers */}
             {batchInFlight && batchProgress ? (
-              <div className="sr-only" aria-live="polite">
+              <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
                 バッチ進捗 完了 {batchProgress.done} / 全 {batchProgress.total}、実行中 {batchProgress.running ?? 0}、キュー {batchProgress.queued ?? 0}、失敗 {batchProgress.failed ?? 0}、中断 {batchProgress.cancelled ?? 0}{typeof batchProgress.avg_wait_ms === 'number' ? `、平均待機 ${batchProgress.avg_wait_ms} ミリ秒` : ''}
               </div>
             ) : null}
