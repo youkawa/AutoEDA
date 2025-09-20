@@ -1,4 +1,6 @@
+// Storybook v9 (React + Vite) の型はフレームワークパッケージからインポート
 import type { Meta, StoryObj } from '@storybook/react-vite';
+// eslint-disable-next-line storybook/no-renderer-packages
 import { AnalysisPage } from './AnalysisPage';
 import { withRouter } from 'storybook-addon-react-router-v6';
 import { http, HttpResponse } from 'msw';
