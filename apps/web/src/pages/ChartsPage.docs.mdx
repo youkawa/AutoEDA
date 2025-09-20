@@ -1,0 +1,43 @@
+import { Meta, Story, Canvas, Subtitle, Description } from '@storybook/blocks';
+
+<Meta title="Pages/Charts/Sparkline Guide" />
+
+# Sparkline (served%) 運用ガイド
+
+<Subtitle>ChartsPage ヘッダに表示される served% スパークラインの使い方と安定化Tips。</Subtitle>
+
+## 定義
+
+- served% = `served / total × 100` を 0–100% で表示。
+- しきい値は 80%。下回るバーは淡い赤＋外枠で強調。
+- ツールチップには `t / served / total / avg_wait_ms` を表示。
+
+## 再現性（VR対策）
+
+- preview.ts でモーション/フォント/Dateを固定。
+- OS/フォント差の微小ズレは `maxDiffPixelRatio=0.02` で許容。
+
+## バリアント切替（URLクエリ）
+
+- 凡例 ON/OFF: `?legend=1|0`
+- しきい値ライン ON/OFF: `?th=1|0`
+
+```tsx
+// 例: 凡例なし・しきい値ラインなし
+<MemoryRouter initialEntries={[`/charts/ds_001?legend=0&th=0`]}>
+  <Routes>
+    <Route path="/charts/:datasetId" element={<ChartsPage />} />
+  </Routes>
+</MemoryRouter>
+```
+
+## Storybook サンプル
+
+<Canvas>
+  <Story id="pages-chartspage--sparkline-threshold-emphasis" />
+</Canvas>
+
+<Canvas>
+  <Story id="pages-chartspage--sparkline-no-legend" />
+</Canvas>
+
