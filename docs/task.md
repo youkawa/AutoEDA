@@ -62,9 +62,9 @@
 | T-H1-FAIL | 失敗理由提示とテンプレフォールバック（CH-05） | **TODO** | FE/SDK 例外整形 | 空応答/安全フィルタ/JSON不正の理由を人間可読で提示、テンプレへ退避 |
 | T-H1-RERUN | パラメータ調整→再実行（履歴1件）（CH-06） | **TODO** | `ChartsPage` | 列/集計単位の編集UI、直前結果の履歴保持・復元 |
 | T-H1-COPY | コード表示＋コピー（CH-07） | **TODO** | `ChartsPage` | 「コードをコピー」ボタン追加（クリップボード書込） |
-| T-H1-META | メタデータ拡充（CH-14） | **TODO** | `charts.py`, `sandbox.py` | model_id/温度/シード/実行時間/行数などを `result.meta` に付与・記録 |
-| T-H2-CANCEL | running の協調中断（CH-11） | **TODO** | `charts.py` | running ジョブのチェックポイント中断、UIから中断操作 |
-| T-H2-QUEUE | 並列度cap/キュー制御（CH-12） | **TODO** | `charts.py` | worker の並列度=ENV、溢れた分を待機。batch parallelism を尊重 |
+| T-H1-META | メタデータ拡充（CH-14） | **Done(初期)** | `charts.py`, `sandbox.py` | engine/sandbox/parallelism/seed/duration_ms を `result.meta` に付与 |
+| T-H2-CANCEL | running の協調中断（CH-11） | **WIP(協調キャンセル)** | `charts.py` | running ジョブに cancel flag を伝搬し完了時に cancelled へ（中断ポイント導入は今後） |
+| T-H2-QUEUE | 並列度cap/キュー制御（CH-12） | **Done(初期)** | `charts.py` | `AUTOEDA_CHARTS_PARALLELISM` でワーカー数制御（デフォルト1） |
 | T-H2-BACKOFF | 段階的フォールバック+再試行（CH-13） | **TODO** | FE/SDK/API | テンプレ→軽量LLM→指数バックオフ再試行（最大3回） |
 
 #### 2.1.2 Capability H — 保存/共有（P2）
