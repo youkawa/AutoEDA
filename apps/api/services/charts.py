@@ -139,21 +139,97 @@ def _start_worker_once() -> None:
                     pass
             except Exception as exc:
                 msg = str(exc)
+                # 分類（友好メッセージ用）
                 if "timeout" in msg:
                     friendly = "実行がタイムアウトしました（制限時間超過）。"
-                    code = "timeout"
+                    err_code = "timeout"
                 elif "cancelled" in msg:
                     friendly = "実行がキャンセルされました。"
-                    code = "cancelled"
+                    err_code = "cancelled"
                 elif "forbidden import" in msg:
                     friendly = "安全ポリシーにより禁止されたモジュールが検出されました。"
-                    code = "forbidden_import"
+                    err_code = "forbidden_import"
                 elif "JSONDecodeError" in msg or "Expecting value" in msg or "format" in msg:
                     friendly = "出力形式が不正です（JSONの解析に失敗）。"
-                    code = "format_error"
+                    err_code = "format_error"
                 else:
                     friendly = f"実行に失敗しました: {msg}"
-                    code = "unknown"
+                    err_code = "unknown"
+
+                # CH-13 段階的フォールバック + 再試行（指数バックオフ）
+                # timeout/cancelled/forbidden_import はフォールバックせず確定失敗
+                did_recover = False
+                if err_code not in {"timeout", "cancelled", "forbidden_import"}:
+                    retries = 0
+                    try:
+                        retries = max(0, int(os.environ.get("AUTOEDA_CHARTS_RETRIES", "1") or "1"))
+                    except Exception:
+                        retries = 1
+                    backoff = 0.2
+                    for _ in range(retries):
+                        time.sleep(backoff)
+                        backoff = min(backoff * 2, 1.0)
+                        try:
+                            _JOBS[job_id]["stage"] = "generating"
+                            # フォールバック順: generated(exec)→subprocess→inline template
+                            # すでにexecで失敗していれば subprocess → inline、既にsubprocessで失敗なら inline。
+                            hint = item.get("spec_hint")
+                            dsid = item.get("dataset_id")
+                            if os.environ.get("AUTOEDA_SANDBOX_SUBPROCESS", "0") in {"1", "true", "TRUE"}:
+                                # 直前がsubprocessの可能性。inlineへ。
+                                result = SandboxRunner().run_template(spec_hint=hint, dataset_id=dsid)
+                            else:
+                                # subprocess を試す
+                                result = SandboxRunner().run_template_subprocess(spec_hint=hint, dataset_id=dsid, cancel_check=lambda: bool(_CANCEL_FLAGS.get(job_id)))
+                            # 成功したら succeed 扱い
+                            outdir = _DATA_DIR / job_id
+                            outdir.mkdir(parents=True, exist_ok=True)
+                            payload = {"job_id": job_id, "status": "succeeded", "result": result}
+                            (outdir / "result.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+                            _JOBS[job_id].update(payload)
+                            _JOBS[job_id]["stage"] = "done"
+                            try:
+                                t0 = _JOBS[job_id].get("t0") or time.perf_counter()
+                                dur = int((time.perf_counter() - t0) * 1000)
+                                metrics.record_event("ChartJobFinished", duration_ms=dur)
+                                metrics.persist_event({
+                                    "event_name": "ChartJobFinished",
+                                    "duration_ms": dur,
+                                    "dataset_id": item.get("dataset_id"),
+                                    "hint": item.get("spec_hint"),
+                                    "status": "succeeded",
+                                    "fallback": True,
+                                })
+                            except Exception:
+                                pass
+                            did_recover = True
+                            break
+                        except Exception:
+                            continue
+
+                if did_recover:
+                    # 失敗処理はスキップ（成功済み）
+                    pass
+                else:
+                    detail = None
+                    if isinstance(exc, SandboxError) and getattr(exc, "logs", None):
+                        detail = redact(str(exc.logs))
+                    _JOBS[job_id].update({"status": "failed", "error": friendly, "error_code": err_code, **({"error_detail": detail} if detail else {})})
+                    try:
+                        t0 = _JOBS[job_id].get("t0") or time.perf_counter()
+                        dur = int((time.perf_counter() - t0) * 1000)
+                        metrics.record_event("ChartJobFinished", duration_ms=dur)
+                        metrics.persist_event({
+                            "event_name": "ChartJobFinished",
+                            "duration_ms": dur,
+                            "dataset_id": item.get("dataset_id"),
+                            "hint": item.get("spec_hint"),
+                            "status": "failed",
+                            "error_code": err_code,
+                            **({"error_detail": detail} if detail else {}),
+                        })
+                    except Exception:
+                        pass
                 detail = None
                 if isinstance(exc, SandboxError) and getattr(exc, "logs", None):
                     detail = redact(str(exc.logs))
@@ -296,11 +372,37 @@ def generate(item: Dict[str, Any]) -> Dict[str, Any]:
         t0 = time.perf_counter()
         runner = SandboxRunner()
         exec_mode = os.environ.get("AUTOEDA_SANDBOX_EXECUTE", "0") in {"1", "true", "TRUE"}
-        if exec_mode:
-            jid = job_id
-            result = runner.run_generated_chart(job_id=jid, spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"), cancel_check=lambda: bool(_CANCEL_FLAGS.get(jid)))
-        else:
-            result = runner.run_template(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
+        try:
+            if exec_mode:
+                jid = job_id
+                result = runner.run_generated_chart(job_id=jid, spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"), cancel_check=lambda: False)
+            else:
+                result = runner.run_template(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
+        except Exception:
+            # CH-13: fallback with a single retry by default
+            retries = 0
+            try:
+                retries = max(0, int(os.environ.get("AUTOEDA_CHARTS_RETRIES", "1") or "1"))
+            except Exception:
+                retries = 1
+            did_recover = False
+            backoff = 0.2
+            for _ in range(retries):
+                time.sleep(backoff)
+                backoff = min(backoff * 2, 1.0)
+                try:
+                    hint = item.get("spec_hint")
+                    dsid = item.get("dataset_id")
+                    if os.environ.get("AUTOEDA_SANDBOX_SUBPROCESS", "0") in {"1", "true", "TRUE"}:
+                        result = SandboxRunner().run_template(spec_hint=hint, dataset_id=dsid)
+                    else:
+                        result = SandboxRunner().run_template_subprocess(spec_hint=hint, dataset_id=dsid)
+                    did_recover = True
+                    break
+                except Exception:
+                    continue
+            if not did_recover:
+                raise
         job = {"job_id": job_id, "status": "succeeded", "result": result}
         if item.get("chart_id"):
             job["chart_id"] = item.get("chart_id")
