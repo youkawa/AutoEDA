@@ -68,10 +68,10 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
       const spec = JSON.stringify(s.spec ?? {}, null, 0);
       const snippet = `import json\nspec = ${spec}\nprint(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega','mime':'application/json','content':spec}]}))`;
       const res = await runCustomAnalysis(datasetId, snippet, `sugg-${index}`);
-      const outs: Output[] = Array.isArray(res.outputs) ? res.outputs.map((o) => ({
-        type: (o.type === 'vega' || o.type === 'image' || o.type === 'text') ? o.type : 'text',
+      const outs: Output[] = Array.isArray(res.outputs) ? res.outputs.map((o: { type?: string; mime?: string; content?: unknown }) => ({
+        type: (o.type === 'vega' || o.type === 'image' || o.type === 'text') ? (o.type as 'vega'|'image'|'text') : 'text',
         mime: String(o.mime ?? ''),
-        content: o.content as unknown,
+        content: o.content,
       })) : [];
       if (res.status === 'succeeded') {
         setSuggOutputs((m) => ({ ...m, [index]: outs }));
@@ -84,7 +84,8 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
           format_error: '出力形式が不正です（JSON解析に失敗）。',
           unknown: '不明なエラーが発生しました。',
         };
-        const msg = (res as any).error_code ? (map[(res as any).error_code] ?? '失敗しました') : (res.logs?.[0] ?? '失敗しました');
+        const errCode = (res as { error_code?: 'timeout'|'cancelled'|'forbidden_import'|'format_error'|'unknown' } | undefined)?.error_code;
+        const msg = errCode ? (map[errCode] ?? '失敗しました') : (res.logs?.[0] ?? '失敗しました');
         toast(msg, 'error');
       }
     } catch {
@@ -97,9 +98,9 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
     setRunning(true);
     try {
       const res = await runCustomAnalysis(datasetId, code, 'adhoc');
-      const outs: Output[] = Array.isArray(res.outputs) ? res.outputs.map((o) => {
-        const t = (o.type === 'vega' || o.type === 'image' || o.type === 'text') ? o.type : 'text';
-        const mapped: Output = { type: t, mime: String(o.mime ?? ''), content: o.content as unknown };
+      const outs: Output[] = Array.isArray(res.outputs) ? res.outputs.map((o: { type?: string; mime?: string; content?: unknown }) => {
+        const t = (o.type === 'vega' || o.type === 'image' || o.type === 'text') ? (o.type as 'vega'|'image'|'text') : 'text';
+        const mapped: Output = { type: t, mime: String(o.mime ?? ''), content: o.content };
         return mapped;
       }) : [];
       setOutputs(outs);
