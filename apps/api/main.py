@@ -260,8 +260,11 @@ def health():
 
 
 @app.get("/api/metrics/slo")
-def metrics_slo() -> Dict[str, Any]:
-    """Return in-memory SLO snapshot with simple threshold evaluation."""
+def metrics_slo(dataset_id: Optional[str] = None) -> Dict[str, Any]:
+    """Return in-memory SLO snapshot with simple threshold evaluation.
+
+    - Optionally accepts `dataset_id` to scope Charts KPIs.
+    """
     snapshot = metrics.slo_snapshot()
     thresholds = {
         "EDAReportGenerated": {"p95": 5000, "groundedness": 0.9},
@@ -278,9 +281,9 @@ def metrics_slo() -> Dict[str, Any]:
     except Exception:
         pass
     evaluation = metrics.detect_violations(thresholds)
-    # H 系 KPI 要約（served%/avg_wait）— 全体の最近 N 件から
-    charts = metrics.charts_summary(limit=12)
-    return {"snapshot": snapshot, "evaluation": evaluation, "thresholds": thresholds, "charts_summary": charts}
+    # H 系 KPI 要約（served%/avg_wait）— 最近 N 件から（必要に応じ dataset_id でスコープ）
+    charts = metrics.charts_summary(limit=12, dataset_id=dataset_id)
+    return {"snapshot": snapshot, "evaluation": evaluation, "thresholds": thresholds, "charts_summary": charts, "dataset_id": dataset_id}
 
 
 @app.get("/api/metrics/charts/snapshots")
@@ -534,6 +537,7 @@ class ChartJob(BaseModel):
     result: Optional[ChartResult] = None
     error: Optional[str] = None
     error_code: Optional[Literal["timeout", "cancelled", "forbidden_import", "format_error", "unknown"]] = None
+    error_detail: Optional[str] = None
 
 
 class ChartBatchStatus(BaseModel):

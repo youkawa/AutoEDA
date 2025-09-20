@@ -12,6 +12,7 @@ export function PlanPage() {
   const [plan, setPlan] = useState<PlanModel | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [issuesMap, setIssuesMap] = useState<Record<string, string[]>>({});
+  const [lastValidatedAt, setLastValidatedAt] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<'id'|'title'|'tool'>(() => {
     const q = new URLSearchParams(window.location.search);
     const qs = q.get('sort');
@@ -27,6 +28,18 @@ export function PlanPage() {
   });
   const toast = useToast();
   const [missingDeps, setMissingDeps] = useState<string[]>([]);
+
+  // sort/filter の永続化とURLクエリ反映
+  useEffect(() => {
+    try {
+      localStorage.setItem('plan.sortKey', sortKey);
+      localStorage.setItem('plan.filterText', filterText);
+      const q = new URLSearchParams(window.location.search);
+      q.set('sort', sortKey);
+      if (filterText) q.set('q', filterText); else q.delete('q');
+      window.history.replaceState(null, '', `${window.location.pathname}?${q.toString()}`);
+    } catch {}
+  }, [sortKey, filterText]);
 
   useEffect(() => {
     let mounted = true;
@@ -47,6 +60,7 @@ export function PlanPage() {
         if (!mounted) return;
         const tasks = data.tasks ?? [];
         setPlan({ version: data.version ?? 'v1', tasks });
+        setLastValidatedAt(new Date().toISOString());
         // compute missing deps (UI用の即席検証)
         const ids = new Set(tasks.map((t) => t.id));
         const missing: string[] = [];
@@ -70,6 +84,7 @@ export function PlanPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">EDA 計画</h1>
           <p className="text-sm text-slate-500">データセット {datasetId}</p>
+          <p className="text-xs text-slate-400">{lastValidatedAt ? `最終検証: ${new Date(lastValidatedAt).toISOString()} / version: ${plan?.version ?? '-'}` : '最終検証: -'}</p>
         </div>
         <div className="flex gap-2">
           <Button
@@ -104,6 +119,13 @@ export function PlanPage() {
                 } else {
                   const obj = await res.json();
                   setPlan({ version: obj.version, tasks: obj.tasks ?? [] });
+                  setLastValidatedAt(new Date().toISOString());
+                  // recompute missing deps after valid revision
+                  const ts: PlanTask[] = (obj.tasks ?? []) as PlanTask[];
+                  const ids = new Set(ts.map((t) => t.id));
+                  const missing: string[] = [];
+                  ts.forEach((t) => (t.depends_on ?? []).forEach((d) => { if (!ids.has(d)) missing.push(`${t.id} -> ${d}`); }));
+                  setMissingDeps(missing);
                   setIssuesMap({});
                   toast('計画は有効です', 'success');
                 }
@@ -114,6 +136,33 @@ export function PlanPage() {
           >
             検証（循環/未解決/曖昧）
           </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              if (!plan) return;
+              const ts = new Date().toISOString();
+              const ver = plan.version ?? 'v1';
+              const header = ['id','title','tool','issue'];
+              const rows: string[][] = [];
+              // aggregated missing deps
+              for (const m of missingDeps) {
+                const [a, b] = m.split('->').map((s) => s.trim());
+                const t = (plan.tasks ?? []).find((x) => x.id === a);
+                rows.push([a, t?.title ?? '', t?.tool ?? '', `missing dependency: ${a} depends on ${b}`]);
+              }
+              // issuesMap aggregation
+              Object.entries(issuesMap).forEach(([id, list]) => {
+                const t = (plan.tasks ?? []).find((x) => x.id === id);
+                for (const msg of list) rows.push([id, t?.title ?? '', t?.tool ?? '', msg]);
+              });
+              if (rows.length === 0) { toast('出力する問題はありません', 'info'); return; }
+              const esc = (s: string) => `"${String(s).replace(/"/g,'""')}"`;
+              const meta = `# validated_at=${ts} version=${ver} dataset_id=${datasetId ?? ''}`;
+              const csv = [meta, header.join(','), ...rows.map((r) => r.map(esc).join(','))].join('\n');
+              const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+              const a = document.createElement('a'); a.href = url; a.download = 'issues.csv'; a.click(); URL.revokeObjectURL(url);
+            }}
+          >不足依存のCSV</Button>
         </div>
       </header>
 

@@ -18,11 +18,12 @@ export function HomePage() {
   useEffect(() => {
     const envBase = ((import.meta as unknown as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE);
     const base = envBase ?? '';
-    fetch(`${base}/api/metrics/slo`).then(async (r) => {
+    const q = lastDataset?.id ? `?dataset_id=${encodeURIComponent(lastDataset.id)}` : '';
+    fetch(`${base}/api/metrics/slo${q}`).then(async (r) => {
       if (!r.ok) return;
       try { setSlo(await r.json()); } catch {}
     }).catch(() => {});
-  }, []);
+  }, [lastDataset?.id]);
 
   const featureHighlights = useMemo(
     () => [

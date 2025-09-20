@@ -104,12 +104,11 @@
 
 ## 3. 次のイテレーション（優先順）
 
-1. H2 スケジューラ仕上げ（中〜高）：バッチごとの同時実行上限を厳密に遵守（先着順/公正性）し、UIのstage連動を強化（items[].stage の更新頻度/完了announceの統一）
-2. H1‑EXEC 強化（高）：allowlist インポート検査（ast/deny-list）、チェックポイント（長処理ループへのyield）追加、失敗理由の詳細提示（CH‑05）
-3. F2 UI 雛形（中）：Plan の一覧/詳細と検証結果表示、`/plan/:datasetId` を追加。差分適用のUIは後続
-4. CH‑13（中）：段階フォールバック（テンプレ→軽量LLM→指数バックオフ再試行）
-5. 保存/共有（CH‑16〜19）（中）：最小の保存API＋一覧→Notebookセル出力
-6. CI/観測（中）：H系KPI（p95/成功率/失敗理由）を `metrics.slo_snapshot` に取り込み、Homeに表示
+1. CI/観測（高）: OpenAPI互換の差分要約をPR本文へ自動追記（型/enum/requiredの破壊性区分とMigration Guide）。HomeのSLOカードにCharts系KPI（served%/avg_wait_ms）を統合。`/api/metrics/slo` に charts_summary を同梱。
+2. H1‑EXEC（中〜高・仕上げ）: redactパターン拡張（クレデンシャル断片/UUID/URL秘匿）。FEにerror_detailの「コピー」を追加。OpenAPIにerror_detail（optional）を補助記載。
+3. CH‑13（中）: 段階フォールバック（テンプレ→軽量LLM（response_schema適用）→指数バックオフ再試行（最大3回））と空応答/ブロック理由の人間可読化。単体/統合テストを追加。
+4. H3 保存/共有（中）: MVP `POST /api/charts/save` / `GET /api/charts/list` を追加（ローカルJSON永続）— UI「保存/履歴」は後続。
+5. Docs（中）: Planガイド（MDX）に issues.csv の項目説明と依存グラフの読み方を追記。
 
 ## 4. 未実装ユーザーストーリー（requirements_v2 由来・現状反映）
 
@@ -142,12 +141,11 @@
 
 ## 3. 次のイテレーション（優先順）
 
-1. H1‑EXEC（高・継続）: render checkpoint の分散（必要に応じて `run_generated_chart` 側へも軽量 checkpoint を追加）。cancel flip の時系列を 10/25/50/100ms で最小集合に維持しつつ計測短縮。
-2. H2（中）: VR ストーリーを「閾値ライン強調」「凡例なし」の 2 パターンに分割して OS 別ベースライン安定化。
-3. F2（中）: issues.csv に missing_deps 集約列を追加、Plan ヘッダに最終検証時刻/バージョンを表示。
-4. CH‑13（中）：段階フォールバック（テンプレ→軽量LLM→指数バックオフ再試行）
-5. 保存/共有（CH‑16〜19）（中）：最小保存API＋一覧→Notebookセル出力
-6. CI/観測（中）：OpenAPI 互換失敗時に SDK/FE の friendly map 更新 TODO を PR コメントに提示。
+1. CI/観測（高）: OpenAPI互換の差分要約をPR本文に自動追記（型/enum/requiredの破壊性区分とMigration Guide）。HomeのSLOカードにChartsKPI（served%/avg_wait_ms）を恒常表示。`/api/metrics/slo` に charts_summary を同梱（実装済のためDocs整備）。
+2. H1‑EXEC（中〜高・仕上げ）: redactパターン拡張（クレデンシャル断片/UUID/URL秘匿）。FEにerror_detailの「コピー」アクション。OpenAPIにerror_detail（optional）補助記載。
+3. CH‑13（中）: 段階フォールバック（テンプレ→軽量LLM（response_schema）→指数バックオフ最大3回）＋空応答/ブロック理由の人間可読化。単体/統合テスト追加。
+4. H3 保存/共有（中）: MVP `POST /api/charts/save` / `GET /api/charts/list` を追加（ローカルJSON永続）。UIの保存/履歴は後続。
+5. Docs（中）: Planガイド（MDX）— issues.csv の項目説明と依存グラフの読み方を追記。
 
 ---
 
@@ -185,7 +183,12 @@
 
 ## 6. 変更履歴
 
-- 2025-09-20: H1‑EXEC: `run_template_subprocess` の `AUTOEDA_SB_TEST_DELAY2_MS` 未伝播を修正。`tests/python/test_sandbox_matrix.py` と `test_sandbox_cancel_timing.py` の全ケースがローカルで Green を確認。
+- 2025-09-20: H1‑EXEC: `run_template_subprocess` の `AUTOEDA_SB_TEST_DELAY2_MS` 未伝播を修正。`tests/python/test_sandbox_matrix.py` と `test_sandbox_cancel_timing.py` をGreen化。
+- 2025-09-20: H1‑EXEC: `run_generated_chart` に 2段階チェックポイント（generation/render）を追加し、ランタイムの `__import__` ガードを撤廃（AST+RLIMITに一本化）。新規 `tests/python/test_sandbox_exec_matrix.py` を追加し、success/timeout/cancel/cancel‑timing をGreen化。失敗時stderrの要約を `error_detail` として `get_batch().items[]` に伝播（FEは友好的なエラー表示を実装済）。
+ - 2025-09-20: Security: `apps/api/services/security.py::redact` を追加（email/phone/bearer/api_key/token/URLクエリ/長大トークンのマスク）。`error_detail` は最大500文字に丸め、FEに詳細表示（トグル/コピー）を追加。
+- 2025-09-20: H2: ChartsPage に URLクエリ `legend=0/1`, `th=0/1` を追加し、Storybook に「Threshold Emphasis」「No Legend」を追加。VRテスト（tests/storybook/charts.spec.ts）に2ストーリーを追加。
+ - 2025-09-20: F2: PlanPage に最終検証表示と aggregated issues.csv を追加。ソート/フィルタのURL/LocalStorage永続化。
+ - 2025-09-20: Schemas: Zod をサーバ OpenAPI に整合（ChartJob.error_code、ChartBatchItem の stage/chart_id/error*/status 拡張）。`scripts/validate_schemas` の型/enum検証は継続Green。
 
 - 2025-09-20: H2: <80% バー外枠＋80% 凡例を Storybook/VR まで反映、SparklineLowThreshold を追加。H1‑EXEC: cancel timing/param matrix を追加、ChartJobFinished の cancelled/failed を persist。F2: issues.csv に validated_at/version/dataset_id を付与、行別不足CSVの導線を追加。CI: 互換差分の表と移行ガイドを PR 本文に自動追記。
 - 2025-09-19: Capability H の実装状況を反映（P0の一部=実装済み、未実装CHをタスク化）。Capability F/G の未実装を追加タスク化。RAG/Gemini/EDA 安定化、Storybook VR 運用、Mermaid修正、タスク表を更新。

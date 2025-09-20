@@ -91,3 +91,27 @@ export const SparklineLowThreshold: Story = {
     },
   },
 };
+
+export const SparklineThresholdEmphasis: Story = {
+  name: 'Sparkline (Threshold Emphasis)',
+  parameters: {
+    reactRouter: {
+      routing: {
+        path: '/charts/:datasetId',
+        initialEntries: [`/charts/${DATASET_ID}?legend=1&th=1`],
+      },
+    },
+  },
+};
+
+export const SparklineNoLegend: Story = {
+  name: 'Sparkline (No Legend)',
+  parameters: {
+    reactRouter: {
+      routing: {
+        path: '/charts/:datasetId',
+        initialEntries: [`/charts/${DATASET_ID}?legend=0&th=0`],
+      },
+    },
+  },
+};

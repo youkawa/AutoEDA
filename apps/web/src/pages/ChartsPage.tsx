@@ -10,6 +10,10 @@ import { Pill } from '../components/ui/Pill';
 import { Modal } from '../components/ui/Modal';
 
 export function ChartsPage() {
+  const search = typeof window !== 'undefined' ? window.location.search : '';
+  const query = new URLSearchParams(search);
+  const showLegend = query.get('legend') !== '0';
+  const showThreshold = query.get('th') !== '0';
   const { datasetId } = useParams();
   const { lastDataset, setLastDataset } = useLastDataset();
   const [loading, setLoading] = useState(true);
@@ -28,7 +32,7 @@ export function ChartsPage() {
   const [spark, setSpark] = useState<Spark[]>([]);
   type Step = 'preparing' | 'generating' | 'running' | 'rendering' | 'done';
   type ChartMeta = { dataset_id?: string; hint?: string };
-  type ChartRender = { loading: boolean; step?: Step; error?: string; errorCode?: string; src?: string; prevSrc?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: ChartMeta };
+  type ChartRender = { loading: boolean; step?: Step; error?: string; errorCode?: string; errorDetail?: string; showDetail?: boolean; src?: string; prevSrc?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: ChartMeta };
   const [results, setResults] = useState<Record<string, ChartRender>>({});
   const toast = useToast();
 
@@ -98,18 +102,22 @@ export function ChartsPage() {
             <span className="inline-flex items-center gap-2"><BarChart3 className="h-4 w-4" />{charts.length} 件の候補が見つかりました。</span>
             {spark.length > 0 ? (
               <span className="inline-flex items-center gap-2" title="直近の served 比率（%）。served% = served/total * 100">
-                <span className="inline-flex items-center gap-2 text-xs text-slate-400">
-                  <span>served%</span>
-                  <span
-                    className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[9px] text-slate-500"
-                    title="served% = served/total × 100"
-                  >?
+                {showLegend ? (
+                  <span className="inline-flex items-center gap-2 text-xs text-slate-400">
+                    <span>served%</span>
+                    <span
+                      className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[9px] text-slate-500"
+                      title="served% = served/total × 100"
+                    >?
+                    </span>
+                    <span className="rounded border border-dashed border-emerald-400/60 bg-emerald-50 px-1.5 text-emerald-700" title="しきい値=80%">80%</span>
                   </span>
-                  <span className="rounded border border-dashed border-emerald-400/60 bg-emerald-50 px-1.5 text-emerald-700" title="しきい値=80%">80%</span>
-                </span>
+                ) : null}
                 <span className="relative flex h-5 items-end gap-0.5">
                   {/* しきい値ライン 80% */}
-                  <span className="absolute left-0 right-0 border-t border-dashed border-emerald-400/60" style={{ top: `${Math.max(0, 16 - Math.round(16 * 0.8))}px` }} title="しきい値 80%" />
+                  {showThreshold ? (
+                    <span className="absolute left-0 right-0 border-t border-dashed border-emerald-400/60" style={{ top: `${Math.max(0, 16 - Math.round(16 * 0.8))}px` }} title="しきい値 80%" />
+                  ) : null}
                   {spark.map((e, i) => (
                     <span
                       key={`sp-${i}`}
@@ -128,12 +136,12 @@ export function ChartsPage() {
                     const pos = (a.length - 1) * 0.95; const li = Math.floor(pos); const ui = Math.min(li+1, a.length-1);
                     const frac = pos - li; return Math.round(a[li] + (a[ui]-a[li]) * frac);
                   })();
-                  return <span className="text-[10px] text-slate-400" title={`p95 ${p95}%`}>min {min}% / max {max}% ・ しきい値=80%</span>;
+                  return showLegend ? <span className="text-[10px] text-slate-400" title={`p95 ${p95}%`}>min {min}% / max {max}% ・ しきい値=80%</span> : null;
                 })()}
                 {(() => {
                   const last = spark[spark.length-1]?.served_pct ?? 0;
                   const good = last >= 80;
-                  return <span className={`rounded px-1.5 py-0.5 text-[11px] ${good?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}`} title={`served% 現在値 ${last}%`}>{last}%</span>;
+                  return showLegend ? <span className={`rounded px-1.5 py-0.5 text-[11px] ${good?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}`} title={`served% 現在値 ${last}%`}>{last}%</span> : null;
                 })()}
               </span>
             ) : null}
@@ -221,6 +229,20 @@ export function ChartsPage() {
                       const st: ChartsBatchStatus = await getChartsBatchStatusWithMap(batchId);
                       setBatchProgress({ total: st.total, done: st.done, failed: st.failed, running: st.running, queued: st.queued, cancelled: st.cancelled, served: st.served, avg_wait_ms: st.avg_wait_ms });
                       setBatchItems(st.items ?? []);
+                      // propagate failures/cancellations into per-card results UI (friendly error)
+                      if (Array.isArray(st.items)) {
+                        setResults((prev) => {
+                          const next = { ...prev } as Record<string, ChartRender>;
+                          for (const it of st.items) {
+                            if (!it.chart_id) continue;
+                            if (it.status === 'failed' || it.status === 'cancelled') {
+                              const friendly = it.error || (it.status === 'cancelled' ? '実行がキャンセルされました。' : '実行に失敗しました');
+                              next[it.chart_id] = { ...(next[it.chart_id] ?? {}), loading: false, step: 'done', error: friendly, errorCode: it.error_code, errorDetail: it.error_detail };
+                            }
+                          }
+                          return next;
+                        });
+                      }
                       if (st.results_map && Object.keys(st.results_map).length > 0) {
                         const next: Record<string, ChartRender> = { ...results };
                         for (const cid of Object.keys(st.results_map)) {
@@ -487,9 +509,36 @@ export function ChartsPage() {
                 ) : null}
                 {results[chart.id]?.error ? (
                   <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">
-                    {results[chart.id]?.error}
-                    {results[chart.id]?.errorCode ? (
-                      <span className="ml-2 rounded bg-amber-200 px-1.5 py-0.5 text-[11px] text-amber-900" title="エラーコード">{results[chart.id]?.errorCode}</span>
+                    <div className="flex items-center gap-2">
+                      <span>{results[chart.id]?.error}</span>
+                      {results[chart.id]?.errorCode ? (
+                        <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[11px] text-amber-900" title="エラーコード">{results[chart.id]?.errorCode}</span>
+                      ) : null}
+                      {results[chart.id]?.errorDetail ? (
+                        <button
+                          className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-900 underline"
+                          onClick={() => setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), showDetail: !s[chart.id]?.showDetail } }))}
+                        >詳細</button>
+                      ) : null}
+                    </div>
+                    {results[chart.id]?.showDetail && results[chart.id]?.errorDetail ? (
+                      <div className="mt-2">
+                        <div className="mb-1 flex items-center gap-2">
+                          <span className="text-[11px] text-amber-900/80">詳細ログ（redact済み）</span>
+                          <Button
+                            variant="secondary"
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(String(results[chart.id]?.errorDetail ?? ''));
+                                toast('エラー詳細をコピーしました', 'success');
+                              } catch {
+                                toast('コピーに失敗しました', 'error');
+                              }
+                            }}
+                          >コピー</Button>
+                        </div>
+                        <pre className="max-h-40 overflow-auto rounded bg-amber-100 p-2 text-[11px] text-amber-900" data-testid={`error-detail-${chart.id}`}>{results[chart.id]!.errorDetail}</pre>
+                      </div>
                     ) : null}
                   </div>
                 ) : null}

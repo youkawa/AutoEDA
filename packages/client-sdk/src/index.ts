@@ -261,7 +261,7 @@ export type ChartsBatchStatus = {
   parallelism_effective?: number;
   served?: number;
   avg_wait_ms?: number;
-  items: { job_id: string; status: string; chart_id?: string; stage?: 'generating'|'rendering'|'done' }[];
+  items: { job_id: string; status: string; chart_id?: string; stage?: 'generating'|'rendering'|'done'; error?: string; error_code?: string; error_detail?: string }[];
   results?: ChartResult[];
   results_map?: Record<string, ChartResult>;
 };

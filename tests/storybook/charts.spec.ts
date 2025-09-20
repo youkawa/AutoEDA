@@ -5,6 +5,8 @@ const stories = [
   { id: 'pages-chartspage--empty', snapshot: 'charts-empty.png' },
   { id: 'pages-chartspage--with-result', snapshot: 'charts-with-result.png' },
   { id: 'pages-chartspage--sparkline-low-threshold', snapshot: 'charts-sparkline-low.png' },
+  { id: 'pages-chartspage--sparkline-threshold-emphasis', snapshot: 'charts-sparkline-threshold.png' },
+  { id: 'pages-chartspage--sparkline-no-legend', snapshot: 'charts-sparkline-nolegend.png' },
 ];
 
 for (const story of stories) {

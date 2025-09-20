@@ -196,13 +196,23 @@ export type ChartResult = z.infer<typeof ChartResultSchema>;
 
 export const ChartJobSchema = z.object({
   job_id: z.string(),
-  status: z.enum(['queued', 'running', 'succeeded', 'failed']),
+  status: z.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']).default('queued'),
   result: ChartResultSchema.optional(),
   error: z.string().optional(),
+  error_code: z.enum(['timeout','cancelled','forbidden_import','format_error','unknown']).optional(),
+  error_detail: z.string().optional(),
 });
 export type ChartJob = z.infer<typeof ChartJobSchema>;
 
-export const ChartBatchItemSchema = z.object({ job_id: z.string(), status: z.string() });
+export const ChartBatchItemSchema = z.object({
+  job_id: z.string(),
+  status: z.enum(['queued','running','succeeded','failed','cancelled']).default('queued'),
+  chart_id: z.string().optional(),
+  stage: z.enum(['generating','rendering','done']).optional(),
+  error: z.string().optional(),
+  error_code: z.enum(['timeout','cancelled','forbidden_import','format_error','unknown']).optional(),
+  error_detail: z.string().optional(),
+});
 export const ChartBatchStatusSchema = z.object({
   batch_id: z.string(),
   total: z.number().int(),
