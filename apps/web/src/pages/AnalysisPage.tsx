@@ -35,7 +35,8 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
 
   const [code, setCode] = useState(defaultCode);
   const [running, setRunning] = useState(false);
-  const [outputs, setOutputs] = useState<{ type: string; mime: string; content: any }[]>([]);
+  type Output = { type: 'text'|'image'|'vega'; mime: string; content: unknown };
+  const [outputs, setOutputs] = useState<Output[]>([]);
 
   async function onSuggest() {
     if (!datasetId) return;
