@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AnalysisPage } from './AnalysisPage';
 import { withRouter } from 'storybook-addon-react-router-v6';
 import { http, HttpResponse } from 'msw';
@@ -57,4 +57,3 @@ export default meta;
 type Story = StoryObj<typeof AnalysisPage>;
 
 export const Default: Story = {};
-
