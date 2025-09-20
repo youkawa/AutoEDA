@@ -1,6 +1,6 @@
 # AutoEDA 実装計画 (タスクトラッカー)
 
-更新日: 2025-09-20 / 担当: AutoEDA Tech Lead（追記3: H2 スパークライン閾値/凡例、H1-EXEC checkpoint+tests、F2 CSV、CI PRコメント/Artifact 反映）
+更新日: 2025-09-20 / 担当: AutoEDA Tech Lead（追記5: H1‑EXEC の delay2 伝播不具合を修正し、サブプロセス系テスト（matrix/cancel‑timing）をグリーン化）
 
 ---
 
@@ -27,8 +27,11 @@
 - フロントは主要ページが実装済み。Storybook は導入済み（MSW/Router/Docs/A11y、VR運用まで整備）。
 - H2（視覚化運用）: ChartsPage ヘッダに served% スパークライン（24本/80%しきい値線/各バー詳細 tooltip/ヘルプアイコン）。Home に SLO charts_summary（served%/avg_wait/series）。
 - H1‑EXEC: テンプレ経路（inline/subprocess）に協調中断 checkpoint を追加し、pytest で cancel/timeout を検証。
+  - 付記: run_template_subprocess における `AUTOEDA_SB_TEST_DELAY2_MS` の環境変数未伝播を修正（timeout/二段階遅延の境界テストが安定）。
 - F2 UI: Plan 検証の NG を行頭ピル＋行背景で強調、issues.csv/plan.csv をエクスポート可能。
 - CI: OpenAPI 互換チェック（ChartJob.error_code）を workflow に組込み、PR コメントと Artifact を自動出力。
+- Storybook/VR: SparklineLowThreshold ストーリーを追加（<80% を含む series）。VR 閾値は 0.02 で統一。
+- 観測: ChartJobFinished（cancelled/failed を含む）をステータス付きで記録し、SLO breakdown に反映。
 - テスト: pytest + Vitest + Playwright（Storybook VR）。Charts の代表ケースをVR対象に追加済み。
 - CI: web ジョブで Lint/Type/Vitest/API検証/Storybook/VR まで実行。main 保護は有効、必須チェック contexts は固定済み（"ci / web"）。
 - 観測: `/api/metrics/slo` の閾値を `AUTOEDA_SLO_THRESHOLDS` で上書き可能にし、Home の SLO タイルに OK/NG バッジを表示 — Done(初期)
@@ -139,12 +142,12 @@
 
 ## 3. 次のイテレーション（優先順）
 
-1. H2 仕上げ（中）: Sparkline に 80% 凡例ラベル/ヘルプを追加、served%<80% をバー色で弱警告、SLO タイルに説明ヘルプを追加。
-2. H1‑EXEC（高）: checkpoint を描画フェーズにも 1 箇所追加、timeout/キャンセルの境界値テストを拡充。
-3. F2 UI（中）: issues.csv をタイトル/ツール付きに拡張、依存 NG の強調（不足依存を inline 表示）。
+1. H1‑EXEC（高・継続）: render checkpoint の分散（必要に応じて `run_generated_chart` 側へも軽量 checkpoint を追加）。cancel flip の時系列を 10/25/50/100ms で最小集合に維持しつつ計測短縮。
+2. H2（中）: VR ストーリーを「閾値ライン強調」「凡例なし」の 2 パターンに分割して OS 別ベースライン安定化。
+3. F2（中）: issues.csv に missing_deps 集約列を追加、Plan ヘッダに最終検証時刻/バージョンを表示。
 4. CH‑13（中）：段階フォールバック（テンプレ→軽量LLM→指数バックオフ再試行）
 5. 保存/共有（CH‑16〜19）（中）：最小保存API＋一覧→Notebookセル出力
-6. CI/観測（中）：OpenAPI 互換の差分要約（enum差分など）を PR 本文にも反映（必要時）。
+6. CI/観測（中）：OpenAPI 互換失敗時に SDK/FE の friendly map 更新 TODO を PR コメントに提示。
 
 ---
 
@@ -182,7 +185,9 @@
 
 ## 6. 変更履歴
 
-- 2025-09-20: H2: served% スパークラインを 24本＋80% しきい値線/tooltip/ヘルプ、Home に SLO charts_summary。H1‑EXEC: テンプレ checkpoint 追加＋ cancel/timeout tests。F2: Plan NG 強調＋ issues.csv/CSV。CI: OpenAPI 互換チェックを PR コメント＋Artifact まで拡張。
+- 2025-09-20: H1‑EXEC: `run_template_subprocess` の `AUTOEDA_SB_TEST_DELAY2_MS` 未伝播を修正。`tests/python/test_sandbox_matrix.py` と `test_sandbox_cancel_timing.py` の全ケースがローカルで Green を確認。
+
+- 2025-09-20: H2: <80% バー外枠＋80% 凡例を Storybook/VR まで反映、SparklineLowThreshold を追加。H1‑EXEC: cancel timing/param matrix を追加、ChartJobFinished の cancelled/failed を persist。F2: issues.csv に validated_at/version/dataset_id を付与、行別不足CSVの導線を追加。CI: 互換差分の表と移行ガイドを PR 本文に自動追記。
 - 2025-09-19: Capability H の実装状況を反映（P0の一部=実装済み、未実装CHをタスク化）。Capability F/G の未実装を追加タスク化。RAG/Gemini/EDA 安定化、Storybook VR 運用、Mermaid修正、タスク表を更新。
 - 2025-09-18: バックエンド/フロント実装状況に合わせてタスク表を更新。Storybook/ワイヤーフレーム同期タスクを完了扱いに。
 - 2025-09-15: 初版。
