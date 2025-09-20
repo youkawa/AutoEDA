@@ -17,7 +17,7 @@ vi.mock('@autoeda/client-sdk', () => {
 
 // VegaView は vega-embed 依存があるため、テストでは単純なプレースホルダにモック
 vi.mock('../../components/vis/VegaView', () => ({
-  VegaView: (props: any) => (
+  VegaView: (props: { spec: unknown; className?: string }) => (
     <div data-testid="vega-view">{JSON.stringify(props.spec).slice(0, 20)}</div>
   ),
 }));
