@@ -84,7 +84,8 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
           format_error: '出力形式が不正です（JSON解析に失敗）。',
           unknown: '不明なエラーが発生しました。',
         };
-        const errCode = (res as { error_code?: 'timeout'|'cancelled'|'forbidden_import'|'format_error'|'unknown' } | undefined)?.error_code;
+        type ErrCode = 'timeout'|'cancelled'|'forbidden_import'|'format_error'|'unknown';
+        const errCode = (res as { error_code?: ErrCode } | undefined)?.error_code as ErrCode | undefined;
         const msg = errCode ? (map[errCode] ?? '失敗しました') : (res.logs?.[0] ?? '失敗しました');
         toast(msg, 'error');
       }
