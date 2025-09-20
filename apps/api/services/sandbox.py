@@ -106,6 +106,10 @@ class SandboxRunner:
                     resource.setrlimit(resource.RLIMIT_AS, (self.mem_limit_mb * 1024 * 1024, self.mem_limit_mb * 1024 * 1024))
                     resource.setrlimit(resource.RLIMIT_CPU, (2, 2))
                     resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
+                    if hasattr(resource, 'RLIMIT_NPROC'):
+                        resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
+                    if hasattr(resource, 'RLIMIT_STACK'):
+                        resource.setrlimit(resource.RLIMIT_STACK, (8 * 1024 * 1024, 8 * 1024 * 1024))
             # Propagate testing delays for both generate and rendering phases
             env = {
                 "PYTHONUNBUFFERED": "1",
@@ -211,6 +215,10 @@ class SandboxRunner:
                     resource.setrlimit(resource.RLIMIT_AS, (ml, ml))
                     resource.setrlimit(resource.RLIMIT_CPU, (3, 3))
                     resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
+                    if hasattr(resource, 'RLIMIT_NPROC'):
+                        resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
+                    if hasattr(resource, 'RLIMIT_STACK'):
+                        resource.setrlimit(resource.RLIMIT_STACK, (8 * 1024 * 1024, 8 * 1024 * 1024))
 
             env = {"PYTHONUNBUFFERED": "1", "PATH": "/usr/bin:/bin"}
             tsec = float(timeout_sec or self.timeout_sec)

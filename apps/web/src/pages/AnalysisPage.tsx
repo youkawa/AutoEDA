@@ -10,6 +10,7 @@ export function AnalysisPage() {
   const toast = useToast();
   const [prompt, setPrompt] = useState('売上のトレンドと相関を見たい');
   const [suggs, setSuggs] = useState<DeepDiveSuggestion[]>([]);
+  const [suggOutputs, setSuggOutputs] = useState<Record<number, Output[]>>({});
   const [inflight, setInflight] = useState(false);
 
   const defaultCode = useMemo(() => (
@@ -59,6 +60,25 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
     toast('提案をコードに反映しました', 'info');
   }
 
+  async function runSuggestion(index: number, s: DeepDiveSuggestion) {
+    if (!datasetId) return;
+    try {
+      // spec から JSON出力する最小スニペットを合成
+      const spec = JSON.stringify(s.spec ?? {}, null, 0);
+      const snippet = `import json\nspec = ${spec}\nprint(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega','mime':'application/json','content':spec}]}))`;
+      const res = await runCustomAnalysis(datasetId, snippet, `sugg-${index}`);
+      const outs: Output[] = Array.isArray(res.outputs) ? res.outputs.map((o) => ({
+        type: (o.type === 'vega' || o.type === 'image' || o.type === 'text') ? o.type : 'text',
+        mime: String(o.mime ?? ''),
+        content: o.content as unknown,
+      })) : [];
+      setSuggOutputs((m) => ({ ...m, [index]: outs }));
+      toast('提案を実行しました', 'success');
+    } catch {
+      toast('提案の実行に失敗しました', 'error');
+    }
+  }
+
   async function onRun() {
     if (!datasetId) return;
     setRunning(true);
@@ -103,9 +123,28 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
                       <pre className="mt-2 max-h-40 overflow-auto rounded bg-slate-50 p-2 text-[11px]">{JSON.stringify(s.spec, null, 2)}</pre>
                     </details>
                   ) : null}
-                  <div className="mt-2">
+                  <div className="mt-2 flex gap-2">
                     <Button variant="secondary" size="sm" onClick={() => applySuggestion(s)}>コードに反映</Button>
+                    <Button variant="primary" size="sm" onClick={() => runSuggestion(i, s)}>この提案を実行</Button>
                   </div>
+                  {Array.isArray(suggOutputs[i]) && suggOutputs[i]!.length > 0 ? (
+                    <div className="mt-3 grid gap-2">
+                      {suggOutputs[i]!.map((o, j) => (
+                        <div key={j} className="rounded border border-slate-200 p-2">
+                          <div className="mb-1 text-xs text-slate-500">{o.type} · {o.mime}</div>
+                          {o.type === 'text' && typeof o.content === 'string' ? (
+                            <pre className="max-h-40 overflow-auto rounded bg-slate-50 p-2 text-[11px]">{o.content as string}</pre>
+                          ) : null}
+                          {o.mime === 'image/svg+xml' && typeof o.content === 'string' ? (
+                            <img alt="result" src={`data:image/svg+xml;utf8,${encodeURIComponent(o.content as string)}`} className="rounded border" />
+                          ) : null}
+                          {o.type === 'vega' && o.content ? (
+                            <VegaView spec={o.content as object} className="rounded border" />
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -121,6 +160,25 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
         <CardContent>
           <div className="grid gap-3">
             <textarea className="w-full rounded-lg border border-slate-300 p-2 text-sm" rows={12} value={code} onChange={(e) => setCode(e.target.value)} />
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+              <span>テンプレ:</span>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  const t = `# 移動平均（ウィンドウ=3）\nimport json, csv\ncfg=json.loads(open('in.json','r',encoding='utf-8').read())\ncsv_path=cfg.get('csv_path')\nvals=[]\ntry:\n  rdr=csv.reader(open(csv_path,'r',encoding='utf-8')) if csv_path else []\n  next(rdr,None)\n  for i,row in zip(range(30),rdr):\n    try:\n      vals.append(float(row[0]))\n    except: vals.append(i%5+1)\nexcept: vals=[(i%5)+1 for i in range(30)]\nma=[sum(vals[max(0,i-2):i+1])/len(vals[max(0,i-2):i+1]) for i in range(len(vals))]\nspec={'$schema':'https://vega.github.io/schema/vega-lite/v5.json','data':{'name':'data'},'layer':[{'mark':'line','encoding':{'x':{'field':'x','type':'quantitative'},'y':{'field':'y','type':'quantitative'}}},{'mark':{'type':'line','stroke':'#ef4444'},'encoding':{'x':{'field':'x','type':'quantitative'},'y':{'field':'ma','type':'quantitative'}}}], 'datasets':{'data':[{'x':i,'y':vals[i],'ma':ma[i]} for i in range(len(vals))]}}\nprint(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega','mime':'application/json','content':spec}]}))`;
+                  setCode(t);
+                }}
+              >移動平均</Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  const t = `# 相関行列ヒートマップ（疑似データ）\nimport json\nvars=['A','B','C','D']\nvals=[{'row':r,'col':c,'v':(i+j)%5} for i,r in enumerate(vars) for j,c in enumerate(vars)]\nspec={'$schema':'https://vega.github.io/schema/vega-lite/v5.json','data':{'name':'data'},'mark':'rect','encoding':{'x':{'field':'row','type':'ordinal'},'y':{'field':'col','type':'ordinal'},'color':{'field':'v','type':'quantitative'}}, 'datasets':{'data':vals}}\nprint(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega','mime':'application/json','content':spec}]}))`;
+                  setCode(t);
+                }}
+              >相関行列</Button>
+            </div>
             <div className="flex items-center gap-2">
               <Button variant="primary" onClick={onRun} disabled={running || !datasetId}>実行</Button>
               <span className="text-xs text-slate-500">in.json（csv_path, dataset_id）を参照できます</span>
