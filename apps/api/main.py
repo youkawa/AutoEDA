@@ -680,7 +680,7 @@ def exec_run(req: ExecRunRequest) -> ExecRunResult:
     except sandbox.SandboxError as exc:
         code = getattr(exc, "code", None)
         # 友好化はクライアント側で行う
-        return ExecRunResult(task_id=req.task_id, status="failed", logs=[f"{exc}" if not code else f"{code}: {exc}"], outputs=[])
+        return ExecRunResult(task_id=req.task_id, status="failed", logs=[str(exc)], outputs=[], error_code=code)
 
 # --- G2: Deep-dive interactive suggestions (MVP deterministic) ---
 class DeepDiveRequest(BaseModel):
@@ -693,6 +693,8 @@ class DeepDiveSuggestion(BaseModel):
     why: Optional[str] = None
     code: Optional[str] = None
     spec: Optional[Dict[str, Any]] = None
+    tags: Optional[List[str]] = None
+    diagnostics: Optional[Dict[str, Any]] = None
 
 
 class DeepDiveResponse(BaseModel):
@@ -714,7 +716,9 @@ def analysis_deepdive(req: DeepDiveRequest) -> DeepDiveResponse:
                 "encoding": {"x": {"field":"x","type":"quantitative"}, "y": {"field":"y","type":"quantitative"}},
                 "datasets": {"data": [{"x": i, "y": v} for i, v in enumerate([1,2,3,2,4,3,5])]},
                 "description": "deepdive line"
-            }
+            },
+            tags=["trend"],
+            diagnostics={"seasonality": False, "expected_window": 3}
         ))
     if any(k in text for k in ["相関", "correlation", "関係"]):
         sugg.append(DeepDiveSuggestion(
@@ -727,7 +731,9 @@ def analysis_deepdive(req: DeepDiveRequest) -> DeepDiveResponse:
                 "encoding": {"x": {"field":"x","type":"quantitative"}, "y": {"field":"y","type":"quantitative"}},
                 "datasets": {"data": [{"x": x, "y": y} for x, y in [(1,2),(2,2.5),(3,3),(4,3.8),(5,5)]]},
                 "description": "deepdive scatter"
-            }
+            },
+            tags=["correlation"],
+            diagnostics={"hypothesis": "linear", "outlier_sensitive": True}
         ))
     if not sugg:
         sugg.append(DeepDiveSuggestion(title="分布の形状を確認", why="ヒストグラムで歪度や多峰性を確認"))
