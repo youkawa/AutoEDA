@@ -96,7 +96,7 @@ export function PlanPage() {
           <div className="mb-3 flex items-center gap-3 text-sm">
             <label className="flex items-center gap-1">
               <span className="text-slate-500">ソート:</span>
-              <select className="rounded border border-slate-300 px-2 py-1" value={sortKey} onChange={(e) => setSortKey(e.target.value as any)}>
+              <select className="rounded border border-slate-300 px-2 py-1" value={sortKey} onChange={(e) => setSortKey(e.target.value as 'id'|'title'|'tool')}>
                 <option value="id">ID</option>
                 <option value="title">タイトル</option>
                 <option value="tool">ツール</option>
