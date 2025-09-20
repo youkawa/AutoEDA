@@ -426,6 +426,12 @@ def get_batch(batch_id: str) -> Optional[Dict[str, Any]]:
             it["status"] = j.get("status", it.get("status"))
             if j.get("stage"):
                 it["stage"] = j.get("stage")
+            # propagate error info for UI friendliness
+            if j.get("status") in {"failed", "cancelled"}:
+                if j.get("error"):
+                    it["error"] = j.get("error")
+                if j.get("error_code"):
+                    it["error_code"] = j.get("error_code")
             if it["status"] == "succeeded":
                 done += 1
                 if j.get("result"):

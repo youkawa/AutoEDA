@@ -221,6 +221,20 @@ export function ChartsPage() {
                       const st: ChartsBatchStatus = await getChartsBatchStatusWithMap(batchId);
                       setBatchProgress({ total: st.total, done: st.done, failed: st.failed, running: st.running, queued: st.queued, cancelled: st.cancelled, served: st.served, avg_wait_ms: st.avg_wait_ms });
                       setBatchItems(st.items ?? []);
+                      // propagate failures/cancellations into per-card results UI (friendly error)
+                      if (Array.isArray(st.items)) {
+                        setResults((prev) => {
+                          const next = { ...prev } as Record<string, ChartRender>;
+                          for (const it of st.items) {
+                            if (!it.chart_id) continue;
+                            if (it.status === 'failed' || it.status === 'cancelled') {
+                              const friendly = it.error || (it.status === 'cancelled' ? '実行がキャンセルされました。' : '実行に失敗しました');
+                              next[it.chart_id] = { ...(next[it.chart_id] ?? {}), loading: false, step: 'done', error: friendly, errorCode: it.error_code };
+                            }
+                          }
+                          return next;
+                        });
+                      }
                       if (st.results_map && Object.keys(st.results_map).length > 0) {
                         const next: Record<string, ChartRender> = { ...results };
                         for (const cid of Object.keys(st.results_map)) {
