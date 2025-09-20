@@ -144,7 +144,7 @@
 
 1. H1‑EXEC（高・継続）: `run_generated_chart` に phase1/phase2 遅延（ENV: `AUTOEDA_SB_TEST_DELAY_MS/_DELAY2_MS`）を導入し、AST deny‑list + RLIMIT を維持。キャンセル/タイムアウトの境界テストを追加してGreenを確認。失敗時stderrの先頭要約を `error_detail` として安全伝播（最大500文字、PII/Secretsをredact）。FEで「詳細」トグルとコピーに対応。
 2. H2（中）: VR ストーリーを「閾値ライン強調」「凡例なし」の 2 パターンに分割（URLクエリで legend/th を制御）。OS差ノイズの影響をさらに低減（maxDiffPixelRatio=0.02 維持）。
-3. F2（中）: issues.csv に missing_deps 集約列を追加、Plan ヘッダに最終検証時刻/バージョンを表示。
+3. F2（中）: issues.csv に missing_deps 集約列を追加し、Plan ヘッダに最終検証時刻/バージョンを表示。ソート/フィルタはURLクエリ/LocalStorageへ永続化。
 4. CH‑13（中）：段階フォールバック（テンプレ→軽量LLM→指数バックオフ再試行）
 5. 保存/共有（CH‑16〜19）（中）：最小保存API＋一覧→Notebookセル出力
 6. CI/観測（中）：OpenAPI 互換失敗時に SDK/FE の friendly map 更新 TODO を PR コメントに提示。
