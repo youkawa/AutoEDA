@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-type Props = { spec: unknown; renderer?: 'canvas' | 'svg'; className?: string };
+type Props = { spec: object; renderer?: 'canvas' | 'svg'; className?: string };
 
 export function VegaView({ spec, renderer = 'svg', className }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -11,11 +11,13 @@ export function VegaView({ spec, renderer = 'svg', className }: Props) {
     let cancelled = false;
     async function run() {
       try {
-        type Embed = (el: HTMLElement, spec: unknown, opts: Record<string, unknown>) => Promise<{ view?: { finalize?: () => void } }>;
-        const embed = (await import('vega-embed')).default as unknown as Embed;
+        type EmbedResult = { view?: { finalize?: () => void } };
+        type Embed = (el: HTMLElement, spec: object, opts: { renderer: 'svg'|'canvas'; actions: boolean; mode: 'vega-lite' }) => Promise<EmbedResult>;
+        const mod = await import('vega-embed');
+        const embed = (mod as { default: Embed }).default;
         if (!ref.current || cancelled) return;
         const result = await embed(ref.current, spec, { renderer, actions: false, mode: 'vega-lite' });
-        view = result?.view;
+        view = result.view;
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         setError(msg || 'failed to render vega');
