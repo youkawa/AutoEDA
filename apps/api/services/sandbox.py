@@ -9,7 +9,7 @@ import contextlib
 import resource
 import socket
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Callable
 import os
 import subprocess
 import tempfile
@@ -48,7 +48,7 @@ class SandboxRunner:
             hard = soft
             resource.setrlimit(resource.RLIMIT_AS, (soft, hard))
 
-    def run_template(self, *, spec_hint: Optional[str], dataset_id: Optional[str]) -> Dict[str, Any]:
+    def run_template(self, *, spec_hint: Optional[str], dataset_id: Optional[str], cancel_check: Optional[Callable[[], bool]] = None) -> Dict[str, Any]:
         # Here we do not execute arbitrary code; just return a template result.
         # charts.py のテンプレート関数を利用する。
         from . import charts as chartsvc
@@ -57,7 +57,11 @@ class SandboxRunner:
         try:
             with self._disable_network():
                 self._limit_memory()
+                if cancel_check and cancel_check():
+                    raise SandboxError("cancelled")
                 result = chartsvc._template_result(spec_hint, dataset_id)
+        except SandboxError:
+            raise
         except Exception:
             # 非対応環境では無視（フォールバック）
             result = chartsvc._template_result(spec_hint, dataset_id)
@@ -66,7 +70,7 @@ class SandboxRunner:
         result["meta"].update({"duration_ms": dur_ms})
         return result
 
-    def run_template_subprocess(self, *, spec_hint: Optional[str], dataset_id: Optional[str]) -> Dict[str, Any]:
+    def run_template_subprocess(self, *, spec_hint: Optional[str], dataset_id: Optional[str], cancel_check: Optional[Callable[[], bool]] = None) -> Dict[str, Any]:
         """Best-effort subprocess isolation（MVP）.
 
         - FS: 作業は一時ディレクトリ
@@ -75,9 +79,15 @@ class SandboxRunner:
         """
         import json as _json  # local alias
         code = (
-            "import json;\n"
-            "kind=json.loads(open('in.json').read()).get('kind','bar');\n"
+            "import json, os, time;\n"
+            "cfg=json.loads(open('in.json').read());\n"
+            "kind=cfg.get('kind','bar');\n"
+            "delay_ms=int(os.environ.get('AUTOEDA_SB_TEST_DELAY_MS','0') or '0');\n"
+            "if delay_ms>0: time.sleep(delay_ms/1000.0);\n"
+            "# rendering phase (simulate)\n"
             "spec={'mark': kind if kind in ('bar','line') else 'point','data':{'values':[{'x':0,'y':1}]}};\n"
+            "delay2_ms=int(os.environ.get('AUTOEDA_SB_TEST_DELAY2_MS','0') or '0');\n"
+            "if delay2_ms>0: time.sleep(delay2_ms/1000.0);\n"
             "print(json.dumps({'language':'python','library':'vega','code':'# generated','outputs':[{'type':'vega','mime':'application/json','content':spec}]}, ensure_ascii=False))\n"
         )
         tmpdir = tempfile.mkdtemp(prefix="autoeda_sbx_")
@@ -93,10 +103,26 @@ class SandboxRunner:
                     resource.setrlimit(resource.RLIMIT_AS, (self.mem_limit_mb * 1024 * 1024, self.mem_limit_mb * 1024 * 1024))
                     resource.setrlimit(resource.RLIMIT_CPU, (2, 2))
                     resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
-            env = {"PYTHONUNBUFFERED": "1", "PATH": "/usr/bin:/bin"}
-            proc = subprocess.run(["python3", "-I", "-c", code], cwd=tmpdir, capture_output=True, text=True, timeout=self.timeout_sec, check=True, env=env, preexec_fn=_preexec if hasattr(os, 'setuid') else None)
-            out = proc.stdout.strip()
-            obj = _json.loads(out)
+            env = {"PYTHONUNBUFFERED": "1", "PATH": "/usr/bin:/bin", "AUTOEDA_SB_TEST_DELAY_MS": os.environ.get("AUTOEDA_SB_TEST_DELAY_MS", "")}
+            proc = subprocess.Popen(["python3", "-I", "-c", code], cwd=tmpdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, preexec_fn=_preexec if hasattr(os, 'setuid') else None)
+            started = time.perf_counter()
+            while True:
+                ret = proc.poll()
+                if ret is not None:
+                    break
+                if cancel_check and cancel_check():
+                    with contextlib.suppress(Exception):
+                        proc.kill()
+                    raise SandboxError("cancelled")
+                if (time.perf_counter() - started) >= self.timeout_sec:
+                    with contextlib.suppress(Exception):
+                        proc.kill()
+                    raise SandboxError("timeout")
+                time.sleep(0.01)
+            out = (proc.stdout.read() if proc.stdout else "").strip()
+            obj = _json.loads(out or "{}")
+        except SandboxError:
+            raise
         except Exception:
             # フォールバック
             from . import charts as chartsvc  # type: ignore

@@ -65,3 +65,29 @@ export const WithResult: Story = {
     },
   },
 };
+
+export const SparklineLowThreshold: Story = {
+  name: 'Sparkline (Low Threshold Points)',
+  parameters: {
+    msw: {
+      handlers: [
+        ...createDefaultHandlers(),
+        http.get('/api/metrics/charts/snapshots', () => {
+          const series = Array.from({ length: 24 }).map((_, i) => {
+            const served = i % 3 === 0 ? 5 : 9; // 多めに <80% を発生させる
+            const total = 10;
+            const served_pct = Math.round((served / total) * 100);
+            return {
+              t: `2025-09-20T11:${String(i).padStart(2, '0')}:00Z`,
+              served_pct,
+              avg_wait_ms: i % 2 === 0 ? 140 : 60,
+              served,
+              total,
+            };
+          });
+          return HttpResponse.json({ series });
+        }),
+      ],
+    },
+  },
+};

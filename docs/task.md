@@ -1,6 +1,6 @@
 # AutoEDA 実装計画 (タスクトラッカー)
 
-更新日: 2025-09-20 / 担当: AutoEDA Tech Lead（追記: H2 公正度UI/SLO/Plan UI 反映）
+更新日: 2025-09-20 / 担当: AutoEDA Tech Lead（追記3: H2 スパークライン閾値/凡例、H1-EXEC checkpoint+tests、F2 CSV、CI PRコメント/Artifact 反映）
 
 ---
 
@@ -25,6 +25,10 @@
   - PlanPage（UI雛形）を追加し、ソート/フィルタ/未解決依存の可視化/JSONダウンロードを提供 — Done(初期)
   - G系は未実装（実行基盤はHのMVPを流用可能）
 - フロントは主要ページが実装済み。Storybook は導入済み（MSW/Router/Docs/A11y、VR運用まで整備）。
+- H2（視覚化運用）: ChartsPage ヘッダに served% スパークライン（24本/80%しきい値線/各バー詳細 tooltip/ヘルプアイコン）。Home に SLO charts_summary（served%/avg_wait/series）。
+- H1‑EXEC: テンプレ経路（inline/subprocess）に協調中断 checkpoint を追加し、pytest で cancel/timeout を検証。
+- F2 UI: Plan 検証の NG を行頭ピル＋行背景で強調、issues.csv/plan.csv をエクスポート可能。
+- CI: OpenAPI 互換チェック（ChartJob.error_code）を workflow に組込み、PR コメントと Artifact を自動出力。
 - テスト: pytest + Vitest + Playwright（Storybook VR）。Charts の代表ケースをVR対象に追加済み。
 - CI: web ジョブで Lint/Type/Vitest/API検証/Storybook/VR まで実行。main 保護は有効、必須チェック contexts は固定済み（"ci / web"）。
 - 観測: `/api/metrics/slo` の閾値を `AUTOEDA_SLO_THRESHOLDS` で上書き可能にし、Home の SLO タイルに OK/NG バッジを表示 — Done(初期)
@@ -135,12 +139,12 @@
 
 ## 3. 次のイテレーション（優先順）
 
-1. H2 スケジューラ仕上げ（中〜高）：announcer 文言の完全統一、served/avg_wait の説明（ツールチップ/ヘルプ）を恒常化。公正性の可視化（served比率/平均待機の時系列）
-2. H1‑EXEC 強化（高）：AST deny‑list拡張（import/exec系）、詳細エラーのAPI整形（type=timeout/cancelled/forbidden_import/format_error）、テンプレ系にも協調中断
-3. F2 UI 雛形拡充（中）：Plan の並べ替え/フィルタ、依存の視覚化、検証結果の強調表示
+1. H2 仕上げ（中）: Sparkline に 80% 凡例ラベル/ヘルプを追加、served%<80% をバー色で弱警告、SLO タイルに説明ヘルプを追加。
+2. H1‑EXEC（高）: checkpoint を描画フェーズにも 1 箇所追加、timeout/キャンセルの境界値テストを拡充。
+3. F2 UI（中）: issues.csv をタイトル/ツール付きに拡張、依存 NG の強調（不足依存を inline 表示）。
 4. CH‑13（中）：段階フォールバック（テンプレ→軽量LLM→指数バックオフ再試行）
 5. 保存/共有（CH‑16〜19）（中）：最小保存API＋一覧→Notebookセル出力
-6. CI/観測（中）：H系KPI（p95/成功率/失敗理由）を `metrics.slo_snapshot` に取り込み、Homeカードに色分け表示（閾値のenv化）
+6. CI/観測（中）：OpenAPI 互換の差分要約（enum差分など）を PR 本文にも反映（必要時）。
 
 ---
 
@@ -178,7 +182,7 @@
 
 ## 6. 変更履歴
 
-- 2025-09-20: H1-STEP(単発)完了、CH-07/14 Done(初期)、CH-06 部分、CH-11 協調、CH-12 並列/バッチ有効化、CH-03 実行MVPを追加。F1/F2 のAPI実装（MVP）を反映。H2: `served`/`avg_wait_ms` を追加し `ChartsPage` に表示、PlanPage(初期) 追加、SLOタイルに OK/NG バッジ追加。
+- 2025-09-20: H2: served% スパークラインを 24本＋80% しきい値線/tooltip/ヘルプ、Home に SLO charts_summary。H1‑EXEC: テンプレ checkpoint 追加＋ cancel/timeout tests。F2: Plan NG 強調＋ issues.csv/CSV。CI: OpenAPI 互換チェックを PR コメント＋Artifact まで拡張。
 - 2025-09-19: Capability H の実装状況を反映（P0の一部=実装済み、未実装CHをタスク化）。Capability F/G の未実装を追加タスク化。RAG/Gemini/EDA 安定化、Storybook VR 運用、Mermaid修正、タスク表を更新。
 - 2025-09-18: バックエンド/フロント実装状況に合わせてタスク表を更新。Storybook/ワイヤーフレーム同期タスクを完了扱いに。
 - 2025-09-15: 初版。

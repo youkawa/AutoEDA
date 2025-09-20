@@ -4,6 +4,7 @@ const stories = [
   { id: 'pages-chartspage--consistent-only', snapshot: 'charts-consistent.png' },
   { id: 'pages-chartspage--empty', snapshot: 'charts-empty.png' },
   { id: 'pages-chartspage--with-result', snapshot: 'charts-with-result.png' },
+  { id: 'pages-chartspage--sparkline-low-threshold', snapshot: 'charts-sparkline-low.png' },
 ];
 
 for (const story of stories) {

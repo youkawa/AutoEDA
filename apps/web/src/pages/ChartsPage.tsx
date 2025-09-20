@@ -24,9 +24,11 @@ export function ChartsPage() {
   const [batchItems, setBatchItems] = useState<{ chart_id?: string; status: string; stage?: 'generating'|'rendering'|'done' }[]>([]);
   const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
   const [announce, setAnnounce] = useState<string | null>(null);
+  type Spark = { t?: string; served_pct: number; avg_wait_ms?: number; served?: number; total?: number };
+  const [spark, setSpark] = useState<Spark[]>([]);
   type Step = 'preparing' | 'generating' | 'running' | 'rendering' | 'done';
   type ChartMeta = { dataset_id?: string; hint?: string };
-  type ChartRender = { loading: boolean; step?: Step; error?: string; src?: string; prevSrc?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: ChartMeta };
+  type ChartRender = { loading: boolean; step?: Step; error?: string; errorCode?: string; src?: string; prevSrc?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: ChartMeta };
   const [results, setResults] = useState<Record<string, ChartRender>>({});
   const toast = useToast();
 
@@ -57,6 +59,26 @@ export function ChartsPage() {
     return charts.filter((chart) => chart.consistency_score >= 0.95);
   }, [charts, showConsistentOnly]);
 
+  // fetch sparkline data for header
+  useEffect(() => {
+    if (!datasetId) return;
+    const base = ((import.meta as unknown as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE) ?? '';
+    fetch(`${base}/api/metrics/charts/snapshots?dataset_id=${encodeURIComponent(datasetId)}&limit=24`)
+      .then((r) => r.ok ? r.json() : Promise.reject())
+      .then((obj: unknown) => {
+        const rec = obj as { series?: Spark[] } | undefined;
+        const series = Array.isArray(rec?.series) ? rec!.series! : [];
+        setSpark(series.map((e) => ({
+          t: e.t,
+          served_pct: Math.max(0, Math.min(100, Number(e.served_pct ?? 0))),
+          avg_wait_ms: e.avg_wait_ms,
+          served: e.served,
+          total: e.total,
+        })));
+      })
+      .catch(() => setSpark([]));
+  }, [datasetId]);
+
   if (loading) {
     return (
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -72,9 +94,50 @@ export function ChartsPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold text-slate-900">チャート提案</h1>
-          <p className="flex items-center gap-2 text-sm text-slate-500">
-            <BarChart3 className="h-4 w-4" /> {charts.length} 件の候補が見つかりました。
-          </p>
+          <div className="flex items-center gap-3 text-sm text-slate-500">
+            <span className="inline-flex items-center gap-2"><BarChart3 className="h-4 w-4" />{charts.length} 件の候補が見つかりました。</span>
+            {spark.length > 0 ? (
+              <span className="inline-flex items-center gap-2" title="直近の served 比率（%）。served% = served/total * 100">
+                <span className="inline-flex items-center gap-2 text-xs text-slate-400">
+                  <span>served%</span>
+                  <span
+                    className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[9px] text-slate-500"
+                    title="served% = served/total × 100"
+                  >?
+                  </span>
+                  <span className="rounded border border-dashed border-emerald-400/60 bg-emerald-50 px-1.5 text-emerald-700" title="しきい値=80%">80%</span>
+                </span>
+                <span className="relative flex h-5 items-end gap-0.5">
+                  {/* しきい値ライン 80% */}
+                  <span className="absolute left-0 right-0 border-t border-dashed border-emerald-400/60" style={{ top: `${Math.max(0, 16 - Math.round(16 * 0.8))}px` }} title="しきい値 80%" />
+                  {spark.map((e, i) => (
+                    <span
+                      key={`sp-${i}`}
+                      className={`w-1.5 rounded-sm ${e.served_pct < 80 ? 'bg-rose-300/80' : 'bg-brand-500/70'}`}
+                      title={`${e.t ?? ''} served: ${e.served ?? '-'} / total: ${e.total ?? '-'} (avg_wait: ${e.avg_wait_ms ?? '-'}ms)`}
+                      style={{ height: `${Math.max(2, Math.round((e.served_pct/100)*16))}px`, outline: e.served_pct < 80 ? '1px solid rgba(244, 63, 94, 0.7)' : undefined }}
+                    />
+                  ))}
+                </span>
+                {(() => {
+                  const vals = spark.map((e) => e.served_pct);
+                  const min = Math.min(...vals);
+                  const max = Math.max(...vals);
+                  const p95 = (() => {
+                    const a = [...vals].sort((a,b)=>a-b); if (a.length===0) return 0;
+                    const pos = (a.length - 1) * 0.95; const li = Math.floor(pos); const ui = Math.min(li+1, a.length-1);
+                    const frac = pos - li; return Math.round(a[li] + (a[ui]-a[li]) * frac);
+                  })();
+                  return <span className="text-[10px] text-slate-400" title={`p95 ${p95}%`}>min {min}% / max {max}% ・ しきい値=80%</span>;
+                })()}
+                {(() => {
+                  const last = spark[spark.length-1]?.served_pct ?? 0;
+                  const good = last >= 80;
+                  return <span className={`rounded px-1.5 py-0.5 text-[11px] ${good?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}`} title={`served% 現在値 ${last}%`}>{last}%</span>;
+                })()}
+              </span>
+            ) : null}
+          </div>
         </div>
         <div className="flex gap-3">
           <Button variant={showConsistentOnly ? 'primary' : 'secondary'} icon={<CheckCircle2 className="h-4 w-4" />} onClick={() => setShowConsistentOnly((prev) => !prev)}>一致率 95% 以上のみ表示</Button>
@@ -119,7 +182,7 @@ export function ChartsPage() {
                     style={{ width: `${Math.round((batchProgress.done / Math.max(1, batchProgress.total)) * 100)}%` }}
                   />
                 </div>
-                <div className="mt-1 text-[11px] text-slate-500" title="R:実行中 / Q:キュー / F:失敗 / C:中断 / S:進捗済み">
+                <div className="mt-1 text-[11px] text-slate-500" title="用語: R=実行中, Q=キュー, F=失敗, C=中断, S=progress済み（served）。served% = served/total * 100。avg_wait はキュー待機の平均(ms)">
                   R:{batchProgress.running ?? 0} Q:{batchProgress.queued ?? 0} F:{batchProgress.failed ?? 0} C:{batchProgress.cancelled ?? 0} S:{batchProgress.served ?? 0}
                 </div>
               </div>
@@ -398,8 +461,18 @@ export function ChartsPage() {
                             setResults((s) => ({ ...s, [chart.id]: { loading: false, step: 'done', error: '出力形式に未対応' } }));
                           }
                         } catch (err) {
-                          const message = err instanceof Error ? err.message : '生成に失敗';
-                          setResults((s) => ({ ...s, [chart.id]: { loading: false, step: 'done', error: message } }));
+                          const anyErr = err as { message?: string; code?: string } | undefined;
+                          const code = anyErr && anyErr.code ? String(anyErr.code) : undefined;
+                          const friendlyMap: Record<string, string> = {
+                            timeout: '実行がタイムアウトしました（制限時間超過）。',
+                            cancelled: '実行がキャンセルされました。',
+                            forbidden_import: '安全ポリシーにより禁止されたモジュール/関数が検出されました。',
+                            format_error: '出力形式が不正です（JSONの解析に失敗）。',
+                            unknown: '不明なエラーが発生しました。',
+                          };
+                          const message = err instanceof Error ? (err.message || '生成に失敗') : '生成に失敗';
+                          const shown = code && friendlyMap[code] ? friendlyMap[code] : message;
+                          setResults((s) => ({ ...s, [chart.id]: { loading: false, step: 'done', error: shown, errorCode: code } }));
                         }
                       }}
                     >
@@ -413,7 +486,12 @@ export function ChartsPage() {
                   </div>
                 ) : null}
                 {results[chart.id]?.error ? (
-                  <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">{results[chart.id]?.error}</div>
+                  <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">
+                    {results[chart.id]?.error}
+                    {results[chart.id]?.errorCode ? (
+                      <span className="ml-2 rounded bg-amber-200 px-1.5 py-0.5 text-[11px] text-amber-900" title="エラーコード">{results[chart.id]?.errorCode}</span>
+                    ) : null}
+                  </div>
                 ) : null}
                 {results[chart.id] && !results[chart.id]?.loading && !results[chart.id]?.error ? (
                   <div className="mt-3 rounded-xl border border-slate-200 bg-white">

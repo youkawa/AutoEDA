@@ -93,15 +93,31 @@ def _start_worker_once() -> None:
                     result = runner.run_generated_chart(job_id=jid, spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"), cancel_check=lambda: bool(_CANCEL_FLAGS.get(jid)))
                 else:
                     if os.environ.get("AUTOEDA_SANDBOX_SUBPROCESS", "0") in {"1", "true", "TRUE"}:
-                        result = runner.run_template_subprocess(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
+                        jid = job_id
+                        result = runner.run_template_subprocess(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"), cancel_check=lambda: bool(_CANCEL_FLAGS.get(jid)))
                     else:
-                        result = runner.run_template(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
+                        jid = job_id
+                        result = runner.run_template(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"), cancel_check=lambda: bool(_CANCEL_FLAGS.get(jid)))
                 _JOBS[job_id]["stage"] = "rendering"
                 outdir = _DATA_DIR / job_id
                 outdir.mkdir(parents=True, exist_ok=True)
                 # cooperative cancel: if cancel requested during run, mark as cancelled and skip persistence
                 if _CANCEL_FLAGS.get(job_id):
                     _JOBS[job_id].update({"status": "cancelled"})
+                    try:
+                        t0 = _JOBS[job_id].get("t0") or time.perf_counter()
+                        dur = int((time.perf_counter() - t0) * 1000)
+                        metrics.record_event("ChartJobFinished", duration_ms=dur)
+                        metrics.persist_event({
+                            "event_name": "ChartJobFinished",
+                            "duration_ms": dur,
+                            "dataset_id": item.get("dataset_id"),
+                            "hint": item.get("spec_hint"),
+                            "status": "cancelled",
+                            "error_code": "cancelled",
+                        })
+                    except Exception:
+                        pass
                 else:
                     payload = {"job_id": job_id, "status": "succeeded", "result": result}
                     (outdir / "result.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -138,6 +154,20 @@ def _start_worker_once() -> None:
                     friendly = f"実行に失敗しました: {msg}"
                     code = "unknown"
                 _JOBS[job_id].update({"status": "failed", "error": friendly, "error_code": code})
+                try:
+                    t0 = _JOBS[job_id].get("t0") or time.perf_counter()
+                    dur = int((time.perf_counter() - t0) * 1000)
+                    metrics.record_event("ChartJobFinished", duration_ms=dur)
+                    metrics.persist_event({
+                        "event_name": "ChartJobFinished",
+                        "duration_ms": dur,
+                        "dataset_id": item.get("dataset_id"),
+                        "hint": item.get("spec_hint"),
+                        "status": "failed",
+                        "error_code": code,
+                    })
+                except Exception:
+                    pass
             # small yield
             time.sleep(0.01)
             # decrement running counter for batch
@@ -301,6 +331,15 @@ def generate_batch(items: List[Dict[str, Any]], parallelism: int = 3) -> Dict[st
         effective = max(1, min(int(parallelism or 1), _PARALLEL))
         # record limits for this batch
         _BATCH_LIMITS[batch_id] = effective
+        # try to propagate dataset_id for observability
+        dsid = None
+        try:
+            for it in items:
+                if it.get("dataset_id"):
+                    dsid = it.get("dataset_id")
+                    break
+        except Exception:
+            dsid = None
         for it in items:
             job = generate({**it, "batch_id": batch_id})  # queued
             entry = {"job_id": job["job_id"], "status": job["status"]}
@@ -316,6 +355,7 @@ def generate_batch(items: List[Dict[str, Any]], parallelism: int = 3) -> Dict[st
             "items": job_items,
             "parallelism": parallelism,
             "parallelism_effective": effective,
+            "dataset_id": dsid,
             # no results yet in async mode
         }
         _BATCHES[batch_id] = status
@@ -323,6 +363,15 @@ def generate_batch(items: List[Dict[str, Any]], parallelism: int = 3) -> Dict[st
     else:
         t0 = time.perf_counter()
         results_map: Dict[str, Any] = {}
+        # dataset id for observability (best-effort)
+        dsid = None
+        try:
+            for it in items:
+                if it.get("dataset_id"):
+                    dsid = it.get("dataset_id")
+                    break
+        except Exception:
+            dsid = None
         for it in items:
             job = generate(it)
             result = job.get("result")
@@ -342,6 +391,7 @@ def generate_batch(items: List[Dict[str, Any]], parallelism: int = 3) -> Dict[st
             "items": job_items,
             "results": results,
             "results_map": results_map or None,
+            "dataset_id": dsid,
         }
         _BATCHES[batch_id] = status
         try:
@@ -406,6 +456,7 @@ def get_batch(batch_id: str) -> Optional[Dict[str, Any]]:
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "batch_id": batch_id,
                 "total": st.get("total", 0),
+                "dataset_id": st.get("dataset_id"),
                 "done": done,
                 "running": running,
                 "failed": failed,

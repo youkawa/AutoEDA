@@ -172,7 +172,11 @@ export async function generateChart(datasetId: string, specHint?: string, column
     columns,
   } as GenerateItem);
   if (job.status === 'succeeded' && job.result) return job.result;
-  if (job.status === 'failed') throw new Error(job.error || 'chart generation failed');
+  if (job.status === 'failed') {
+    const e: any = new Error(job.error || 'chart generation failed');
+    if ((job as any).error_code) e.code = (job as any).error_code;
+    throw e;
+  }
   const res = await generateChartWithProgress(datasetId, specHint, columns);
   return res;
 }
@@ -189,7 +193,11 @@ export async function generateChartWithProgress(
     columns,
   } as GenerateItem);
   if (job.status === 'succeeded' && job.result) return job.result;
-  if (job.status === 'failed') throw new Error(job.error || 'chart generation failed');
+  if (job.status === 'failed') {
+    const e: any = new Error(job.error || 'chart generation failed');
+    if ((job as any).error_code) e.code = (job as any).error_code;
+    throw e;
+  }
   const started = Date.now();
   const deadline = started + 10_000;
   let lastStage: string | undefined = (job as any).stage;
@@ -203,7 +211,11 @@ export async function generateChartWithProgress(
       lastStage = curStage;
     }
     if (cur.status === 'succeeded' && cur.result) return cur.result as ChartResult;
-    if (cur.status === 'failed') throw new Error(cur.error || 'chart generation failed');
+    if (cur.status === 'failed') {
+      const e: any = new Error(cur.error || 'chart generation failed');
+      if ((cur as any).error_code) e.code = (cur as any).error_code;
+      throw e;
+    }
   }
   throw new Error('chart generation timeout');
 }

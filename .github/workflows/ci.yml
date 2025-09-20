@@ -43,6 +43,67 @@ jobs:
         run: python3 apps/api/scripts/check_openapi.py
       - name: Check OpenAPI paths and responses
         run: python3 apps/api/scripts/check_openapi_paths.py
+      - name: Check OpenAPI compatibility (ChartJob.error_code)
+        id: openapi_compat
+        run: npm run schema:check:openapi-compat
+        continue-on-error: true
+      - name: Comment OpenAPI compat result
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const outcome = `${{ steps.openapi_compat.outcome }}`;
+            const ok = outcome === 'success';
+            const body = ok
+              ? `✅ OpenAPI compat check passed (ChartJob.error_code).`
+              : `❌ OpenAPI compat check failed. Please review ChartJob.error_code enum or schema.`;
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
+      - name: Save OpenAPI compat result
+        if: always()
+        run: |
+          mkdir -p reports
+          echo "${{ steps.openapi_compat.outcome }}" > reports/openapi_compat.txt
+          TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "# OpenAPI Compatibility\n\n- Time: $TS\n- Outcome: ${{ steps.openapi_compat.outcome }}\n- Target: ChartJob.error_code enum\n\nIf failed, please check schema changes and the 'openapi-compat' artifact." > reports/openapi_compat_summary.md
+      - name: Upload OpenAPI compat artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-compat
+          path: |
+            reports/openapi_compat.txt
+            reports/openapi_compat_summary.md
+          if-no-files-found: warn
+      - name: Update PR body with OpenAPI compat summary (on failure)
+        if: always() && github.event_name == 'pull_request' && steps.openapi_compat.outcome != 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('reports/openapi_compat_summary.md', 'utf8');
+            let table = '';
+            try {
+              const diff = JSON.parse(fs.readFileSync('reports/openapi_compat_diff.json', 'utf8'));
+              const miss = diff.missing || [];
+              const extra = diff.extra || [];
+              table = '\n\n| Type | Values |\n|---|---|\n' +
+                      `| Missing | ${miss.join(', ') || '-'} |\n` +
+                      `| Extra | ${extra.join(', ') || '-'} |\n`;
+            } catch (e) { /* ignore */ }
+            const guide = '\n\n**Migration Guide (suggested):**\n' +
+              '- If values are Missing: add them back in server schema or relax enum, and update UI mapping.\n' +
+              '- If values are Extra: extend client mapping (friendly messages) and document new codes.\n' +
+              '- Ensure SDK exceptions carry `error_code` and UI shows human-readable text.';
+            const { data: pr } = await github.rest.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: context.issue.number });
+            const body = pr.body || '';
+            const marker = '\n\n---\nOpenAPI Compatibility Summary:\n';
+            const next = body.includes(marker) ? body.split(marker)[0] + marker + '\n' + summary + table + guide : body + marker + '\n' + summary + table + guide;
+            await github.rest.pulls.update({ owner: context.repo.owner, repo: context.repo.repo, pull_number: context.issue.number, body: next });
       - name: Evaluate API NFR (p95 & thresholds)
         run: python3 apps/api/scripts/evaluate_nfr.py
       - name: Check SLO thresholds

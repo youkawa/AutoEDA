@@ -87,6 +87,40 @@ def _status_breakdown(event_names: List[str]) -> Dict[str, Any]:
     return counters
 
 
+def recent_batch_snapshots(limit: int = 12, dataset_id: str | None = None) -> List[Dict[str, Any]]:
+    """Return latest N ChartBatchSnapshot events (optionally filtered by dataset_id)."""
+    events: List[Dict[str, Any]] = []
+    for rec in load_event_log():
+        if rec.get("event_name") != "ChartBatchSnapshot":
+            continue
+        if dataset_id and rec.get("dataset_id") != dataset_id:
+            continue
+        events.append(rec)
+    events.sort(key=lambda r: str(r.get("timestamp", "")))
+    return events[-limit:]
+
+
+def charts_summary(limit: int = 12, dataset_id: str | None = None) -> Dict[str, Any]:
+    """Compute simple summary (served%, avg_wait_ms avg) from recent snapshots."""
+    snaps = recent_batch_snapshots(limit=limit, dataset_id=dataset_id)
+    if not snaps:
+        return {"served_pct": 0, "avg_wait_ms": None}
+    served_pct_list: List[int] = []
+    waits: List[int] = []
+    for s in snaps:
+        total = int(s.get("total") or 0) or 1
+        served = int(s.get("served") or 0)
+        served_pct_list.append(int(round((served / total) * 100)))
+        if s.get("avg_wait_ms") is not None:
+            try:
+                waits.append(int(s.get("avg_wait_ms")))
+            except Exception:
+                pass
+    avg_wait = int(sum(waits) / len(waits)) if waits else None
+    # return last N bars and average
+    return {"served_pct": served_pct_list[-1] if served_pct_list else 0, "avg_wait_ms": avg_wait, "series": served_pct_list}
+
+
 def detect_violations(slo_config: Dict[str, Dict[str, float]]) -> Dict[str, Dict[str, bool]]:
     snapshot = slo_snapshot()["events"]
     report: Dict[str, Dict[str, bool]] = {}

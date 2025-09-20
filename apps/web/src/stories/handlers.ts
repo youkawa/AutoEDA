@@ -42,6 +42,22 @@ export function createDefaultHandlers() {
       });
     }),
     http.post('/api/recipes/emit', () => HttpResponse.json(clone(recipeResult))),
+    // H2: charts sparkline snapshots (24 points; include <80% to show red outline)
+    http.get('/api/metrics/charts/snapshots', () => {
+      const series = Array.from({ length: 24 }).map((_, i) => {
+        const served = i % 5 === 0 ? 6 : 9; // force some low served
+        const total = 10;
+        const served_pct = Math.round((served / total) * 100);
+        return {
+          t: `2025-09-20T10:${String(i).padStart(2, '0')}:00Z`,
+          served_pct,
+          avg_wait_ms: i % 3 === 0 ? 120 : 60,
+          served,
+          total,
+        };
+      });
+      return HttpResponse.json({ series });
+    }),
     http.get('/api/credentials/llm', () => HttpResponse.json(clone(credentialsStatus))),
     http.post('/api/credentials/llm', () => new HttpResponse(null, { status: 204 })),
   ];
