@@ -45,13 +45,17 @@ def _start_worker_once() -> None:
                 job = _QUEUE.pop(0)
             job_id = job["job_id"]
             _JOBS[job_id]["status"] = "running"
+            _JOBS[job_id]["stage"] = "generating"
             try:
                 item = job["item"]
                 runner = SandboxRunner()
+                # stage: generating -> running -> rendering
+                _JOBS[job_id]["stage"] = "generating"
                 if os.environ.get("AUTOEDA_SANDBOX_SUBPROCESS", "0") in {"1", "true", "TRUE"}:
                     result = runner.run_template_subprocess(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
                 else:
                     result = runner.run_template(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
+                _JOBS[job_id]["stage"] = "rendering"
                 outdir = _DATA_DIR / job_id
                 outdir.mkdir(parents=True, exist_ok=True)
                 # cooperative cancel: if cancel requested during run, mark as cancelled and skip persistence
@@ -61,6 +65,7 @@ def _start_worker_once() -> None:
                     payload = {"job_id": job_id, "status": "succeeded", "result": result}
                     (outdir / "result.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
                     _JOBS[job_id].update(payload)
+                    _JOBS[job_id]["stage"] = "done"
                 # metrics
                 try:
                     t0 = _JOBS[job_id].get("t0") or time.perf_counter()
@@ -295,6 +300,8 @@ def get_batch(batch_id: str) -> Optional[Dict[str, Any]]:
         for it in items:
             j = _JOBS.get(it["job_id"], {})
             it["status"] = j.get("status", it.get("status"))
+            if j.get("stage"):
+                it["stage"] = j.get("stage")
             if it["status"] == "succeeded":
                 done += 1
                 if j.get("result"):
