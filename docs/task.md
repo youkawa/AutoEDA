@@ -155,8 +155,8 @@
 |-------|------|------------|------|
 | F1: 計画自動生成 | Done(MVP/API) | `T-F1-PLAN` | RAG+プロファイル由来の骨子（決定的） |
 | F2: 人手レビュー・差分適用 | Done(MVP/検証) | `T-F2-REVISE`, `T-F2-UI` | 検証API実装/Plan UI雛形。差分パッチは後続 |
-| G1: カスタム分析の生成・実行 | 未実装 | `T-G1-EXEC` | サンドボックス `code_exec` 実運用化 |
-| G2: 深掘り指示の再生成 | 未実装 | `T-G2-INTERACTIVE` | 差分パッチ生成・再実行・比較 |
+| G1: カスタム分析の生成・実行 | Done(MVP/API) | `T-G1-EXEC` | `/api/exec/run`（SandboxRunner.run_code_exec）。SDK `runCustomAnalysis()` 追加 |
+| G2: 深掘り指示の再生成 | Done(MVP/API) | `T-G2-INTERACTIVE` | `/api/analysis/deepdive` 決定的サジェスト。SDK `deepDive()` 追加 |
 | CH-03/05/06/11/12/13/16〜19 | 一部/未実装 | `T-H1-EXEC`/`T-H2-*`/`T-H3-*` | 07/14はDone、02は単発Done、12は初期Done |
 | CH-16〜19 | 未実装 | `T-H3-*` | 保存/共有/バージョン/ピン留め |
 

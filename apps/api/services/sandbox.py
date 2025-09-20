@@ -143,6 +143,107 @@ class SandboxRunner:
                 os.rmdir(tmpdir)
         return obj
 
+    def run_code_exec(self, *, code: str, dataset_id: Optional[str], timeout_sec: Optional[float] = None) -> Dict[str, Any]:
+        """Execute user-provided analysis code under strict allowlist and resource caps.
+
+        要件:
+        - 標準ライブラリの一部のみ import 可（json/csv/os/time/math/statistics/random）
+        - 危険呼び出しをASTで拒否（eval/exec/compile/__import__/input/breakpoint, os.system/popen/…）
+        - data/datasets/<id>.csv の読み取りは可。外部NWなし。RLIMIT: AS/CPU/NOFILE。
+        - 出力は print(JSON) 形式で { language, library, outputs: [...]} を期待（安全に失敗→format_error）。
+        """
+        import json as _json
+        import ast as _ast
+        import textwrap
+        tmpdir = tempfile.mkdtemp(prefix="autoeda_exec_")
+        try:
+            user = textwrap.dedent(code or "").strip()
+            if not user:
+                raise SandboxError("empty code", code="format_error")
+            # AST allowlist / denylist
+            try:
+                tree = _ast.parse(user)
+                allowed_imports = {"json", "csv", "os", "time", "math", "statistics", "random"}
+                banned_calls = {"eval", "exec", "compile", "__import__", "input", "breakpoint"}
+                banned_os_calls = {"system", "popen", "spawnv", "spawnve", "spawnvp", "spawnvpe",
+                                   "remove", "unlink", "rmdir", "removedirs", "rename", "renames",
+                                   "chdir", "chmod", "chown"}
+                for node in _ast.walk(tree):
+                    if isinstance(node, _ast.Import):
+                        for alias in node.names:
+                            root = (alias.name or "").split(".")[0]
+                            if root not in allowed_imports:
+                                raise SandboxError(f"forbidden import: {root}", code="forbidden_import")
+                    elif isinstance(node, _ast.ImportFrom):
+                        root = (node.module or "").split(".")[0]
+                        if root and root not in allowed_imports:
+                            raise SandboxError(f"forbidden import: {root}", code="forbidden_import")
+                    elif isinstance(node, _ast.Call):
+                        if isinstance(node.func, _ast.Name) and node.func.id in banned_calls:
+                            raise SandboxError(f"forbidden call: {node.func.id}", code="forbidden_import")
+                        if isinstance(node.func, _ast.Attribute) and isinstance(node.func.value, _ast.Name):
+                            if node.func.value.id == 'os' and node.func.attr in banned_os_calls:
+                                raise SandboxError(f"forbidden os call: os.{node.func.attr}", code="forbidden_import")
+            except SandboxError:
+                raise
+            except Exception:
+                # 解析失敗は保守的に許可（後段のRLIMIT/実行で担保）
+                pass
+
+            # 付帯コンテキスト（CSVパス）を in.json で渡す
+            payload = {
+                "csv_path": os.path.abspath(os.path.join("data", "datasets", f"{dataset_id}.csv")) if dataset_id else None,
+                "dataset_id": dataset_id,
+            }
+            in_path = os.path.join(tmpdir, "in.json")
+            with open(in_path, "w", encoding="utf-8") as f:
+                f.write(_json.dumps(payload))
+
+            wrapper = (
+                "import json, os\n"
+                "cfg=json.loads(open('in.json','r',encoding='utf-8').read())\n"
+                + user + "\n"
+            )
+
+            def _preexec():
+                with contextlib.suppress(Exception):
+                    ml = self.mem_limit_mb * 1024 * 1024
+                    resource.setrlimit(resource.RLIMIT_AS, (ml, ml))
+                    resource.setrlimit(resource.RLIMIT_CPU, (3, 3))
+                    resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
+
+            env = {"PYTHONUNBUFFERED": "1", "PATH": "/usr/bin:/bin"}
+            tsec = float(timeout_sec or self.timeout_sec)
+            proc = subprocess.Popen(["python3", "-I", "-c", wrapper], cwd=tmpdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, preexec_fn=_preexec if hasattr(os, 'setuid') else None)
+            waited = 0.0
+            while True:
+                ret = proc.poll()
+                if ret is not None:
+                    break
+                time.sleep(0.05)
+                waited += 0.05
+                if waited >= tsec:
+                    with contextlib.suppress(Exception):
+                        proc.kill()
+                    raise SandboxError("timeout", code="timeout")
+            out = (proc.stdout.read() if proc.stdout else "").strip()
+            err = (proc.stderr.read() if proc.stderr else "").strip()
+            try:
+                obj = _json.loads(out or "{}")
+            except Exception:
+                logs = (err or out)[:500]
+                raise SandboxError("format_error", code="format_error", logs=logs)
+            obj.setdefault("meta", {})
+            obj["meta"].update({"engine": "code_exec", "dataset_id": dataset_id})
+            return obj
+        except SandboxError:
+            raise
+        finally:
+            with contextlib.suppress(Exception):
+                for name in os.listdir(tmpdir):
+                    os.remove(os.path.join(tmpdir, name))
+                os.rmdir(tmpdir)
+
     def run_generated_chart(self, *, job_id: Optional[str], spec_hint: Optional[str], dataset_id: Optional[str], cancel_check: Optional[callable] = None) -> Dict[str, Any]:
         """Execute a constrained Python snippet in a subprocess to emit a Vega-like spec.
 

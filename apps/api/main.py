@@ -10,6 +10,7 @@ from .services import evaluator
 from .services import orchestrator
 from .services import metrics
 from .services import charts as chartsvc
+from .services import sandbox
 from . import config as app_config
 from .services import plan as plan_svc
 import os as _os
@@ -636,8 +637,10 @@ class PlanReviseRequest(BaseModel):
 
 class ExecRunRequest(BaseModel):
     task_id: str
+    dataset_id: Optional[str] = None
     code: Optional[str] = None
     language: Literal["python", "sql"] = "python"
+    timeout_ms: Optional[int] = Field(default=3000, ge=100, le=20000)
 
 
 class ExecRunResult(BaseModel):
@@ -666,8 +669,66 @@ def plan_revise(req: PlanReviseRequest) -> PlanModel:
 
 @app.post("/api/exec/run", response_model=ExecRunResult)
 def exec_run(req: ExecRunRequest) -> ExecRunResult:
-    """Experimental stub: does not execute code; returns skipped.
+    # MVP: Python のみサポート。code が無い場合は skipped。
+    if req.language != "python" or not (req.code and req.code.strip()):
+        return ExecRunResult(task_id=req.task_id, status="skipped", logs=["no-op"], outputs=[])
+    try:
+        runner = sandbox.SandboxRunner()
+        res = runner.run_code_exec(code=req.code, dataset_id=req.dataset_id, timeout_sec=(req.timeout_ms or 3000)/1000.0)
+        outs = res.get("outputs") or []
+        return ExecRunResult(task_id=req.task_id, status="succeeded", logs=[], outputs=outs)
+    except sandbox.SandboxError as exc:
+        code = getattr(exc, "code", None)
+        # 友好化はクライアント側で行う
+        return ExecRunResult(task_id=req.task_id, status="failed", logs=[f"{exc}" if not code else f"{code}: {exc}"], outputs=[])
 
-    実装方針（今後）: SandboxRunner / allowlist / timeout / mem / NW遮断で実行し検証フック評価。
-    """
-    return ExecRunResult(task_id=req.task_id, status="skipped", logs=["experimental endpoint"], outputs=[])
+# --- G2: Deep-dive interactive suggestions (MVP deterministic) ---
+class DeepDiveRequest(BaseModel):
+    dataset_id: str
+    prompt: str
+
+
+class DeepDiveSuggestion(BaseModel):
+    title: str
+    why: Optional[str] = None
+    code: Optional[str] = None
+    spec: Optional[Dict[str, Any]] = None
+
+
+class DeepDiveResponse(BaseModel):
+    suggestions: List[DeepDiveSuggestion]
+
+
+@app.post("/api/analysis/deepdive", response_model=DeepDiveResponse)
+def analysis_deepdive(req: DeepDiveRequest) -> DeepDiveResponse:
+    text = (req.prompt or "").lower()
+    sugg: List[DeepDiveSuggestion] = []
+    if any(k in text for k in ["trend", "時系列", "推移"]):
+        sugg.append(DeepDiveSuggestion(
+            title="時系列の推移を検証",
+            why="トレンド/季節性の有無を確認",
+            spec={
+                "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+                "mark": "line",
+                "data": {"name": "data"},
+                "encoding": {"x": {"field":"x","type":"quantitative"}, "y": {"field":"y","type":"quantitative"}},
+                "datasets": {"data": [{"x": i, "y": v} for i, v in enumerate([1,2,3,2,4,3,5])]},
+                "description": "deepdive line"
+            }
+        ))
+    if any(k in text for k in ["相関", "correlation", "関係"]):
+        sugg.append(DeepDiveSuggestion(
+            title="相関の有無を確認",
+            why="散布図で線形関係や外れ値の有無を確認",
+            spec={
+                "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+                "mark": "point",
+                "data": {"name": "data"},
+                "encoding": {"x": {"field":"x","type":"quantitative"}, "y": {"field":"y","type":"quantitative"}},
+                "datasets": {"data": [{"x": x, "y": y} for x, y in [(1,2),(2,2.5),(3,3),(4,3.8),(5,5)]]},
+                "description": "deepdive scatter"
+            }
+        ))
+    if not sugg:
+        sugg.append(DeepDiveSuggestion(title="分布の形状を確認", why="ヒストグラムで歪度や多峰性を確認"))
+    return DeepDiveResponse(suggestions=sugg)

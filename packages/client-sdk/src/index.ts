@@ -370,6 +370,29 @@ export async function emitRecipes(datasetId: string): Promise<RecipeEmitResult> 
   }
 }
 
+// --- G1: Custom analysis execution ---
+export type ExecRunResult = { task_id: string; status: 'succeeded'|'failed'|'skipped'; logs: string[]; outputs: { type: string; mime: string; content: any }[] };
+
+export async function runCustomAnalysis(datasetId: string, code: string, taskId = 'adhoc', timeoutMs = 3000): Promise<ExecRunResult> {
+  try {
+    return await postJSON<ExecRunResult>('/api/exec/run', { dataset_id: datasetId, code, task_id: taskId, language: 'python', timeout_ms: timeoutMs });
+  } catch (e) {
+    return { task_id: taskId, status: 'failed', logs: [e instanceof Error ? e.message : 'failed'], outputs: [] };
+  }
+}
+
+// --- G2: Deep-dive interactive suggestions ---
+export type DeepDiveSuggestion = { title: string; why?: string; code?: string; spec?: any };
+export type DeepDiveResponse = { suggestions: DeepDiveSuggestion[] };
+
+export async function deepDive(datasetId: string, prompt: string): Promise<DeepDiveResponse> {
+  try {
+    return await postJSON<DeepDiveResponse>('/api/analysis/deepdive', { dataset_id: datasetId, prompt });
+  } catch (_) {
+    return { suggestions: [{ title: '分布の形状を確認', why: 'ヒストグラムで歪度や多峰性を確認' }] };
+  }
+}
+
 export async function applyPiiPolicy(datasetId: string, mask_policy: 'MASK' | 'HASH' | 'DROP', columns: string[]): Promise<PIIApplyResult> {
   try {
     return await postJSON<PIIApplyResult>('/api/pii/apply', { dataset_id: datasetId, mask_policy, columns });
