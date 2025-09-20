@@ -233,7 +233,7 @@ export function PlanPage() {
               onClick={() => {
                 // issues.csv: id, issue
                 const header = ['id','issue'];
-                const rows: [string,string][] = Object.entries(issuesMap).flatMap(([id, arr]) => arr.map((msg) => [id, msg]));
+                const rows = Object.entries(issuesMap).flatMap(([id, arr]) => (arr as string[]).map((msg: string) => [id, msg] as [string,string]));
                 if (rows.length === 0) return;
                 const csv = [header.join(','), ...rows.map(([a,b]) => `"${String(a).replace(/"/g,'""')}","${String(b).replace(/"/g,'""')}"`)].join('\n');
                 const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
