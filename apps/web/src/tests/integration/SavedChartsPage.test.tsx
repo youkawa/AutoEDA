@@ -10,7 +10,7 @@ vi.mock('@autoeda/client-sdk', () => {
       { id: 'a1', dataset_id: 'ds_001', chart_id: 'c1', title: '棒グラフ', hint: 'bar', svg: '<svg xmlns="http://www.w3.org/2000/svg"></svg>', created_at: new Date('2025-01-01T00:00:00Z').toISOString() },
       { id: 'a2', dataset_id: 'ds_001', chart_id: 'c2', title: '散布図', hint: 'scatter', vega: { mark: 'point', data: { values: [{ x: 1, y: 2 }] } }, created_at: new Date('2025-01-02T00:00:00Z').toISOString() },
     ],
-    deleteSavedChart: async (_id: string) => {},
+    deleteSavedChart: async () => {},
     generateChartWithProgress: async () => ({ outputs: [{ mime: 'image/svg+xml', content: '<svg/>' }] }),
   };
 });
