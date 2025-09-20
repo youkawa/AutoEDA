@@ -10,6 +10,10 @@ import { Pill } from '../components/ui/Pill';
 import { Modal } from '../components/ui/Modal';
 
 export function ChartsPage() {
+  const search = typeof window !== 'undefined' ? window.location.search : '';
+  const query = new URLSearchParams(search);
+  const showLegend = query.get('legend') !== '0';
+  const showThreshold = query.get('th') !== '0';
   const { datasetId } = useParams();
   const { lastDataset, setLastDataset } = useLastDataset();
   const [loading, setLoading] = useState(true);
@@ -98,18 +102,22 @@ export function ChartsPage() {
             <span className="inline-flex items-center gap-2"><BarChart3 className="h-4 w-4" />{charts.length} 件の候補が見つかりました。</span>
             {spark.length > 0 ? (
               <span className="inline-flex items-center gap-2" title="直近の served 比率（%）。served% = served/total * 100">
-                <span className="inline-flex items-center gap-2 text-xs text-slate-400">
-                  <span>served%</span>
-                  <span
-                    className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[9px] text-slate-500"
-                    title="served% = served/total × 100"
-                  >?
+                {showLegend ? (
+                  <span className="inline-flex items-center gap-2 text-xs text-slate-400">
+                    <span>served%</span>
+                    <span
+                      className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[9px] text-slate-500"
+                      title="served% = served/total × 100"
+                    >?
+                    </span>
+                    <span className="rounded border border-dashed border-emerald-400/60 bg-emerald-50 px-1.5 text-emerald-700" title="しきい値=80%">80%</span>
                   </span>
-                  <span className="rounded border border-dashed border-emerald-400/60 bg-emerald-50 px-1.5 text-emerald-700" title="しきい値=80%">80%</span>
-                </span>
+                ) : null}
                 <span className="relative flex h-5 items-end gap-0.5">
                   {/* しきい値ライン 80% */}
-                  <span className="absolute left-0 right-0 border-t border-dashed border-emerald-400/60" style={{ top: `${Math.max(0, 16 - Math.round(16 * 0.8))}px` }} title="しきい値 80%" />
+                  {showThreshold ? (
+                    <span className="absolute left-0 right-0 border-t border-dashed border-emerald-400/60" style={{ top: `${Math.max(0, 16 - Math.round(16 * 0.8))}px` }} title="しきい値 80%" />
+                  ) : null}
                   {spark.map((e, i) => (
                     <span
                       key={`sp-${i}`}
@@ -128,12 +136,12 @@ export function ChartsPage() {
                     const pos = (a.length - 1) * 0.95; const li = Math.floor(pos); const ui = Math.min(li+1, a.length-1);
                     const frac = pos - li; return Math.round(a[li] + (a[ui]-a[li]) * frac);
                   })();
-                  return <span className="text-[10px] text-slate-400" title={`p95 ${p95}%`}>min {min}% / max {max}% ・ しきい値=80%</span>;
+                  return showLegend ? <span className="text-[10px] text-slate-400" title={`p95 ${p95}%`}>min {min}% / max {max}% ・ しきい値=80%</span> : null;
                 })()}
                 {(() => {
                   const last = spark[spark.length-1]?.served_pct ?? 0;
                   const good = last >= 80;
-                  return <span className={`rounded px-1.5 py-0.5 text-[11px] ${good?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}`} title={`served% 現在値 ${last}%`}>{last}%</span>;
+                  return showLegend ? <span className={`rounded px-1.5 py-0.5 text-[11px] ${good?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}`} title={`served% 現在値 ${last}%`}>{last}%</span> : null;
                 })()}
               </span>
             ) : null}
