@@ -347,6 +347,7 @@ def get_batch(batch_id: str) -> Optional[Dict[str, Any]]:
         done = 0
         running = 0
         failed = 0
+        cancelled = 0
         results: List[Dict[str, Any]] = []
         results_map: Dict[str, Any] = {}
         for it in items:
@@ -362,9 +363,12 @@ def get_batch(batch_id: str) -> Optional[Dict[str, Any]]:
                         results_map[it["chart_id"]] = j["result"]
             elif it["status"] == "failed":
                 failed += 1
+            elif it["status"] == "cancelled":
+                cancelled += 1
             else:
                 running += 1
-        st.update({"done": done, "running": running, "failed": failed})
+        queued = max(0, st.get("total", 0) - (done + running + failed + cancelled))
+        st.update({"done": done, "running": running, "failed": failed, "cancelled": cancelled, "queued": queued})
         if done + failed == st.get("total", 0):
             st["results"] = results
             st["results_map"] = results_map
