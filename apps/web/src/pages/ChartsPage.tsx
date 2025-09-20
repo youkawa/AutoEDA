@@ -148,6 +148,49 @@ export function ChartsPage() {
                 })()}
               </span>
             ) : null}
+            {!batchInFlight && batchItems.some((it) => it.status === 'cancelled') ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={async () => {
+                  if (!datasetId) return;
+                  const cancelledIds = batchItems.filter((it) => it.status === 'cancelled' && it.chart_id).map((it) => it.chart_id!)
+                    .filter((id) => selectedIds.has(id));
+                  if (cancelledIds.length === 0) return;
+                  setBatchInFlight(true);
+                  setBatchProgress({ total: cancelledIds.length, done: 0, failed: 0, cancelled: 0 });
+                  try {
+                    const pairs = charts.filter((c) => cancelledIds.includes(c.id)).map((c) => ({ chartId: c.id, hint: c.type }));
+                    const batchId = await beginChartsBatchWithIds(datasetId, pairs);
+                    let finished = false;
+                    while (!finished) {
+                      await new Promise((r) => setTimeout(r, 300));
+                      const st: ChartsBatchStatus = await getChartsBatchStatusWithMap(batchId);
+                      setBatchProgress({ total: st.total, done: st.done, failed: st.failed, cancelled: st.cancelled });
+                      if (st.results_map && Object.keys(st.results_map).length > 0) {
+                        const next: Record<string, ChartRender> = { ...results };
+                        for (const cid of Object.keys(st.results_map)) {
+                          const r = st.results_map[cid]!;
+                          const out = r?.outputs?.[0];
+                          if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
+                            next[cid] = { loading: false, step: 'done', tab: 'viz', src: `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}` };
+                          }
+                        }
+                        setResults(next);
+                        finished = true;
+                      }
+                    }
+                  } catch (err) {
+                    const message = err instanceof Error ? err.message : '再試行に失敗しました';
+                    toast(message, 'error');
+                  } finally {
+                    setBatchInFlight(false);
+                  }
+                }}
+              >
+                中断のみ再試行
+              </Button>
+            ) : null}
           </div>
         </div>
         <div className="flex gap-3">
@@ -254,11 +297,12 @@ export function ChartsPage() {
                   } else {
                     // ポーリングして進捗反映
                     let finished = false;
-                    while (!finished) {
-                      await new Promise((r) => setTimeout(r, 300));
-                      const st: ChartsBatchStatus = await getChartsBatchStatusWithMap(batchId);
-                      setBatchProgress({ total: st.total, done: st.done, failed: st.failed, running: st.running, queued: st.queued, cancelled: st.cancelled, served: st.served, avg_wait_ms: st.avg_wait_ms });
-                      setBatchItems(st.items ?? []);
+            while (!finished) {
+              await new Promise((r) => setTimeout(r, 300));
+              const st: ChartsBatchStatus = await getChartsBatchStatusWithMap(batchId);
+              setBatchProgress({ total: st.total, done: st.done, failed: st.failed, running: st.running, queued: st.queued, cancelled: st.cancelled, served: st.served, avg_wait_ms: st.avg_wait_ms });
+              setAnnounce(`バッチ進捗: 完了 ${st.done} / 全 ${st.total}、失敗 ${st.failed ?? 0}、中断 ${st.cancelled ?? 0}、実行中 ${st.running ?? 0}、キュー ${st.queued ?? 0}${typeof st.avg_wait_ms==='number' ? `、平均待機 ${st.avg_wait_ms}ms` : ''}`);
+              setBatchItems(st.items ?? []);
                       // propagate failures/cancellations into per-card results UI (friendly error)
                       if (Array.isArray(st.items)) {
                         setResults((prev) => {
@@ -285,7 +329,7 @@ export function ChartsPage() {
                         setResults(next);
                         finished = true;
                         setLastBatchStats({ total: st.total, done: st.done, failed: st.failed, running: st.running, queued: st.queued, cancelled: st.cancelled, served: st.served, avg_wait_ms: st.avg_wait_ms });
-                        setAnnounce(`バッチが完了しました。完了 ${st.done} / 全 ${st.total}、失敗 ${st.failed ?? 0}、中断 ${st.cancelled ?? 0}`);
+                        setAnnounce(`バッチが完了しました。完了 ${st.done} / 全 ${st.total}、失敗 ${st.failed ?? 0}、中断 ${st.cancelled ?? 0}、served ${st.served ?? 0}${typeof st.avg_wait_ms==='number' ? `、平均待機 ${st.avg_wait_ms}ms` : ''}`);
                       } else if (Array.isArray(st.results)) {
                         const next: Record<string, ChartRender> = { ...results };
                         for (let i = 0; i < pairs.length; i++) {
@@ -298,7 +342,7 @@ export function ChartsPage() {
                         setResults(next);
                         finished = true;
                         setLastBatchStats({ total: st.total, done: st.done, failed: st.failed, running: st.running, queued: st.queued, cancelled: st.cancelled, served: st.served, avg_wait_ms: st.avg_wait_ms });
-                        setAnnounce(`バッチが完了しました。完了 ${st.done} / 全 ${st.total}、失敗 ${st.failed ?? 0}、中断 ${st.cancelled ?? 0}`);
+                        setAnnounce(`バッチが完了しました。完了 ${st.done} / 全 ${st.total}、失敗 ${st.failed ?? 0}、中断 ${st.cancelled ?? 0}、served ${st.served ?? 0}${typeof st.avg_wait_ms==='number' ? `、平均待機 ${st.avg_wait_ms}ms` : ''}`);
                       }
                     }
                   }
