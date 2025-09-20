@@ -43,6 +43,8 @@ jobs:
         run: python3 apps/api/scripts/check_openapi.py
       - name: Check OpenAPI paths and responses
         run: python3 apps/api/scripts/check_openapi_paths.py
+      - name: Check OpenAPI compatibility (ChartJob.error_code)
+        run: npm run schema:check:openapi-compat
       - name: Evaluate API NFR (p95 & thresholds)
         run: python3 apps/api/scripts/evaluate_nfr.py
       - name: Check SLO thresholds

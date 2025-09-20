@@ -24,7 +24,8 @@ export function ChartsPage() {
   const [batchItems, setBatchItems] = useState<{ chart_id?: string; status: string; stage?: 'generating'|'rendering'|'done' }[]>([]);
   const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
   const [announce, setAnnounce] = useState<string | null>(null);
-  const [spark, setSpark] = useState<number[]>([]);
+  type Spark = { t?: string; served_pct: number; avg_wait_ms?: number; served?: number; total?: number };
+  const [spark, setSpark] = useState<Spark[]>([]);
   type Step = 'preparing' | 'generating' | 'running' | 'rendering' | 'done';
   type ChartMeta = { dataset_id?: string; hint?: string };
   type ChartRender = { loading: boolean; step?: Step; error?: string; errorCode?: string; src?: string; prevSrc?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: ChartMeta };
@@ -65,9 +66,15 @@ export function ChartsPage() {
     fetch(`${base}/api/metrics/charts/snapshots?dataset_id=${encodeURIComponent(datasetId)}&limit=24`)
       .then((r) => r.ok ? r.json() : Promise.reject())
       .then((obj: unknown) => {
-        const rec = obj as { series?: { served_pct?: number }[] } | undefined;
-        const series = Array.isArray(rec?.series) ? (rec?.series as { served_pct?: number }[]) : [];
-        setSpark(series.map((e) => Math.max(0, Math.min(100, Number(e.served_pct ?? 0)))));
+        const rec = obj as { series?: Spark[] } | undefined;
+        const series = Array.isArray(rec?.series) ? rec!.series! : [];
+        setSpark(series.map((e) => ({
+          t: e.t,
+          served_pct: Math.max(0, Math.min(100, Number(e.served_pct ?? 0))),
+          avg_wait_ms: e.avg_wait_ms,
+          served: e.served,
+          total: e.total,
+        })));
       })
       .catch(() => setSpark([]));
   }, [datasetId]);
@@ -92,11 +99,27 @@ export function ChartsPage() {
             {spark.length > 0 ? (
               <span className="inline-flex items-center gap-2" title="直近の served 比率（%）。served% = served/total * 100">
                 <span className="text-xs text-slate-400">served%</span>
-                <span className="flex h-4 items-end gap-0.5">
-                  {spark.map((v, i) => (
-                    <span key={`sp-${i}`} className="w-1.5 rounded-sm bg-brand-500/70" title={`${v}%`} style={{ height: `${Math.max(2, Math.round((v/100)*12))}px` }} />
+                <span className="flex h-5 items-end gap-0.5">
+                  {spark.map((e, i) => (
+                    <span
+                      key={`sp-${i}`}
+                      className="w-1.5 rounded-sm bg-brand-500/70"
+                      title={`${e.t ?? ''} served: ${e.served ?? '-'} / total: ${e.total ?? '-'} (avg_wait: ${e.avg_wait_ms ?? '-'}ms)`}
+                      style={{ height: `${Math.max(2, Math.round((e.served_pct/100)*16))}px` }}
+                    />
                   ))}
                 </span>
+                {(() => {
+                  const vals = spark.map((e) => e.served_pct);
+                  const min = Math.min(...vals);
+                  const max = Math.max(...vals);
+                  return <span className="text-[10px] text-slate-400">min {min}% / max {max}%</span>;
+                })()}
+                {(() => {
+                  const last = spark[spark.length-1]?.served_pct ?? 0;
+                  const good = last >= 80;
+                  return <span className={`rounded px-1.5 py-0.5 text-[11px] ${good?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}`}>{last}%</span>;
+                })()}
               </span>
             ) : null}
           </div>

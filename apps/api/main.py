@@ -297,6 +297,8 @@ def metrics_charts_snapshots(dataset_id: Optional[str] = None, limit: int = 12) 
             "t": s.get("timestamp"),
             "served_pct": int(round((served / total) * 100)),
             "avg_wait_ms": s.get("avg_wait_ms"),
+            "served": served,
+            "total": int(s.get("total") or 0),
         })
     return {"series": series}
 

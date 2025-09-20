@@ -60,6 +60,8 @@ class SandboxRunner:
                 if cancel_check and cancel_check():
                     raise SandboxError("cancelled")
                 result = chartsvc._template_result(spec_hint, dataset_id)
+        except SandboxError:
+            raise
         except Exception:
             # 非対応環境では無視（フォールバック）
             result = chartsvc._template_result(spec_hint, dataset_id)
@@ -96,9 +98,25 @@ class SandboxRunner:
                     resource.setrlimit(resource.RLIMIT_CPU, (2, 2))
                     resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
             env = {"PYTHONUNBUFFERED": "1", "PATH": "/usr/bin:/bin"}
-            proc = subprocess.run(["python3", "-I", "-c", code], cwd=tmpdir, capture_output=True, text=True, timeout=self.timeout_sec, check=True, env=env, preexec_fn=_preexec if hasattr(os, 'setuid') else None)
-            out = proc.stdout.strip()
-            obj = _json.loads(out)
+            proc = subprocess.Popen(["python3", "-I", "-c", code], cwd=tmpdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, preexec_fn=_preexec if hasattr(os, 'setuid') else None)
+            started = time.perf_counter()
+            while True:
+                ret = proc.poll()
+                if ret is not None:
+                    break
+                if cancel_check and cancel_check():
+                    with contextlib.suppress(Exception):
+                        proc.kill()
+                    raise SandboxError("cancelled")
+                if (time.perf_counter() - started) >= self.timeout_sec:
+                    with contextlib.suppress(Exception):
+                        proc.kill()
+                    raise SandboxError("timeout")
+                time.sleep(0.01)
+            out = (proc.stdout.read() if proc.stdout else "").strip()
+            obj = _json.loads(out or "{}")
+        except SandboxError:
+            raise
         except Exception:
             # フォールバック
             from . import charts as chartsvc  # type: ignore
