@@ -119,45 +119,32 @@
 | T-CI-02 | 必須チェック contexts 追加 | **Done** | GH API | `required_status_checks/contexts` に `ci / web` を登録済み |
 | T-CI-03 | Storybook VR を継続運用 | **WIP** | `tests/storybook/*.spec.ts` | OS別ベースライン運用、差分閾値 0.01–0.03、レポート保全 |
 
-## 3. 次のイテレーション（優先順）
-
-1. H1‑EXEC（高）: サンドボックス安全強化（import属性deny、RLIMIT NPROC/STACKの適用拡大、stderr redact/上限）。UI の友好エラー(map)を追随。
-2. G2（中〜高）: サジェストへのタグ/診断付与、Plan 連動（依存生成）、一括実行と進捗バー。
-3. H3 保存/共有（中）: `POST /api/charts/save` / `GET /api/charts/list`（ローカル永続）＋SDK/簡易UI。履歴/バージョンは後続。
-4. CI/観測（中）: OpenAPI互換サマリの破壊性分類の拡張（type/required差分の説明自動化）と Docs 反映。
-5. Docs（中）: G1/G2 API ガイド（安全な出力例/テンプレ）と Plan ガイド（issues.csv/依存グラフ）をMDXに追加。
-
-## 4. 未実装ユーザーストーリー（requirements_v2 由来・現状反映）
-
-| Story | 状態 | 対応タスク | 備考 |
-|-------|------|------------|------|
-| F1: 計画自動生成 | Done(MVP/API) | `T-F1-PLAN` | RAG+プロファイル由来の骨子（決定的） |
-| F2: 人手レビュー・差分適用 | Done(MVP/検証) | `T-F2-REVISE`, `T-F2-UI` | 検証API実装/Plan UI雛形。差分パッチは後続 |
-| G1: カスタム分析の生成・実行 | Done(MVP/API) | `T-G1-EXEC` | `/api/exec/run`（SandboxRunner.run_code_exec）。SDK `runCustomAnalysis()` 追加 |
-| G2: 深掘り指示の再生成 | Done(MVP/API) | `T-G2-INTERACTIVE` | `/api/analysis/deepdive` 決定的サジェスト。SDK `deepDive()` 追加 |
-| CH-03/05/06/11/12/13/16〜19 | 一部/未実装 | `T-H1-EXEC`/`T-H2-*`/`T-H3-*` | 07/14はDone、02は単発Done、12は初期Done、13は初期実装（フォールバック+再試行） |
-| CH-16〜19 | 未実装 | `T-H3-*` | 保存/共有/バージョン/ピン留め |
-
-### 4.1 追加タスク定義（F/G）
+### 2.1.3 Capability G — カスタム実行 / 深掘り（G1/G2）
 
 | ID | スコープ | 状態 | リファレンス | 受け入れ基準/次アクション |
 |----|----------|------|--------------|---------------------------|
-| T-F1-PLAN | 計画生成 API/UI | **Done(MVP/API)** | `docs/requirements_v2.md` F1 | `POST /api/plan/generate` 実装（RAG+プロファイル由来の骨子）。UI/保存は今後 |
-| T-F2-REVISE | 計画差分適用 | **Done(MVP/検証のみ)** | F2 | `/api/plan/revise` に循環/未解決/曖昧受入の検証を実装（400整形）。差分生成は今後 |
-| T-G1-EXEC | カスタム実行基盤 | **Done(MVP/API+SDK+WEB)** | G1 | `/api/exec/run` 実装、SDK `runCustomAnalysis()`、`AnalysisPage` から実行・結果描画（Vega） |
-| T-G2-INTERACTIVE | 深掘り対話 | **Done(MVP/API+SDK+WEB)** | G2 | `/api/analysis/deepdive` 実装、SDK `deepDive()`、提案→コード反映/即時実行をUIで提供 |
-
----
+| T-G1-EXEC | カスタム実行 API/SDK/WEB | **Done(MVP)** | API: `/api/exec/run`, SDK: `runCustomAnalysis()` , Web: `AnalysisPage` | JSON出力（language/library/outputs[]）で結果表示（text/svg/vega）。Vega は VegaView で描画。 |
+| T-G1-SEC | サンドボックス安全強化 | **WIP** | `apps/api/services/sandbox.py` | AST許可制（json/csv/os/time/math/statistics/random）/ 危険呼び出しdeny、RLIMIT(AS/CPU/NOFILE/NPROC/STACK) 適用。stderr redact/上限の強化。 |
+| T-G1-TPL | 実用テンプレの提供 | **Done(初期)** | `AnalysisPage` | 移動平均・相関行列テンプレの挿入ボタン（出力はVega-Lite JSON）。 |
+| T-G2-SUGG | 深掘りサジェスト API/SDK/WEB | **Done(MVP)** | API: `/api/analysis/deepdive`, SDK: `deepDive()` , Web: `AnalysisPage` | プロンプト→決定的サジェスト（trend/corrなど）→「コードに反映」→実行 |
+| T-G2-RUN | 提案の即時実行（一括可） | **WIP** | `AnalysisPage` | 各サジェストカードから「この提案を実行」。将来は複数選択→一括実行+進捗バー |
+| T-G-PLAN | Plan 連動（依存生成） | **TODO** | `PlanPage`/API | サジェスト→Planタスク化（depends_on生成、issues.csv 連携）。 |
+| T-G-TEST | テスト（ユニット/VR/E2E） | **WIP** | tests | forbidden_import/timeout/format_error の単体、AnalysisPage の E2E、Storybook VR（analysis-default） |
 
 ## 3. 次のイテレーション（優先順）
 
-1. H1‑EXEC（高）: サンドボックス安全強化（import属性deny、RLIMIT NPROC/STACKの適用拡大、stderr redact/上限）。UI の友好エラー(map)を追随。
-2. G2（中〜高）: サジェストへのタグ/診断付与、Plan 連動（依存生成）、一括実行と進捗バー。
-3. H3 保存/共有（中）: `POST /api/charts/save` / `GET /api/charts/list`（ローカル永続）＋SDK/簡易UI。履歴/バージョンは後続。
-4. CI/観測（中）: OpenAPI互換サマリの破壊性分類の拡張（type/required差分の説明自動化）と Docs 反映。
-5. Docs（中）: G1/G2 API ガイド（安全な出力例/テンプレ）と Plan ガイド（issues.csv/依存グラフ）をMDXに追加。
-
----
+1. H1‑EXEC（高）: サンドボックス安全強化
+   - import 属性 deny/OS 呼出しの網羅、RLIMIT(NPROC/STACK) の適用拡大、stderr redact/上限、ログ構造化
+   - UI 友好エラーマップ（timeout/cancelled/forbidden_import/format_error/unknown）を統一
+2. G2（中〜高）: 深掘りの実用化
+   - サジェストにタグ/診断（trend/corr/outlier）付与、複数選択→一括実行＋進捗バー
+   - Plan 連動（依存生成・issues.csv 反映）と保存
+3. H3 保存/共有（中）: 最小 API/SDK/UI
+   - `POST /api/charts/save` / `GET /api/charts/list`（ローカル永続）を追加し、履歴/バージョンへ拡張可能な足場を作成
+4. CI/観測（中）: OpenAPI互換レポート強化
+   - type/required 差分の自動説明/ラベル、Docs 同期
+5. Docs（中）: ガイド整備
+   - G1/G2 API ガイド（安全な出力例/テンプレ）と Plan ガイド（issues.csv/依存グラフ）を MDX に追加
 
 ## 4. 未実装ユーザーストーリー（requirements_v2 由来・現状反映）
 
