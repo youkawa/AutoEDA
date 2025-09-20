@@ -67,13 +67,29 @@ jobs:
         run: |
           mkdir -p reports
           echo "${{ steps.openapi_compat.outcome }}" > reports/openapi_compat.txt
+          TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "# OpenAPI Compatibility\n\n- Time: $TS\n- Outcome: ${{ steps.openapi_compat.outcome }}\n- Target: ChartJob.error_code enum\n\nIf failed, please check schema changes and the 'openapi-compat' artifact." > reports/openapi_compat_summary.md
       - name: Upload OpenAPI compat artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: openapi-compat
-          path: reports/openapi_compat.txt
+          path: |
+            reports/openapi_compat.txt
+            reports/openapi_compat_summary.md
           if-no-files-found: warn
+      - name: Update PR body with OpenAPI compat summary (on failure)
+        if: always() && github.event_name == 'pull_request' && steps.openapi_compat.outcome != 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('reports/openapi_compat_summary.md', 'utf8');
+            const { data: pr } = await github.rest.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: context.issue.number });
+            const body = pr.body || '';
+            const marker = '\n\n---\nOpenAPI Compatibility Summary:\n';
+            const next = body.includes(marker) ? body.split(marker)[0] + marker + '\n' + summary : body + marker + '\n' + summary;
+            await github.rest.pulls.update({ owner: context.repo.owner, repo: context.repo.repo, pull_number: context.issue.number, body: next });
       - name: Evaluate API NFR (p95 & thresholds)
         run: python3 apps/api/scripts/evaluate_nfr.py
       - name: Check SLO thresholds

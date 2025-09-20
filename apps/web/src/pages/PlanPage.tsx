@@ -231,11 +231,17 @@ export function PlanPage() {
               size="sm"
               className="ml-2"
               onClick={() => {
-                // issues.csv: id, issue
-                const header = ['id','issue'];
-                const rows = Object.entries(issuesMap).flatMap(([id, arr]) => (arr as string[]).map((msg: string) => [id, msg] as [string,string]));
+                // issues.csv: id, title, tool, issue
+                const header = ['id','title','tool','issue'];
+                const rows = Object.entries(issuesMap).flatMap(([id, arr]) => {
+                  const t = (plan?.tasks ?? []).find(x => x.id === id);
+                  const title = t?.title ?? '';
+                  const tool = t?.tool ?? '';
+                  return (arr as string[]).map((msg: string) => [id, title, tool, msg] as [string,string,string,string]);
+                });
                 if (rows.length === 0) return;
-                const csv = [header.join(','), ...rows.map(([a,b]) => `"${String(a).replace(/"/g,'""')}","${String(b).replace(/"/g,'""')}"`)].join('\n');
+                const esc = (s: string) => `"${String(s).replace(/"/g,'""')}"`;
+                const csv = [header.join(','), ...rows.map(([a,b,c,d]) => [esc(a),esc(b),esc(c),esc(d)].join(','))].join('\n');
                 const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
                 const a = document.createElement('a'); a.href = url; a.download = `issues_${datasetId}.csv`; a.click(); URL.revokeObjectURL(url);
               }}

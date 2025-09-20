@@ -112,7 +112,7 @@ export function ChartsPage() {
                   {spark.map((e, i) => (
                     <span
                       key={`sp-${i}`}
-                      className="w-1.5 rounded-sm bg-brand-500/70"
+                      className={`w-1.5 rounded-sm ${e.served_pct < 80 ? 'bg-rose-300/80' : 'bg-brand-500/70'}`}
                       title={`${e.t ?? ''} served: ${e.served ?? '-'} / total: ${e.total ?? '-'} (avg_wait: ${e.avg_wait_ms ?? '-'}ms)`}
                       style={{ height: `${Math.max(2, Math.round((e.served_pct/100)*16))}px` }}
                     />
@@ -127,7 +127,7 @@ export function ChartsPage() {
                     const pos = (a.length - 1) * 0.95; const li = Math.floor(pos); const ui = Math.min(li+1, a.length-1);
                     const frac = pos - li; return Math.round(a[li] + (a[ui]-a[li]) * frac);
                   })();
-                  return <span className="text-[10px] text-slate-400" title={`p95 ${p95}%`}>min {min}% / max {max}%</span>;
+                  return <span className="text-[10px] text-slate-400" title={`p95 ${p95}%`}>min {min}% / max {max}% ・ しきい値=80%</span>;
                 })()}
                 {(() => {
                   const last = spark[spark.length-1]?.served_pct ?? 0;

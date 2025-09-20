@@ -45,3 +45,13 @@ def test_template_subprocess_timeout(monkeypatch):
     with pytest.raises(SandboxError) as ei:
         runner.run_template_subprocess(spec_hint="bar", dataset_id="ds_x")
     assert "timeout" in str(ei.value)
+
+
+def test_template_subprocess_delay_under_timeout(monkeypatch):
+    # delay 100ms but timeout 150ms -> should succeed
+    monkeypatch.setenv("AUTOEDA_SB_TEST_DELAY_MS", "100")
+    monkeypatch.setenv("AUTOEDA_SB_TEST_DELAY2_MS", "0")
+    runner = SandboxRunner(timeout_sec=0.15)
+    obj = runner.run_template_subprocess(spec_hint="bar", dataset_id="ds_x")
+    assert isinstance(obj, dict)
+    assert obj.get("outputs") is not None
