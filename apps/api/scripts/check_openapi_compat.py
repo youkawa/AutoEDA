@@ -1,7 +1,7 @@
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Set
 
 
 def fail(msg: str) -> None:
@@ -40,12 +40,22 @@ def main() -> None:
             enum = sorted(agg)
     if not enum:
         fail("ChartJob.error_code has no enum values (expected a finite set)")
-    missing = expected - set(enum)
-    if missing:
-        fail(f"ChartJob.error_code enum missing values: {sorted(missing)}")
+    actual: Set[str] = set(enum)
+    missing = sorted(expected - actual)
+    extra = sorted(actual - expected)
+    report = {
+        "expected": sorted(expected),
+        "actual": sorted(actual),
+        "missing": missing,
+        "extra": extra,
+    }
+    # persist detailed diff (for CI artifact / PR body)
+    outdir = Path("reports"); outdir.mkdir(parents=True, exist_ok=True)
+    (outdir / "openapi_compat_diff.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
+    if missing or extra:
+        fail(f"ChartJob.error_code enum differs. missing={missing}, extra={extra}")
     print("[openapi-compat] ChartJob.error_code enum compatible.")
 
 
 if __name__ == "__main__":
     main()
-

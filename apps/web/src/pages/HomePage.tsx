@@ -162,6 +162,9 @@ export function HomePage() {
                   <div className="mb-1 flex items-center gap-3">
                     <span>served: {Math.max(0, Math.min(100, Number(slo.charts_summary.served_pct ?? 0)))}%</span>
                     <span>avg_wait: {slo.charts_summary.avg_wait_ms ?? '-'}ms</span>
+                    <span className="inline-flex items-center gap-1 rounded bg-white/20 px-2" title="しきい値=80% / served% = served/total × 100">
+                      <span>閾値</span><span className="rounded border border-dashed border-white/50 bg-white/10 px-1">80%</span>
+                    </span>
                   </div>
                   <div className="flex h-6 items-end gap-0.5">
                     {(slo.charts_summary.series ?? []).map((v, i) => (

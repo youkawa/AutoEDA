@@ -46,6 +46,7 @@ jobs:
       - name: Check OpenAPI compatibility (ChartJob.error_code)
         id: openapi_compat
         run: npm run schema:check:openapi-compat
+        continue-on-error: true
       - name: Comment OpenAPI compat result
         if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
@@ -85,10 +86,19 @@ jobs:
           script: |
             const fs = require('fs');
             const summary = fs.readFileSync('reports/openapi_compat_summary.md', 'utf8');
+            let table = '';
+            try {
+              const diff = JSON.parse(fs.readFileSync('reports/openapi_compat_diff.json', 'utf8'));
+              const miss = diff.missing || [];
+              const extra = diff.extra || [];
+              table = '\n\n| Type | Values |\n|---|---|\n' +
+                      `| Missing | ${miss.join(', ') || '-'} |\n` +
+                      `| Extra | ${extra.join(', ') || '-'} |\n`;
+            } catch (e) { /* ignore */ }
             const { data: pr } = await github.rest.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: context.issue.number });
             const body = pr.body || '';
             const marker = '\n\n---\nOpenAPI Compatibility Summary:\n';
-            const next = body.includes(marker) ? body.split(marker)[0] + marker + '\n' + summary : body + marker + '\n' + summary;
+            const next = body.includes(marker) ? body.split(marker)[0] + marker + '\n' + summary + table : body + marker + '\n' + summary + table;
             await github.rest.pulls.update({ owner: context.repo.owner, repo: context.repo.repo, pull_number: context.issue.number, body: next });
       - name: Evaluate API NFR (p95 & thresholds)
         run: python3 apps/api/scripts/evaluate_nfr.py

@@ -98,13 +98,14 @@ export function ChartsPage() {
             <span className="inline-flex items-center gap-2"><BarChart3 className="h-4 w-4" />{charts.length} 件の候補が見つかりました。</span>
             {spark.length > 0 ? (
               <span className="inline-flex items-center gap-2" title="直近の served 比率（%）。served% = served/total * 100">
-                <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                <span className="inline-flex items-center gap-2 text-xs text-slate-400">
                   <span>served%</span>
                   <span
                     className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[9px] text-slate-500"
                     title="served% = served/total × 100"
                   >?
                   </span>
+                  <span className="rounded border border-dashed border-emerald-400/60 bg-emerald-50 px-1.5 text-emerald-700" title="しきい値=80%">80%</span>
                 </span>
                 <span className="relative flex h-5 items-end gap-0.5">
                   {/* しきい値ライン 80% */}
@@ -114,7 +115,7 @@ export function ChartsPage() {
                       key={`sp-${i}`}
                       className={`w-1.5 rounded-sm ${e.served_pct < 80 ? 'bg-rose-300/80' : 'bg-brand-500/70'}`}
                       title={`${e.t ?? ''} served: ${e.served ?? '-'} / total: ${e.total ?? '-'} (avg_wait: ${e.avg_wait_ms ?? '-'}ms)`}
-                      style={{ height: `${Math.max(2, Math.round((e.served_pct/100)*16))}px` }}
+                      style={{ height: `${Math.max(2, Math.round((e.served_pct/100)*16))}px`, outline: e.served_pct < 80 ? '1px solid rgba(244, 63, 94, 0.7)' : undefined }}
                     />
                   ))}
                 </span>
