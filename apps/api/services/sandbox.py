@@ -216,7 +216,7 @@ class SandboxRunner:
             obj.setdefault("meta", {})
             obj["meta"].update({"engine": "generated", "duration_ms": None})
             return obj
-        except Exception as exc:
+        except Exception:
             # fallback to template path
             from . import charts as chartsvc  # type: ignore
             return chartsvc._template_result(spec_hint, dataset_id)
