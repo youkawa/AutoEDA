@@ -104,6 +104,20 @@ def _start_worker_once() -> None:
                 # cooperative cancel: if cancel requested during run, mark as cancelled and skip persistence
                 if _CANCEL_FLAGS.get(job_id):
                     _JOBS[job_id].update({"status": "cancelled"})
+                    try:
+                        t0 = _JOBS[job_id].get("t0") or time.perf_counter()
+                        dur = int((time.perf_counter() - t0) * 1000)
+                        metrics.record_event("ChartJobFinished", duration_ms=dur)
+                        metrics.persist_event({
+                            "event_name": "ChartJobFinished",
+                            "duration_ms": dur,
+                            "dataset_id": item.get("dataset_id"),
+                            "hint": item.get("spec_hint"),
+                            "status": "cancelled",
+                            "error_code": "cancelled",
+                        })
+                    except Exception:
+                        pass
                 else:
                     payload = {"job_id": job_id, "status": "succeeded", "result": result}
                     (outdir / "result.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -140,6 +154,20 @@ def _start_worker_once() -> None:
                     friendly = f"実行に失敗しました: {msg}"
                     code = "unknown"
                 _JOBS[job_id].update({"status": "failed", "error": friendly, "error_code": code})
+                try:
+                    t0 = _JOBS[job_id].get("t0") or time.perf_counter()
+                    dur = int((time.perf_counter() - t0) * 1000)
+                    metrics.record_event("ChartJobFinished", duration_ms=dur)
+                    metrics.persist_event({
+                        "event_name": "ChartJobFinished",
+                        "duration_ms": dur,
+                        "dataset_id": item.get("dataset_id"),
+                        "hint": item.get("spec_hint"),
+                        "status": "failed",
+                        "error_code": code,
+                    })
+                except Exception:
+                    pass
             # small yield
             time.sleep(0.01)
             # decrement running counter for batch
