@@ -9,7 +9,7 @@ import contextlib
 import resource
 import socket
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Callable
 import os
 import subprocess
 import tempfile
@@ -48,7 +48,7 @@ class SandboxRunner:
             hard = soft
             resource.setrlimit(resource.RLIMIT_AS, (soft, hard))
 
-    def run_template(self, *, spec_hint: Optional[str], dataset_id: Optional[str]) -> Dict[str, Any]:
+    def run_template(self, *, spec_hint: Optional[str], dataset_id: Optional[str], cancel_check: Optional[Callable[[], bool]] = None) -> Dict[str, Any]:
         # Here we do not execute arbitrary code; just return a template result.
         # charts.py のテンプレート関数を利用する。
         from . import charts as chartsvc
@@ -57,6 +57,8 @@ class SandboxRunner:
         try:
             with self._disable_network():
                 self._limit_memory()
+                if cancel_check and cancel_check():
+                    raise SandboxError("cancelled")
                 result = chartsvc._template_result(spec_hint, dataset_id)
         except Exception:
             # 非対応環境では無視（フォールバック）
@@ -66,7 +68,7 @@ class SandboxRunner:
         result["meta"].update({"duration_ms": dur_ms})
         return result
 
-    def run_template_subprocess(self, *, spec_hint: Optional[str], dataset_id: Optional[str]) -> Dict[str, Any]:
+    def run_template_subprocess(self, *, spec_hint: Optional[str], dataset_id: Optional[str], cancel_check: Optional[Callable[[], bool]] = None) -> Dict[str, Any]:
         """Best-effort subprocess isolation（MVP）.
 
         - FS: 作業は一時ディレクトリ

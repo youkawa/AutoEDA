@@ -278,7 +278,27 @@ def metrics_slo() -> Dict[str, Any]:
     except Exception:
         pass
     evaluation = metrics.detect_violations(thresholds)
-    return {"snapshot": snapshot, "evaluation": evaluation, "thresholds": thresholds}
+    # H 系 KPI 要約（served%/avg_wait）— 全体の最近 N 件から
+    charts = metrics.charts_summary(limit=12)
+    return {"snapshot": snapshot, "evaluation": evaluation, "thresholds": thresholds, "charts_summary": charts}
+
+
+@app.get("/api/metrics/charts/snapshots")
+def metrics_charts_snapshots(dataset_id: Optional[str] = None, limit: int = 12) -> Dict[str, Any]:
+    """Return recent ChartBatchSnapshot series for ChartsPage sparkline."""
+    limit = max(1, min(int(limit or 12), 200))
+    snaps = metrics.recent_batch_snapshots(limit=limit, dataset_id=dataset_id)
+    # project to minimal series
+    series = []
+    for s in snaps:
+        total = int(s.get("total") or 0) or 1
+        served = int(s.get("served") or 0)
+        series.append({
+            "t": s.get("timestamp"),
+            "served_pct": int(round((served / total) * 100)),
+            "avg_wait_ms": s.get("avg_wait_ms"),
+        })
+    return {"series": series}
 
 
 # --- Datasets Upload (A1 前段) ---

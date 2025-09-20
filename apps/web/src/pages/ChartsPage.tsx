@@ -24,6 +24,7 @@ export function ChartsPage() {
   const [batchItems, setBatchItems] = useState<{ chart_id?: string; status: string; stage?: 'generating'|'rendering'|'done' }[]>([]);
   const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
   const [announce, setAnnounce] = useState<string | null>(null);
+  const [spark, setSpark] = useState<number[]>([]);
   type Step = 'preparing' | 'generating' | 'running' | 'rendering' | 'done';
   type ChartMeta = { dataset_id?: string; hint?: string };
   type ChartRender = { loading: boolean; step?: Step; error?: string; errorCode?: string; src?: string; prevSrc?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: ChartMeta };
@@ -57,6 +58,19 @@ export function ChartsPage() {
     return charts.filter((chart) => chart.consistency_score >= 0.95);
   }, [charts, showConsistentOnly]);
 
+  // fetch sparkline data for header
+  useEffect(() => {
+    if (!datasetId) return;
+    const base = ((import.meta as unknown as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE) ?? '';
+    fetch(`${base}/api/metrics/charts/snapshots?dataset_id=${encodeURIComponent(datasetId)}&limit=12`)
+      .then((r) => r.ok ? r.json() : Promise.reject())
+      .then((obj: any) => {
+        const series = Array.isArray(obj?.series) ? obj.series as { served_pct?: number }[] : [];
+        setSpark(series.map((e) => Math.max(0, Math.min(100, Number(e.served_pct ?? 0)))));
+      })
+      .catch(() => setSpark([]));
+  }, [datasetId]);
+
   if (loading) {
     return (
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -72,9 +86,19 @@ export function ChartsPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold text-slate-900">チャート提案</h1>
-          <p className="flex items-center gap-2 text-sm text-slate-500">
-            <BarChart3 className="h-4 w-4" /> {charts.length} 件の候補が見つかりました。
-          </p>
+          <div className="flex items-center gap-3 text-sm text-slate-500">
+            <span className="inline-flex items-center gap-2"><BarChart3 className="h-4 w-4" />{charts.length} 件の候補が見つかりました。</span>
+            {spark.length > 0 ? (
+              <span className="inline-flex items-center gap-2" title="直近の served 比率（%）">
+                <span className="text-xs text-slate-400">served%</span>
+                <span className="flex h-4 items-end gap-0.5">
+                  {spark.map((v, i) => (
+                    <span key={`sp-${i}`} className="w-1.5 rounded-sm bg-brand-500/70" style={{ height: `${Math.max(2, Math.round((v/100)*12))}px` }} />
+                  ))}
+                </span>
+              </span>
+            ) : null}
+          </div>
         </div>
         <div className="flex gap-3">
           <Button variant={showConsistentOnly ? 'primary' : 'secondary'} icon={<CheckCircle2 className="h-4 w-4" />} onClick={() => setShowConsistentOnly((prev) => !prev)}>一致率 95% 以上のみ表示</Button>
@@ -119,7 +143,7 @@ export function ChartsPage() {
                     style={{ width: `${Math.round((batchProgress.done / Math.max(1, batchProgress.total)) * 100)}%` }}
                   />
                 </div>
-                <div className="mt-1 text-[11px] text-slate-500" title="R:実行中 / Q:キュー / F:失敗 / C:中断 / S:進捗済み">
+                <div className="mt-1 text-[11px] text-slate-500" title="用語: R=実行中, Q=キュー, F=失敗, C=中断, S=progress済み（served）。avg_waitはキュー待機の平均(ms)">
                   R:{batchProgress.running ?? 0} Q:{batchProgress.queued ?? 0} F:{batchProgress.failed ?? 0} C:{batchProgress.cancelled ?? 0} S:{batchProgress.served ?? 0}
                 </div>
               </div>
