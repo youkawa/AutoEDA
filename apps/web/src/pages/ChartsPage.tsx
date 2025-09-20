@@ -26,7 +26,7 @@ export function ChartsPage() {
   const [announce, setAnnounce] = useState<string | null>(null);
   type Step = 'preparing' | 'generating' | 'running' | 'rendering' | 'done';
   type ChartMeta = { dataset_id?: string; hint?: string };
-  type ChartRender = { loading: boolean; step?: Step; error?: string; src?: string; prevSrc?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: ChartMeta };
+  type ChartRender = { loading: boolean; step?: Step; error?: string; errorCode?: string; src?: string; prevSrc?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: ChartMeta };
   const [results, setResults] = useState<Record<string, ChartRender>>({});
   const toast = useToast();
 
@@ -398,8 +398,18 @@ export function ChartsPage() {
                             setResults((s) => ({ ...s, [chart.id]: { loading: false, step: 'done', error: '出力形式に未対応' } }));
                           }
                         } catch (err) {
-                          const message = err instanceof Error ? err.message : '生成に失敗';
-                          setResults((s) => ({ ...s, [chart.id]: { loading: false, step: 'done', error: message } }));
+                          const anyErr: any = err;
+                          const code = (anyErr && anyErr.code) ? String(anyErr.code) : undefined;
+                          const friendlyMap: Record<string, string> = {
+                            timeout: '実行がタイムアウトしました（制限時間超過）。',
+                            cancelled: '実行がキャンセルされました。',
+                            forbidden_import: '安全ポリシーにより禁止されたモジュール/関数が検出されました。',
+                            format_error: '出力形式が不正です（JSONの解析に失敗）。',
+                            unknown: '不明なエラーが発生しました。',
+                          };
+                          const message = err instanceof Error ? (err.message || '生成に失敗') : '生成に失敗';
+                          const shown = code && friendlyMap[code] ? friendlyMap[code] : message;
+                          setResults((s) => ({ ...s, [chart.id]: { loading: false, step: 'done', error: shown, errorCode: code } }));
                         }
                       }}
                     >
@@ -413,7 +423,12 @@ export function ChartsPage() {
                   </div>
                 ) : null}
                 {results[chart.id]?.error ? (
-                  <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">{results[chart.id]?.error}</div>
+                  <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">
+                    {results[chart.id]?.error}
+                    {results[chart.id]?.errorCode ? (
+                      <span className="ml-2 rounded bg-amber-200 px-1.5 py-0.5 text-[11px] text-amber-900" title="エラーコード">{results[chart.id]?.errorCode}</span>
+                    ) : null}
+                  </div>
                 ) : null}
                 {results[chart.id] && !results[chart.id]?.loading && !results[chart.id]?.error ? (
                   <div className="mt-3 rounded-xl border border-slate-200 bg-white">

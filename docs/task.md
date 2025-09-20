@@ -1,6 +1,6 @@
 # AutoEDA 実装計画 (タスクトラッカー)
 
-更新日: 2025-09-20 / 担当: AutoEDA Tech Lead（追記: H2 公正度UI/SLO/Plan UI 反映）
+更新日: 2025-09-20 / 担当: AutoEDA Tech Lead（追記2: H1-EXEC UIマッピング/ミニ統計/Breakdown 反映）
 
 ---
 
@@ -136,7 +136,7 @@
 ## 3. 次のイテレーション（優先順）
 
 1. H2 スケジューラ仕上げ（中〜高）：announcer 文言の完全統一、served/avg_wait の説明（ツールチップ/ヘルプ）を恒常化。公正性の可視化（served比率/平均待機の時系列）
-2. H1‑EXEC 強化（高）：AST deny‑list拡張（import/exec系）、詳細エラーのAPI整形（type=timeout/cancelled/forbidden_import/format_error）、テンプレ系にも協調中断
+2. H1‑EXEC 強化（高）：AST deny‑list拡張（完了）、詳細エラーのUIマッピング（完了）、テンプレ系にも協調中断（継続）
 3. F2 UI 雛形拡充（中）：Plan の並べ替え/フィルタ、依存の視覚化、検証結果の強調表示
 4. CH‑13（中）：段階フォールバック（テンプレ→軽量LLM→指数バックオフ再試行）
 5. 保存/共有（CH‑16〜19）（中）：最小保存API＋一覧→Notebookセル出力
@@ -178,7 +178,7 @@
 
 ## 6. 変更履歴
 
-- 2025-09-20: H1-STEP(単発)完了、CH-07/14 Done(初期)、CH-06 部分、CH-11 協調、CH-12 並列/バッチ有効化、CH-03 実行MVPを追加。F1/F2 のAPI実装（MVP）を反映。H2: `served`/`avg_wait_ms` を追加し `ChartsPage` に表示、PlanPage(初期) 追加、SLOタイルに OK/NG バッジ追加。
+- 2025-09-20: H1-STEP(単発)完了、CH-07/14 Done(初期)、CH-06 部分、CH-11 協調、CH-12 並列/バッチ有効化、CH-03 実行MVPを追加。F1/F2 のAPI実装（MVP）を反映。H2: `served`/`avg_wait_ms` を追加し `ChartsPage` に表示、PlanPage(初期) 追加、SLOタイルに OK/NG バッジ追加。H1-EXEC: UIで `error_code` を人間可読にマッピング、Home に success率/代表失敗を表示。
 - 2025-09-19: Capability H の実装状況を反映（P0の一部=実装済み、未実装CHをタスク化）。Capability F/G の未実装を追加タスク化。RAG/Gemini/EDA 安定化、Storybook VR 運用、Mermaid修正、タスク表を更新。
 - 2025-09-18: バックエンド/フロント実装状況に合わせてタスク表を更新。Storybook/ワイヤーフレーム同期タスクを完了扱いに。
 - 2025-09-15: 初版。
