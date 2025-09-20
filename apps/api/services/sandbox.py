@@ -84,7 +84,7 @@ class SandboxRunner:
             "kind=cfg.get('kind','bar');\n"
             "delay_ms=int(os.environ.get('AUTOEDA_SB_TEST_DELAY_MS','0') or '0');\n"
             "if delay_ms>0: time.sleep(delay_ms/1000.0);\n"
-            "# rendering phase (simulate)");\n"
+            "# rendering phase (simulate)\n"
             "spec={'mark': kind if kind in ('bar','line') else 'point','data':{'values':[{'x':0,'y':1}]}};\n"
             "delay2_ms=int(os.environ.get('AUTOEDA_SB_TEST_DELAY2_MS','0') or '0');\n"
             "if delay2_ms>0: time.sleep(delay2_ms/1000.0);\n"
