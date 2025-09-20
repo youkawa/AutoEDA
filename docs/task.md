@@ -188,7 +188,9 @@
 - 2025-09-20: H1‑EXEC: `run_template_subprocess` の `AUTOEDA_SB_TEST_DELAY2_MS` 未伝播を修正。`tests/python/test_sandbox_matrix.py` と `test_sandbox_cancel_timing.py` をGreen化。
 - 2025-09-20: H1‑EXEC: `run_generated_chart` に 2段階チェックポイント（generation/render）を追加し、ランタイムの `__import__` ガードを撤廃（AST+RLIMITに一本化）。新規 `tests/python/test_sandbox_exec_matrix.py` を追加し、success/timeout/cancel/cancel‑timing をGreen化。失敗時stderrの要約を `error_detail` として `get_batch().items[]` に伝播（FEは友好的なエラー表示を実装済）。
  - 2025-09-20: Security: `apps/api/services/security.py::redact` を追加（email/phone/bearer/api_key/token/URLクエリ/長大トークンのマスク）。`error_detail` は最大500文字に丸め、FEに詳細表示（トグル/コピー）を追加。
- - 2025-09-20: H2: ChartsPage に URLクエリ `legend=0/1`, `th=0/1` を追加し、Storybook に「Threshold Emphasis」「No Legend」を追加。VRテスト（tests/storybook/charts.spec.ts）に2ストーリーを追加。
+- 2025-09-20: H2: ChartsPage に URLクエリ `legend=0/1`, `th=0/1` を追加し、Storybook に「Threshold Emphasis」「No Legend」を追加。VRテスト（tests/storybook/charts.spec.ts）に2ストーリーを追加。
+ - 2025-09-20: F2: PlanPage に最終検証表示と aggregated issues.csv を追加。ソート/フィルタのURL/LocalStorage永続化。
+ - 2025-09-20: Schemas: Zod をサーバ OpenAPI に整合（ChartJob.error_code、ChartBatchItem の stage/chart_id/error*/status 拡張）。`scripts/validate_schemas` の型/enum検証は継続Green。
 
 - 2025-09-20: H2: <80% バー外枠＋80% 凡例を Storybook/VR まで反映、SparklineLowThreshold を追加。H1‑EXEC: cancel timing/param matrix を追加、ChartJobFinished の cancelled/failed を persist。F2: issues.csv に validated_at/version/dataset_id を付与、行別不足CSVの導線を追加。CI: 互換差分の表と移行ガイドを PR 本文に自動追記。
 - 2025-09-19: Capability H の実装状況を反映（P0の一部=実装済み、未実装CHをタスク化）。Capability F/G の未実装を追加タスク化。RAG/Gemini/EDA 安定化、Storybook VR 運用、Mermaid修正、タスク表を更新。
