@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { suggestCharts, generateChart, generateChartsBatch, beginChartsBatchWithIds, getChartsBatchStatusWithMap, type ChartsBatchStatus } from '@autoeda/client-sdk';
+import { suggestCharts, generateChartWithProgress, generateChartsBatch, beginChartsBatchWithIds, getChartsBatchStatusWithMap, type ChartsBatchStatus } from '@autoeda/client-sdk';
 import type { ChartCandidate } from '@autoeda/schemas';
 import { Button, useToast } from '@autoeda/ui-kit';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/Card';
@@ -24,7 +24,7 @@ export function ChartsPage() {
   const [announce, setAnnounce] = useState<string | null>(null);
   type Step = 'preparing' | 'generating' | 'running' | 'rendering' | 'done';
   type ChartMeta = { dataset_id?: string; hint?: string };
-  type ChartRender = { loading: boolean; step?: Step; error?: string; src?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: ChartMeta };
+  type ChartRender = { loading: boolean; step?: Step; error?: string; src?: string; prevSrc?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: ChartMeta };
   const [results, setResults] = useState<Record<string, ChartRender>>({});
   const toast = useToast();
 
@@ -349,15 +349,18 @@ export function ChartsPage() {
                       onClick={async () => {
                         if (!datasetId) return;
                         setResults((s) => ({ ...s, [chart.id]: { loading: true, step: 'preparing', tab: 'viz' } }));
-                        setTimeout(() => setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), loading: true, step: 'generating', tab: 'viz' } })), 200);
-                        setTimeout(() => setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), loading: true, step: 'running', tab: 'viz' } })), 400);
                         try {
-                          const r = await generateChart(datasetId, chart.type);
+                          const r = await generateChartWithProgress(datasetId, chart.type, [], ({ stage }) => {
+                            if (!stage) return;
+                            const stepMap: Record<string, Step> = { generating: 'generating', rendering: 'rendering', done: 'done' };
+                            const step = stepMap[stage] ?? 'generating';
+                            setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), loading: step !== 'done', step, tab: 'viz' } }));
+                          });
                           const out = r.outputs?.[0];
                           if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
                             const src = `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}`;
                             const meta = (r as unknown as { meta?: ChartMeta }).meta;
-                            setResults((s) => ({ ...s, [chart.id]: { loading: false, step: 'done', src, code: r.code, tab: 'viz', meta } }));
+                            setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), loading: false, step: 'done', src, code: r.code, tab: 'viz', meta } }));
                           } else {
                             setResults((s) => ({ ...s, [chart.id]: { loading: false, step: 'done', error: '出力形式に未対応' } }));
                           }
@@ -395,6 +398,22 @@ export function ChartsPage() {
                         <Button
                           variant="secondary"
                           size="sm"
+                          onClick={async () => {
+                            try {
+                              const code = results[chart.id]?.code ?? '';
+                              if (!code) return;
+                              await navigator.clipboard.writeText(String(code));
+                              toast('コードをコピーしました', 'success');
+                            } catch {
+                              toast('コードのコピーに失敗しました', 'error');
+                            }
+                          }}
+                        >
+                          コードをコピー
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           onClick={() => {
                             const r = results[chart.id];
                             if (!r?.src) return;
@@ -405,6 +424,37 @@ export function ChartsPage() {
                           }}
                         >
                           ダウンロード
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={async () => {
+                            if (!datasetId) return;
+                            // keep one history
+                            setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), prevSrc: s[chart.id]?.src } }));
+                            setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), loading: true, step: 'preparing', tab: 'viz' } }));
+                            try {
+                              const r = await generateChartWithProgress(datasetId, chart.type, [], ({ stage }) => {
+                                if (!stage) return;
+                                const stepMap: Record<string, Step> = { generating: 'generating', rendering: 'rendering', done: 'done' };
+                                const step = stepMap[stage] ?? 'generating';
+                                setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), loading: step !== 'done', step, tab: 'viz' } }));
+                              });
+                              const out = r.outputs?.[0];
+                              if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
+                                const src = `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}`;
+                                const meta = (r as unknown as { meta?: ChartMeta }).meta;
+                                setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), loading: false, step: 'done', src, tab: 'viz', meta } }));
+                              } else {
+                                setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), loading: false, step: 'done', error: '出力形式に未対応' } }));
+                              }
+                            } catch (err) {
+                              const message = err instanceof Error ? err.message : '再実行に失敗';
+                              setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), loading: false, step: 'done', error: message } }));
+                            }
+                          }}
+                        >
+                          再実行
                         </Button>
                         <Button
                           variant="secondary"
@@ -427,6 +477,11 @@ export function ChartsPage() {
                     <div className="p-3 text-sm">
                       {results[chart.id]?.tab === 'viz' && results[chart.id]?.src ? (
                         <img src={results[chart.id]!.src} alt="generated chart" />
+                      ) : null}
+                      {results[chart.id]?.tab === 'viz' && !results[chart.id]?.src && results[chart.id]?.prevSrc ? (
+                        <div className="rounded border border-slate-200 p-2 text-xs text-slate-600">前回結果を表示中
+                          <img src={results[chart.id]!.prevSrc!} alt="previous chart" />
+                        </div>
                       ) : null}
                       {results[chart.id]?.tab === 'code' ? (
                         <pre className="overflow-auto rounded bg-slate-50 p-3 text-xs text-slate-800">{results[chart.id]?.code ?? '# 生成されたコードはありません'}</pre>

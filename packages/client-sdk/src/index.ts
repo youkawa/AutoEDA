@@ -173,15 +173,37 @@ export async function generateChart(datasetId: string, specHint?: string, column
   } as GenerateItem);
   if (job.status === 'succeeded' && job.result) return job.result;
   if (job.status === 'failed') throw new Error(job.error || 'chart generation failed');
-  // queued/running: poll until complete (≤ 10s)
+  const res = await generateChartWithProgress(datasetId, specHint, columns);
+  return res;
+}
+
+export async function generateChartWithProgress(
+  datasetId: string,
+  specHint?: string,
+  columns: string[] = [],
+  onProgress?: (s: { status: string; stage?: string }) => void,
+): Promise<ChartResult> {
+  const job = await postJSON<ChartJob>('/api/charts/generate', {
+    dataset_id: datasetId,
+    spec_hint: specHint,
+    columns,
+  } as GenerateItem);
+  if (job.status === 'succeeded' && job.result) return job.result;
+  if (job.status === 'failed') throw new Error(job.error || 'chart generation failed');
   const started = Date.now();
   const deadline = started + 10_000;
-  let last: ChartJob = job;
+  let lastStage: string | undefined = (job as any).stage;
+  if (onProgress) onProgress({ status: job.status, stage: lastStage });
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 200));
-    last = await getJSON<ChartJob>(`/api/charts/jobs/${job.job_id}`);
-    if (last.status === 'succeeded' && last.result) return last.result;
-    if (last.status === 'failed') throw new Error(last.error || 'chart generation failed');
+    const cur = await getJSON<any>(`/api/charts/jobs/${job.job_id}`);
+    const curStage: string | undefined = cur.stage;
+    if (onProgress && (curStage !== lastStage || cur.status !== job.status)) {
+      onProgress({ status: cur.status, stage: curStage });
+      lastStage = curStage;
+    }
+    if (cur.status === 'succeeded' && cur.result) return cur.result as ChartResult;
+    if (cur.status === 'failed') throw new Error(cur.error || 'chart generation failed');
   }
   throw new Error('chart generation timeout');
 }
