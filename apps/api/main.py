@@ -13,6 +13,7 @@ from .services import charts as chartsvc
 from .services import sandbox
 from . import config as app_config
 from .services import plan as plan_svc
+from .services import charts_store
 from .services.security import redact
 import os as _os
 import json as _json
@@ -744,3 +745,52 @@ def analysis_deepdive(req: DeepDiveRequest) -> DeepDiveResponse:
     if not sugg:
         sugg.append(DeepDiveSuggestion(title="分布の形状を確認", why="ヒストグラムで歪度や多峰性を確認"))
     return DeepDiveResponse(suggestions=sugg)
+
+
+# --- H3: Charts save/list (MVP local JSON store) ---
+class ChartSaveRequest(BaseModel):
+    dataset_id: str
+    chart_id: Optional[str] = None
+    title: Optional[str] = None
+    hint: Optional[str] = None
+    # 片方あればOK（SVG優先）。vegaは application/json 相当。
+    svg: Optional[str] = None
+    vega: Optional[Dict[str, Any]] = None
+
+
+class ChartSavedItem(BaseModel):
+    id: str
+    dataset_id: str
+    chart_id: Optional[str] = None
+    title: Optional[str] = None
+    hint: Optional[str] = None
+    svg: Optional[str] = None
+    vega: Optional[Dict[str, Any]] = None
+    created_at: str
+
+
+@app.post("/api/charts/save", response_model=ChartSavedItem)
+def charts_save(req: ChartSaveRequest) -> ChartSavedItem:
+    if not (req.svg or req.vega):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="either svg or vega must be provided")
+    from uuid import uuid4
+    from datetime import datetime as _dt
+    item = {
+        "id": uuid4().hex[:12],
+        "dataset_id": req.dataset_id,
+        "chart_id": req.chart_id,
+        "title": req.title,
+        "hint": req.hint,
+        "svg": req.svg,
+        "vega": req.vega,
+        "created_at": _dt.utcnow().isoformat() + "Z",
+    }
+    charts_store.add_item(item)
+    log_event("ChartSaved", {"dataset_id": req.dataset_id, "chart_id": req.chart_id, "has_svg": bool(req.svg), "has_vega": bool(req.vega)})
+    return ChartSavedItem(**item)
+
+
+@app.get("/api/charts/list", response_model=List[ChartSavedItem])
+def charts_list(dataset_id: Optional[str] = None) -> List[ChartSavedItem]:
+    out = [ChartSavedItem(**it) for it in charts_store.list_items(dataset_id)]
+    return out

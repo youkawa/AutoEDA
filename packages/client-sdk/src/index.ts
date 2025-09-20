@@ -393,6 +393,33 @@ export async function deepDive(datasetId: string, prompt: string): Promise<DeepD
   }
 }
 
+// --- H3: Save / List charts (local JSON store via API) ---
+export type SavedChart = { id: string; dataset_id: string; chart_id?: string; title?: string; hint?: string; svg?: string; vega?: any; created_at: string };
+
+export async function saveChart(datasetId: string, options: { chartId?: string; title?: string; hint?: string; svg?: string; vega?: any }): Promise<SavedChart> {
+  try {
+    return await postJSON<SavedChart>('/api/charts/save', {
+      dataset_id: datasetId,
+      chart_id: options.chartId,
+      title: options.title,
+      hint: options.hint,
+      svg: options.svg,
+      vega: options.vega,
+    });
+  } catch (e) {
+    throw e instanceof Error ? e : new Error('failed to save chart');
+  }
+}
+
+export async function listSavedCharts(datasetId?: string): Promise<SavedChart[]> {
+  try {
+    const q = datasetId ? `?dataset_id=${encodeURIComponent(datasetId)}` : '';
+    return await getJSON<SavedChart[]>(`/api/charts/list${q}`);
+  } catch {
+    return [];
+  }
+}
+
 export async function applyPiiPolicy(datasetId: string, mask_policy: 'MASK' | 'HASH' | 'DROP', columns: string[]): Promise<PIIApplyResult> {
   try {
     return await postJSON<PIIApplyResult>('/api/pii/apply', { dataset_id: datasetId, mask_policy, columns });

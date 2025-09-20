@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { suggestCharts, generateChartWithProgress, generateChartsBatch, beginChartsBatchWithIds, getChartsBatchStatusWithMap, type ChartsBatchStatus } from '@autoeda/client-sdk';
+import { suggestCharts, generateChartWithProgress, generateChartsBatch, beginChartsBatchWithIds, getChartsBatchStatusWithMap, saveChart, listSavedCharts, type ChartsBatchStatus, type SavedChart } from '@autoeda/client-sdk';
 import type { ChartCandidate } from '@autoeda/schemas';
 import { Button, useToast } from '@autoeda/ui-kit';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/Card';
@@ -34,6 +34,7 @@ export function ChartsPage() {
   type ChartMeta = { dataset_id?: string; hint?: string };
   type ChartRender = { loading: boolean; step?: Step; error?: string; errorCode?: string; errorDetail?: string; showDetail?: boolean; src?: string; prevSrc?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: ChartMeta };
   const [results, setResults] = useState<Record<string, ChartRender>>({});
+  const [saved, setSaved] = useState<SavedChart[]>([]);
   const toast = useToast();
 
   useEffect(() => {
@@ -56,6 +57,8 @@ export function ChartsPage() {
     if (!lastDataset || lastDataset.id !== datasetId) {
       setLastDataset({ id: datasetId });
     }
+    // load saved charts for this dataset
+    void listSavedCharts(datasetId).then(setSaved).catch(() => setSaved([]));
   }, [datasetId, lastDataset, setLastDataset]);
 
   const filteredCharts = useMemo(() => {
@@ -158,6 +161,27 @@ export function ChartsPage() {
           </Button>
         </div>
       </header>
+
+      {saved.length > 0 ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4">
+          <h2 className="mb-2 text-sm font-semibold text-slate-700">保存済み（最近）</h2>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {saved.slice(0,6).map((it) => (
+              <div key={it.id} className="rounded-xl border border-slate-200 p-2">
+                <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                  <span className="truncate" title={it.title || it.hint || it.chart_id || it.id}>{it.title || it.hint || it.chart_id || it.id}</span>
+                  <span>{new Date(it.created_at).toLocaleString()}</span>
+                </div>
+                {it.svg ? (
+                  <div className="rounded border border-slate-200 bg-white p-2" dangerouslySetInnerHTML={{ __html: it.svg }} />
+                ) : (
+                  <div className="rounded border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">SVGなし</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {selectedIds.size > 0 ? (
         <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4">
@@ -570,6 +594,25 @@ export function ChartsPage() {
                           }}
                         >
                           コードをコピー
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={async () => {
+                            if (!datasetId) return;
+                            const r = results[chart.id];
+                            if (!r?.src && !r?.code) return;
+                            try {
+                              const svg = r?.src?.startsWith('data:image/svg+xml') ? decodeURIComponent((r.src.split(',')[1] ?? '')) : undefined;
+                              const savedItem = await saveChart(datasetId, { chartId: chart.id, title: chart.explanation?.slice(0, 60), hint: chart.type, svg });
+                              setSaved((arr) => [savedItem, ...arr]);
+                              toast('保存しました', 'success');
+                            } catch {
+                              toast('保存に失敗しました', 'error');
+                            }
+                          }}
+                        >
+                          保存
                         </Button>
                         <Button
                           variant="secondary"
