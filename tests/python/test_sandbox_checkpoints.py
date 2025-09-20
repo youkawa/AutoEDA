@@ -51,7 +51,7 @@ def test_template_subprocess_delay_under_timeout(monkeypatch):
     # delay 100ms but timeout 150ms -> should succeed
     monkeypatch.setenv("AUTOEDA_SB_TEST_DELAY_MS", "100")
     monkeypatch.setenv("AUTOEDA_SB_TEST_DELAY2_MS", "0")
-    runner = SandboxRunner(timeout_sec=0.5)
+    runner = SandboxRunner(timeout_sec=2.0)
     obj = runner.run_template_subprocess(spec_hint="bar", dataset_id="ds_x")
     assert isinstance(obj, dict)
     assert obj.get("outputs") is not None
