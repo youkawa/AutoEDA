@@ -112,7 +112,8 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
           format_error: '出力形式が不正です（JSON解析に失敗）。',
           unknown: '不明なエラーが発生しました。',
         };
-        const msg = (res as any).error_code ? (map[(res as any).error_code] ?? '失敗しました') : (res.logs?.[0] ?? '失敗しました');
+        const errCode = (res as { error_code?: 'timeout'|'cancelled'|'forbidden_import'|'format_error'|'unknown' } | undefined)?.error_code;
+        const msg = errCode ? (map[errCode] ?? '失敗しました') : (res.logs?.[0] ?? '失敗しました');
         toast(msg, 'error');
       }
     } catch (e) {
@@ -142,13 +143,13 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
                     <div>
                       <div className="text-sm font-semibold">{s.title}</div>
                       {s.why && <div className="text-xs text-slate-600">{s.why}</div>}
-                      {Array.isArray((s as any).tags) && (s as any).tags.length>0 ? (
+                      {Array.isArray((s as DeepDiveSuggestion & { tags?: string[] }).tags) && (s as DeepDiveSuggestion & { tags?: string[] }).tags!.length>0 ? (
                         <div className="mt-1 flex flex-wrap gap-1">
-                          {(s as any).tags.map((t: string, k: number)=>(<span key={k} className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700">{t}</span>))}
+                          {(s as DeepDiveSuggestion & { tags?: string[] }).tags!.map((t, k)=>(<span key={k} className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700">{t}</span>))}
                         </div>
                       ) : null}
-                      {(s as any).diagnostics ? (
-                        <div className="mt-1 text-[11px] text-slate-600">{Object.entries((s as any).diagnostics as Record<string, unknown>).map(([k,v])=>`${k}: ${String(v)}`).join(' / ')}</div>
+                      {(s as DeepDiveSuggestion & { diagnostics?: Record<string, unknown> }).diagnostics ? (
+                        <div className="mt-1 text-[11px] text-slate-600">{Object.entries((s as DeepDiveSuggestion & { diagnostics?: Record<string, unknown> }).diagnostics!).map(([k,v])=>`${k}: ${String(v)}`).join(' / ')}</div>
                       ) : null}
                     </div>
                     <input type="checkbox" aria-label="選択" checked={!!selected[i]} onChange={(e)=>setSelected((m)=>({...m,[i]:e.target.checked}))} />
