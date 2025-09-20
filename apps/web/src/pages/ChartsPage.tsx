@@ -64,8 +64,9 @@ export function ChartsPage() {
     const base = ((import.meta as unknown as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE) ?? '';
     fetch(`${base}/api/metrics/charts/snapshots?dataset_id=${encodeURIComponent(datasetId)}&limit=12`)
       .then((r) => r.ok ? r.json() : Promise.reject())
-      .then((obj: any) => {
-        const series = Array.isArray(obj?.series) ? obj.series as { served_pct?: number }[] : [];
+      .then((obj: unknown) => {
+        const rec = obj as { series?: { served_pct?: number }[] } | undefined;
+        const series = Array.isArray(rec?.series) ? (rec?.series as { served_pct?: number }[]) : [];
         setSpark(series.map((e) => Math.max(0, Math.min(100, Number(e.served_pct ?? 0)))));
       })
       .catch(() => setSpark([]));
