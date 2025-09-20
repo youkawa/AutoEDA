@@ -87,6 +87,7 @@ jobs:
             const fs = require('fs');
             const summary = fs.readFileSync('reports/openapi_compat_summary.md', 'utf8');
             let table = '';
+            let destructive = 'unknown';
             try {
               const diff = JSON.parse(fs.readFileSync('reports/openapi_compat_diff.json', 'utf8'));
               const miss = diff.missing || [];
@@ -94,6 +95,7 @@ jobs:
               table = '\n\n| Type | Values |\n|---|---|\n' +
                       `| Missing | ${miss.join(', ') || '-'} |\n` +
                       `| Extra | ${extra.join(', ') || '-'} |\n`;
+              destructive = miss.length ? 'breaking' : (extra.length ? 'non-breaking' : 'unknown');
             } catch (e) { /* ignore */ }
             const guide = '\n\n**Migration Guide (suggested):**\n' +
               '- If values are Missing: add them back in server schema or relax enum, and update UI mapping.\n' +
@@ -102,8 +104,13 @@ jobs:
             const { data: pr } = await github.rest.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: context.issue.number });
             const body = pr.body || '';
             const marker = '\n\n---\nOpenAPI Compatibility Summary:\n';
-            const next = body.includes(marker) ? body.split(marker)[0] + marker + '\n' + summary + table + guide : body + marker + '\n' + summary + table + guide;
+            const heading = `\n\n**Result:** ${destructive.toUpperCase()}`;
+            const next = body.includes(marker) ? body.split(marker)[0] + marker + heading + '\n' + summary + table + guide : body + marker + heading + '\n' + summary + table + guide;
             await github.rest.pulls.update({ owner: context.repo.owner, repo: context.repo.repo, pull_number: context.issue.number, body: next });
+            try {
+              const label = destructive === 'breaking' ? 'openapi:breaking' : (destructive === 'non-breaking' ? 'openapi:non-breaking' : 'openapi:unknown');
+              await github.rest.issues.addLabels({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, labels: [label] });
+            } catch (e) {}
       - name: Evaluate API NFR (p95 & thresholds)
         run: python3 apps/api/scripts/evaluate_nfr.py
       - name: Check SLO thresholds
