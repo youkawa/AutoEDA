@@ -2,6 +2,8 @@ import types
 import time
 import pytest
 
+import sys, os
+sys.path.insert(0, os.getcwd())
 from apps.api.services.sandbox import SandboxRunner, SandboxError
 
 
@@ -34,4 +36,3 @@ def test_template_subprocess_cancel_cooperative(monkeypatch):
         runner.run_template_subprocess(spec_hint="bar", dataset_id="ds_x", cancel_check=_check)
     t.join()
     assert "cancelled" in str(ei.value)
-
