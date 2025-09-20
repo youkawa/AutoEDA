@@ -28,7 +28,7 @@ export function ChartsPage() {
   const [spark, setSpark] = useState<Spark[]>([]);
   type Step = 'preparing' | 'generating' | 'running' | 'rendering' | 'done';
   type ChartMeta = { dataset_id?: string; hint?: string };
-  type ChartRender = { loading: boolean; step?: Step; error?: string; errorCode?: string; src?: string; prevSrc?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: ChartMeta };
+  type ChartRender = { loading: boolean; step?: Step; error?: string; errorCode?: string; errorDetail?: string; showDetail?: boolean; src?: string; prevSrc?: string; code?: string; tab?: 'viz'|'code'|'meta'; meta?: ChartMeta };
   const [results, setResults] = useState<Record<string, ChartRender>>({});
   const toast = useToast();
 
@@ -229,7 +229,7 @@ export function ChartsPage() {
                             if (!it.chart_id) continue;
                             if (it.status === 'failed' || it.status === 'cancelled') {
                               const friendly = it.error || (it.status === 'cancelled' ? '実行がキャンセルされました。' : '実行に失敗しました');
-                              next[it.chart_id] = { ...(next[it.chart_id] ?? {}), loading: false, step: 'done', error: friendly, errorCode: it.error_code };
+                              next[it.chart_id] = { ...(next[it.chart_id] ?? {}), loading: false, step: 'done', error: friendly, errorCode: it.error_code, errorDetail: it.error_detail };
                             }
                           }
                           return next;
@@ -501,9 +501,20 @@ export function ChartsPage() {
                 ) : null}
                 {results[chart.id]?.error ? (
                   <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">
-                    {results[chart.id]?.error}
-                    {results[chart.id]?.errorCode ? (
-                      <span className="ml-2 rounded bg-amber-200 px-1.5 py-0.5 text-[11px] text-amber-900" title="エラーコード">{results[chart.id]?.errorCode}</span>
+                    <div className="flex items-center gap-2">
+                      <span>{results[chart.id]?.error}</span>
+                      {results[chart.id]?.errorCode ? (
+                        <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[11px] text-amber-900" title="エラーコード">{results[chart.id]?.errorCode}</span>
+                      ) : null}
+                      {results[chart.id]?.errorDetail ? (
+                        <button
+                          className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-900 underline"
+                          onClick={() => setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), showDetail: !s[chart.id]?.showDetail } }))}
+                        >詳細</button>
+                      ) : null}
+                    </div>
+                    {results[chart.id]?.showDetail && results[chart.id]?.errorDetail ? (
+                      <pre className="mt-2 max-h-40 overflow-auto rounded bg-amber-100 p-2 text-[11px] text-amber-900" data-testid={`error-detail-${chart.id}`}>{results[chart.id]!.errorDetail}</pre>
                     ) : null}
                   </div>
                 ) : null}

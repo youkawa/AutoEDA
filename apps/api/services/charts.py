@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 from . import metrics
 from .sandbox import SandboxRunner, SandboxError
+from .security import redact
 
 _DATA_DIR = Path("data/charts")
 _JOBS: Dict[str, Dict[str, Any]] = {}
@@ -155,7 +156,7 @@ def _start_worker_once() -> None:
                     code = "unknown"
                 detail = None
                 if isinstance(exc, SandboxError) and getattr(exc, "logs", None):
-                    detail = str(exc.logs)[:500]
+                    detail = redact(str(exc.logs))
                 _JOBS[job_id].update({"status": "failed", "error": friendly, "error_code": code, **({"error_detail": detail} if detail else {})})
                 try:
                     t0 = _JOBS[job_id].get("t0") or time.perf_counter()
