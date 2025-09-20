@@ -149,6 +149,7 @@ export function PlanPage() {
                 <th className="px-2 py-1">ツール</th>
                 <th className="px-2 py-1">依存</th>
                 <th className="px-2 py-1">受入</th>
+                <th className="px-2 py-1 text-right">不足CSV</th>
               </tr>
             </thead>
             <tbody>
@@ -181,6 +182,31 @@ export function PlanPage() {
                   <td className="px-2 py-1 text-slate-600">{t.tool ?? '-'}</td>
                   <td className="px-2 py-1 text-slate-600">{deps.join(', ') || '-'}</td>
                   <td className="px-2 py-1 text-slate-600">{t.acceptance ?? '-'}</td>
+                  <td className="px-2 py-1 text-right">
+                    {!ok ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          const ts = new Date().toISOString();
+                          const ver = plan?.version ?? 'v1';
+                          const header = ['id','title','tool','issue'];
+                          const localIssues: string[] = [];
+                          // 依存不足（即席）
+                          for (const d of deps) { if (!(plan?.tasks ?? []).some(x => x.id === d)) localIssues.push(`missing dependency: ${t.id} depends on ${d}`); }
+                          // 解析済 issuesMap
+                          (issuesMap[t.id] ?? []).forEach((msg) => localIssues.push(msg));
+                          if (localIssues.length === 0) return;
+                          const esc = (s: string) => `"${String(s).replace(/"/g,'""')}"`;
+                          const rows = localIssues.map((msg) => [t.id, t.title ?? '', t.tool ?? '', msg] as [string,string,string,string]);
+                          const meta = `# validated_at=${ts} version=${ver}`;
+                          const csv = [meta, header.join(','), ...rows.map(([a,b,c,d]) => [esc(a),esc(b),esc(c),esc(d)].join(','))].join('\n');
+                          const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+                          const a = document.createElement('a'); a.href = url; a.download = `issues_${t.id}.csv`; a.click(); URL.revokeObjectURL(url);
+                        }}
+                      >CSV</Button>
+                    ) : null}
+                  </td>
                 </tr>
               )})}
             </tbody>
