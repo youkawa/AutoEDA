@@ -213,7 +213,6 @@ class SandboxRunner:
                         if root and root not in allowed_imports:
                             raise SandboxError(f"forbidden import: {root}")
                     elif isinstance(node, _ast.Call):
-                        fn = getattr(node.func, "id", None) or getattr(getattr(node.func, "attr", None), "id", None)
                         if isinstance(node.func, _ast.Name) and node.func.id in banned_calls:
                             raise SandboxError(f"forbidden call: {node.func.id}")
             except SandboxError:

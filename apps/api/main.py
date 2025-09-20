@@ -500,6 +500,7 @@ class ChartJob(BaseModel):
     status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
     result: Optional[ChartResult] = None
     error: Optional[str] = None
+    error_code: Optional[Literal["timeout", "cancelled", "forbidden_import", "format_error", "unknown"]] = None
 
 
 class ChartBatchStatus(BaseModel):
@@ -511,6 +512,10 @@ class ChartBatchStatus(BaseModel):
     items: List[Dict[str, Any]]
     results: Optional[List[ChartResult]] = None
     results_map: Optional[Dict[str, ChartResult]] = None
+    queued: Optional[int] = None
+    cancelled: Optional[int] = None
+    parallelism: Optional[int] = None
+    parallelism_effective: Optional[int] = None
 
 
 @app.post("/api/charts/generate", response_model=ChartJob)

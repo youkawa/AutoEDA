@@ -112,11 +112,20 @@ def _start_worker_once() -> None:
                 msg = str(exc)
                 if "timeout" in msg:
                     friendly = "実行がタイムアウトしました（制限時間超過）。"
+                    code = "timeout"
                 elif "cancelled" in msg:
                     friendly = "実行がキャンセルされました。"
+                    code = "cancelled"
+                elif "forbidden import" in msg:
+                    friendly = "安全ポリシーにより禁止されたモジュールが検出されました。"
+                    code = "forbidden_import"
+                elif "JSONDecodeError" in msg or "Expecting value" in msg or "format" in msg:
+                    friendly = "出力形式が不正です（JSONの解析に失敗）。"
+                    code = "format_error"
                 else:
                     friendly = f"実行に失敗しました: {msg}"
-                _JOBS[job_id].update({"status": "failed", "error": friendly})
+                    code = "unknown"
+                _JOBS[job_id].update({"status": "failed", "error": friendly, "error_code": code})
             # small yield
             time.sleep(0.01)
             # decrement running counter for batch
