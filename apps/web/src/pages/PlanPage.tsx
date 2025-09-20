@@ -91,7 +91,7 @@ export function PlanPage() {
                   setValidationError(msg);
                   // 例: "missing dependency: a depends on b; ambiguous acceptance in t1"
                   const map: Record<string,string[]> = {};
-                  msg.split(';').map(s=>s.trim()).filter(Boolean).forEach((line) => {
+                  msg.split(';').map((s: string) => s.trim()).filter((s: string) => Boolean(s)).forEach((line: string) => {
                     const m1 = line.match(/^missing dependency: (\S+) depends on (\S+)/);
                     const m2 = line.match(/^ambiguous acceptance in (\S+)/);
                     const m3 = line.match(/^cycle detected at (\S+)/);
