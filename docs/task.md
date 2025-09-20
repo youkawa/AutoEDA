@@ -59,6 +59,7 @@
 |----|----------|------|--------------|---------------------------|
 | T-H1-STEP | 単発ステップUIを実処理に連動（CH-02） | **TODO** | `ChartsPage`, `charts.py` | job/batch ステータスに応じて準備→生成→実行→描画を連動（擬似から実値へ） |
 | T-H1-EXEC | LLMコード生成＋安全実行（CH-03） | **TODO** | `sandbox.py`, `orchestrator` | SandboxRunner を本実行モードに拡張（allowlist/timeout/mem/NW遮断）＋LLM透過コード生成の最小経路 |
+| T-H1-EXEC | LLMコード生成＋安全実行（CH-03） | **WIP(実行基盤MVP)** | `sandbox.py`, `charts.py` | `AUTOEDA_SANDBOX_EXECUTE=1` で安全サブプロセス実行（Vega JSON生成）。今後LLM透過化 |
 | T-H1-FAIL | 失敗理由提示とテンプレフォールバック（CH-05） | **TODO** | FE/SDK 例外整形 | 空応答/安全フィルタ/JSON不正の理由を人間可読で提示、テンプレへ退避 |
 | T-H1-RERUN | パラメータ調整→再実行（履歴1件）（CH-06） | **TODO** | `ChartsPage` | 列/集計単位の編集UI、直前結果の履歴保持・復元 |
 | T-H1-COPY | コード表示＋コピー（CH-07） | **TODO** | `ChartsPage` | 「コードをコピー」ボタン追加（クリップボード書込） |
@@ -121,7 +122,7 @@
 
 | ID | スコープ | 状態 | リファレンス | 受け入れ基準/次アクション |
 |----|----------|------|--------------|---------------------------|
-| T-F1-PLAN | 計画生成 API/UI | **TODO** | `docs/requirements_v2.md` F1 | `POST /api/plan/generate`（RAG+allowlist検索）→ `PlanPage` に表示・保存（coverage, acceptance 付き） |
+| T-F1-PLAN | 計画生成 API/UI | **Done(MVP/API)** | `docs/requirements_v2.md` F1 | `POST /api/plan/generate` 実装（RAG+プロファイル由来の骨子）。UI/保存は今後 |
 | T-F2-REVISE | 計画差分適用 | **TODO** | F2 | パッチ生成・循環/未解決=0 を満たす検証、`EDAPlanRevised` ログ |
 | T-G1-EXEC | カスタム実行基盤 | **TODO** | G1 | `code_exec`（NW遮断/timeout/mem/whitelist）で各タスク実行、検証フック合格/不合格表示 |
 | T-G2-INTERACTIVE | 深掘り対話 | **TODO** | G2 | プロンプト→差分コード→再実行→比較レポート、`CustomCodePatched` ログ |
