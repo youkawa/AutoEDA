@@ -398,8 +398,8 @@ export function ChartsPage() {
                             setResults((s) => ({ ...s, [chart.id]: { loading: false, step: 'done', error: '出力形式に未対応' } }));
                           }
                         } catch (err) {
-                          const anyErr: any = err;
-                          const code = (anyErr && anyErr.code) ? String(anyErr.code) : undefined;
+                          const anyErr = err as { message?: string; code?: string } | undefined;
+                          const code = anyErr && anyErr.code ? String(anyErr.code) : undefined;
                           const friendlyMap: Record<string, string> = {
                             timeout: '実行がタイムアウトしました（制限時間超過）。',
                             cancelled: '実行がキャンセルされました。',
