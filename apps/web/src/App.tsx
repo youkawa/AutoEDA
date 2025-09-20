@@ -11,6 +11,7 @@ import { LeakagePage } from './pages/LeakagePage';
 import { RecipesPage } from './pages/RecipesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { PlanPage } from './pages/PlanPage';
+import { AnalysisPage } from './pages/AnalysisPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { LastDatasetProvider } from './contexts/LastDatasetContext';
 import { ToastProvider } from '@autoeda/ui-kit';
@@ -29,6 +30,7 @@ export default function App() {
               <Route path="/charts/:datasetId" element={<ChartsPage />} />
               <Route path="/qna/:datasetId" element={<QnaPage />} />
               <Route path="/plan/:datasetId" element={<PlanPage />} />
+              <Route path="/analysis/:datasetId" element={<AnalysisPage />} />
               <Route path="/actions/:datasetId" element={<ActionsPage />} />
               <Route path="/pii/:datasetId" element={<PiiPage />} />
               <Route path="/leakage/:datasetId" element={<LeakagePage />} />

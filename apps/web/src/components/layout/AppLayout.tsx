@@ -69,6 +69,12 @@ export function AppLayout() {
             match: (pathname) => pathname.startsWith('/plan/'),
           },
           {
+            label: '分析開発',
+            to: `/analysis/${datasetId}`,
+            icon: FileCode,
+            match: (pathname) => pathname.startsWith('/analysis/'),
+          },
+          {
             label: '次アクション',
             to: `/actions/${datasetId}`,
             icon: ClipboardCheck,
@@ -117,6 +123,13 @@ export function AppLayout() {
           },
           {
             label: '計画',
+            to: '#',
+            icon: FileCode,
+            disabled: true,
+            description: 'データセットを選択してください',
+          },
+          {
+            label: '分析開発',
             to: '#',
             icon: FileCode,
             disabled: true,
