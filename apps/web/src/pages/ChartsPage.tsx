@@ -20,6 +20,7 @@ export function ChartsPage() {
   const [batchInFlight, setBatchInFlight] = useState(false);
   type BatchProgress = { total: number; done: number; failed: number; running?: number; queued?: number; cancelled?: number; served?: number; avg_wait_ms?: number };
   const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
+  const [lastBatchStats, setLastBatchStats] = useState<BatchProgress | null>(null);
   const [batchItems, setBatchItems] = useState<{ chart_id?: string; status: string; stage?: 'generating'|'rendering'|'done' }[]>([]);
   const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
   const [announce, setAnnounce] = useState<string | null>(null);
@@ -104,7 +105,7 @@ export function ChartsPage() {
             )}
             {/* live region for screen readers */}
             {batchInFlight && batchProgress ? (
-              <div className="sr-only" aria-live="polite">
+              <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
                 バッチ進捗 完了 {batchProgress.done} / 全 {batchProgress.total}、実行中 {batchProgress.running ?? 0}、キュー {batchProgress.queued ?? 0}、失敗 {batchProgress.failed ?? 0}、中断 {batchProgress.cancelled ?? 0}{typeof batchProgress.avg_wait_ms === 'number' ? `、平均待機 ${batchProgress.avg_wait_ms} ミリ秒` : ''}
               </div>
             ) : null}
@@ -168,6 +169,7 @@ export function ChartsPage() {
                         }
                         setResults(next);
                         finished = true;
+                        setLastBatchStats({ total: st.total, done: st.done, failed: st.failed, running: st.running, queued: st.queued, cancelled: st.cancelled, served: st.served, avg_wait_ms: st.avg_wait_ms });
                         setAnnounce(`バッチが完了しました。完了 ${st.done} / 全 ${st.total}、失敗 ${st.failed ?? 0}、中断 ${st.cancelled ?? 0}`);
                       } else if (Array.isArray(st.results)) {
                         const next: Record<string, ChartRender> = { ...results };
@@ -180,6 +182,7 @@ export function ChartsPage() {
                         }
                         setResults(next);
                         finished = true;
+                        setLastBatchStats({ total: st.total, done: st.done, failed: st.failed, running: st.running, queued: st.queued, cancelled: st.cancelled, served: st.served, avg_wait_ms: st.avg_wait_ms });
                         setAnnounce(`バッチが完了しました。完了 ${st.done} / 全 ${st.total}、失敗 ${st.failed ?? 0}、中断 ${st.cancelled ?? 0}`);
                       }
                     }
@@ -263,6 +266,20 @@ export function ChartsPage() {
             <Button variant="secondary" size="sm" onClick={() => setSelectedIds(new Set())}>
               キャンセル
             </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* 恒常表示のミニ統計（直近のバッチ結果） */}
+      {lastBatchStats ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-600" title="直近バッチの served 比率と平均待機時間">
+          <div className="flex items-center gap-3">
+            <span className="font-semibold">直近バッチ統計</span>
+            <span>served: {Math.max(0, Math.min(100, Math.round(((lastBatchStats.served ?? 0) / Math.max(1, lastBatchStats.total)) * 100)))}%</span>
+            {typeof lastBatchStats.avg_wait_ms === 'number' ? <span>avg_wait: {lastBatchStats.avg_wait_ms}ms</span> : null}
+          </div>
+          <div className="mt-2 h-1.5 w-full rounded bg-slate-100">
+            <div className="h-1.5 rounded bg-brand-500" style={{ width: `${Math.max(0, Math.min(100, Math.round(((lastBatchStats.served ?? 0) / Math.max(1, lastBatchStats.total)) * 100)))}%` }} />
           </div>
         </div>
       ) : null}

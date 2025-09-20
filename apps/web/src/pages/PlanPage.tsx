@@ -10,8 +10,11 @@ export function PlanPage() {
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<PlanModel | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<'id'|'title'|'tool'>('id');
-  const [filterText, setFilterText] = useState('');
+  const [sortKey, setSortKey] = useState<'id'|'title'|'tool'>(() => {
+    const v = localStorage.getItem('plan.sortKey');
+    return (v === 'title' || v === 'tool') ? v : 'id';
+  });
+  const [filterText, setFilterText] = useState(() => localStorage.getItem('plan.filterText') ?? '');
   const toast = useToast();
   const [missingDeps, setMissingDeps] = useState<string[]>([]);
 
@@ -103,7 +106,7 @@ export function PlanPage() {
           <div className="mb-3 flex items-center gap-3 text-sm">
             <label className="flex items-center gap-1">
               <span className="text-slate-500">ソート:</span>
-              <select className="rounded border border-slate-300 px-2 py-1" value={sortKey} onChange={(e) => setSortKey(e.target.value as 'id'|'title'|'tool')}>
+              <select className="rounded border border-slate-300 px-2 py-1" value={sortKey} onChange={(e) => { const val = e.target.value as 'id'|'title'|'tool'; setSortKey(val); localStorage.setItem('plan.sortKey', val); }}>
                 <option value="id">ID</option>
                 <option value="title">タイトル</option>
                 <option value="tool">ツール</option>
@@ -111,7 +114,7 @@ export function PlanPage() {
             </label>
             <label className="ml-2 flex items-center gap-1">
               <span className="text-slate-500">フィルタ:</span>
-              <input className="rounded border border-slate-300 px-2 py-1" placeholder="キーワード" value={filterText} onChange={(e) => setFilterText(e.target.value)} />
+              <input className="rounded border border-slate-300 px-2 py-1" placeholder="キーワード" value={filterText} onChange={(e) => { setFilterText(e.target.value); localStorage.setItem('plan.filterText', e.target.value); }} />
             </label>
           </div>
           <div className="mb-3 text-sm text-slate-500">version: {plan.version}</div>

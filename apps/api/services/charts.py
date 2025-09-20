@@ -399,6 +399,23 @@ def get_batch(batch_id: str) -> Optional[Dict[str, Any]]:
         except Exception:
             avg_wait_ms = None
         st.update({"done": done, "running": running, "failed": failed, "cancelled": cancelled, "queued": queued, "served": served, "avg_wait_ms": avg_wait_ms})
+        # lightweight time-series snapshot for observability
+        try:
+            metrics.persist_event({
+                "event_name": "ChartBatchSnapshot",
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "batch_id": batch_id,
+                "total": st.get("total", 0),
+                "done": done,
+                "running": running,
+                "failed": failed,
+                "cancelled": cancelled,
+                "queued": queued,
+                "served": served,
+                "avg_wait_ms": avg_wait_ms,
+            })
+        except Exception:
+            pass
         if done + failed == st.get("total", 0):
             st["results"] = results
             st["results_map"] = results_map

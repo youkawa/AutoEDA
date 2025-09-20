@@ -11,7 +11,8 @@ export function HomePage() {
   type SloEvent = { count?: number; p95?: number; groundedness_min?: number };
   type SloSnapshot = { events?: Record<string, SloEvent> };
   type EvalFlags = Record<string, boolean>;
-  type SloPayload = { snapshot?: SloSnapshot; evaluation?: Record<string, EvalFlags>; thresholds?: Record<string, Record<string, number>> };
+  type SloBreakdown = Record<string, { total: number; success_rate: number; failures: number; failure_by_code: Record<string, number> }>;
+  type SloPayload = { snapshot?: SloSnapshot; evaluation?: Record<string, EvalFlags>; thresholds?: Record<string, Record<string, number>>; breakdown?: SloBreakdown };
   const [slo, setSlo] = useState<SloPayload>({});
 
   useEffect(() => {
@@ -139,6 +140,17 @@ export function HomePage() {
                         <span>n={v.count ?? 0}</span>
                         <span className={`rounded px-2 py-0.5 text-[11px] ${ok ? 'bg-emerald-500/30 text-emerald-50' : 'bg-amber-500/30 text-amber-50'}`}>{ok ? 'OK' : 'NG'}</span>
                       </div>
+                      {slo.breakdown && slo.breakdown[name] ? (
+                        <div className="mt-1 flex items-center gap-3 text-[11px] text-white/80" title="成功率と代表的な失敗理由">
+                          <span>success: {(slo.breakdown[name].success_rate * 100).toFixed(0)}%</span>
+                          {(() => {
+                            const pairs = Object.entries(slo.breakdown![name].failure_by_code || {});
+                            if (pairs.length === 0) return null;
+                            const [topCode, cnt] = pairs.sort((a,b)=>b[1]-a[1])[0];
+                            return <span>fail: {topCode} ({cnt})</span>;
+                          })()}
+                        </div>
+                      ) : null}
                     </li>
                   );})}
                 </ul>
