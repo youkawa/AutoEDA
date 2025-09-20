@@ -104,12 +104,11 @@
 
 ## 3. 次のイテレーション（優先順）
 
-1. H2 スケジューラ仕上げ（中〜高）：バッチごとの同時実行上限を厳密に遵守（先着順/公正性）し、UIのstage連動を強化（items[].stage の更新頻度/完了announceの統一）
-2. H1‑EXEC 強化（高）：allowlist インポート検査（ast/deny-list）、チェックポイント（長処理ループへのyield）追加、失敗理由の詳細提示（CH‑05）
-3. F2 UI 雛形（中）：Plan の一覧/詳細と検証結果表示、`/plan/:datasetId` を追加。差分適用のUIは後続
-4. CH‑13（中）：段階フォールバック（テンプレ→軽量LLM→指数バックオフ再試行）
-5. 保存/共有（CH‑16〜19）（中）：最小の保存API＋一覧→Notebookセル出力
-6. CI/観測（中）：H系KPI（p95/成功率/失敗理由）を `metrics.slo_snapshot` に取り込み、Homeに表示
+1. CI/観測（高）: OpenAPI互換の差分要約をPR本文へ自動追記（型/enum/requiredの破壊性区分とMigration Guide）。HomeのSLOカードにCharts系KPI（served%/avg_wait_ms）を統合。`/api/metrics/slo` に charts_summary を同梱。
+2. H1‑EXEC（中〜高・仕上げ）: redactパターン拡張（クレデンシャル断片/UUID/URL秘匿）。FEにerror_detailの「コピー」を追加。OpenAPIにerror_detail（optional）を補助記載。
+3. CH‑13（中）: 段階フォールバック（テンプレ→軽量LLM（response_schema適用）→指数バックオフ再試行（最大3回））と空応答/ブロック理由の人間可読化。単体/統合テストを追加。
+4. H3 保存/共有（中）: MVP `POST /api/charts/save` / `GET /api/charts/list` を追加（ローカルJSON永続）— UI「保存/履歴」は後続。
+5. Docs（中）: Planガイド（MDX）に issues.csv の項目説明と依存グラフの読み方を追記。
 
 ## 4. 未実装ユーザーストーリー（requirements_v2 由来・現状反映）
 
