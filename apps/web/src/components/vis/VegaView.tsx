@@ -17,7 +17,7 @@ export function VegaView({ spec, renderer = 'svg', className }: Props) {
         const embed = (mod as { default: Embed }).default;
         if (!ref.current || cancelled) return;
         const result = await embed(ref.current, spec, { renderer, actions: false, mode: 'vega-lite' });
-        view = result.view;
+        view = result.view ?? null;
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         setError(msg || 'failed to render vega');
