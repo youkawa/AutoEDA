@@ -434,7 +434,12 @@ export function ChartsPage() {
                             setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), prevSrc: s[chart.id]?.src } }));
                             setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), loading: true, step: 'preparing', tab: 'viz' } }));
                             try {
-                              const r = await generateChart(datasetId, chart.type);
+                              const r = await generateChartWithProgress(datasetId, chart.type, [], ({ stage }) => {
+                                if (!stage) return;
+                                const stepMap: Record<string, Step> = { generating: 'generating', rendering: 'rendering', done: 'done' };
+                                const step = stepMap[stage] ?? 'generating';
+                                setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), loading: step !== 'done', step, tab: 'viz' } }));
+                              });
                               const out = r.outputs?.[0];
                               if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
                                 const src = `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}`;
