@@ -107,3 +107,105 @@ class SandboxRunner:
                     os.remove(os.path.join(tmpdir, name))
                 os.rmdir(tmpdir)
         return obj
+
+    def run_generated_chart(self, *, spec_hint: Optional[str], dataset_id: Optional[str]) -> Dict[str, Any]:
+        """Execute a constrained Python snippet in a subprocess to emit a Vega-like spec.
+
+        - No third-party imports
+        - Read-only CSV under data/datasets/<id>.csv (if present)
+        - Time/Memory/File descriptor limits
+        - Returns a dict compatible with ChartResult
+        """
+        import json as _json
+        import textwrap
+        tmpdir = tempfile.mkdtemp(prefix="autoeda_exec_")
+        try:
+            payload = {
+                "kind": (spec_hint or "bar").lower(),
+                "csv_path": os.path.abspath(os.path.join("data", "datasets", f"{dataset_id}.csv")) if dataset_id else None,
+                "max_rows": 200,
+            }
+            in_path = os.path.join(tmpdir, "in.json")
+            with open(in_path, "w", encoding="utf-8") as f:
+                f.write(_json.dumps(payload))
+
+            code = textwrap.dedent(
+                r"""
+                import json, csv, os
+                cfg = json.loads(open('in.json','r',encoding='utf-8').read())
+                kind = cfg.get('kind','bar')
+                csv_path = cfg.get('csv_path')
+                values = []
+                if csv_path and os.path.exists(csv_path):
+                    try:
+                        with open(csv_path, 'r', encoding='utf-8') as f:
+                            rdr = csv.reader(f)
+                            headers = next(rdr, None)
+                            # choose first numeric-like column if any
+                            col_idx = None
+                            sample = []
+                            for i, row in enumerate(rdr):
+                                if i >= int(cfg.get('max_rows',200)): break
+                                for j, cell in enumerate(row):
+                                    try:
+                                        val = float(cell)
+                                    except Exception:
+                                        val = None
+                                    sample.append((i, j, val))
+                            for _, j, val in sample:
+                                if val is not None:
+                                    col_idx = j; break
+                            if col_idx is None:
+                                # fallback to index-based series
+                                values = [{"x": i, "y": (i%5)+1} for i in range(min(20, len(sample) or 20))]
+                            else:
+                                series = [val for _, j, val in sample if j==col_idx and val is not None]
+                                if not series:
+                                    values = [{"x": i, "y": (i%5)+1} for i in range(20)]
+                                else:
+                                    values = [{"x": i, "y": series[i]} for i in range(min(20, len(series)))]
+                    except Exception:
+                        values = [{"x": i, "y": (i%5)+1} for i in range(20)]
+                else:
+                    values = [{"x": i, "y": (i%5)+1} for i in range(20)]
+
+                spec = {
+                    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+                    "mark": kind if kind in ("bar","line") else "point",
+                    "data": {"name": "data"},
+                    "encoding": {"x": {"field":"x","type":"quantitative"}, "y": {"field":"y","type":"quantitative"}},
+                    "datasets": {"data": values},
+                    "description": f"generated {kind} chart",
+                }
+                out = {
+                    "language": "python", "library": "vega", "code": "# generated", "outputs": [
+                        {"type":"vega","mime":"application/json","content": spec}
+                    ]
+                }
+                print(json.dumps(out, ensure_ascii=False))
+                """
+            )
+
+            def _preexec():  # POSIX only
+                with contextlib.suppress(Exception):
+                    resource.setrlimit(resource.RLIMIT_AS, (self.mem_limit_mb * 1024 * 1024, self.mem_limit_mb * 1024 * 1024))
+                    resource.setrlimit(resource.RLIMIT_CPU, (3, 3))
+                    resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
+
+            env = {"PYTHONUNBUFFERED": "1", "PATH": "/usr/bin:/bin"}
+            proc = subprocess.run(["python3", "-I", "-c", code], cwd=tmpdir, capture_output=True, text=True, timeout=self.timeout_sec, check=True, env=env, preexec_fn=_preexec if hasattr(os, 'setuid') else None)
+            out = proc.stdout.strip()
+            obj = _json.loads(out)
+            # add meta
+            obj.setdefault("meta", {})
+            obj["meta"].update({"engine": "generated", "duration_ms": None})
+            return obj
+        except Exception as exc:
+            # fallback to template path
+            from . import charts as chartsvc  # type: ignore
+            return chartsvc._template_result(spec_hint, dataset_id)
+        finally:
+            with contextlib.suppress(Exception):
+                for name in os.listdir(tmpdir):
+                    os.remove(os.path.join(tmpdir, name))
+                os.rmdir(tmpdir)

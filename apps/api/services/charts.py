@@ -51,10 +51,14 @@ def _start_worker_once() -> None:
                 runner = SandboxRunner()
                 # stage: generating -> running -> rendering
                 _JOBS[job_id]["stage"] = "generating"
-                if os.environ.get("AUTOEDA_SANDBOX_SUBPROCESS", "0") in {"1", "true", "TRUE"}:
-                    result = runner.run_template_subprocess(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
+                exec_mode = os.environ.get("AUTOEDA_SANDBOX_EXECUTE", "0") in {"1", "true", "TRUE"}
+                if exec_mode:
+                    result = runner.run_generated_chart(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
                 else:
-                    result = runner.run_template(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
+                    if os.environ.get("AUTOEDA_SANDBOX_SUBPROCESS", "0") in {"1", "true", "TRUE"}:
+                        result = runner.run_template_subprocess(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
+                    else:
+                        result = runner.run_template(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
                 _JOBS[job_id]["stage"] = "rendering"
                 outdir = _DATA_DIR / job_id
                 outdir.mkdir(parents=True, exist_ok=True)
@@ -197,7 +201,11 @@ def generate(item: Dict[str, Any]) -> Dict[str, Any]:
         job_id = uuid4().hex[:12]
         t0 = time.perf_counter()
         runner = SandboxRunner()
-        result = runner.run_template(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
+        exec_mode = os.environ.get("AUTOEDA_SANDBOX_EXECUTE", "0") in {"1", "true", "TRUE"}
+        if exec_mode:
+            result = runner.run_generated_chart(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
+        else:
+            result = runner.run_template(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
         job = {"job_id": job_id, "status": "succeeded", "result": result}
         if item.get("chart_id"):
             job["chart_id"] = item.get("chart_id")

@@ -11,6 +11,7 @@ from .services import orchestrator
 from .services import metrics
 from .services import charts as chartsvc
 from . import config as app_config
+from .services import plan as plan_svc
 
 
 class Reference(BaseModel):
@@ -604,12 +605,9 @@ class ExecRunResult(BaseModel):
 
 @app.post("/api/plan/generate", response_model=PlanModel)
 def plan_generate(req: PlanGenerateRequest) -> PlanModel:
-    """Experimental stub: returns an empty plan structure (200).
-
-    実装方針（今後）: RAG+allowlist WebSearch→plan.tasks[] 草案→整合検査→返却。
-    非破壊のため、現段階では空 tasks を返す。
-    """
-    return PlanModel(version="v1", generated_at=datetime.utcnow(), tasks=[])
+    obj = plan_svc.generate_plan(req.dataset_id, req.goals, req.top_k)
+    tasks = [PlanTask(**t) for t in obj.get("tasks", [])]
+    return PlanModel(version=obj.get("version", "v1"), generated_at=datetime.utcnow(), tasks=tasks)
 
 
 @app.post("/api/plan/revise", response_model=PlanModel)
