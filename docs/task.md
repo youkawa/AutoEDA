@@ -23,7 +23,8 @@
   - F1: `/api/plan/generate` — Done(MVP/API)
   - F2: `/api/plan/revise` — Done(MVP/検証のみ)（循環/未解決/曖昧受入の検証、400整形）。差分パッチ生成は今後
   - PlanPage（UI雛形）を追加し、ソート/フィルタ/未解決依存の可視化/JSONダウンロードを提供 — Done(初期)
-  - G1/G2: **Done(MVP/API+SDK+Web)** — G1 `/api/exec/run` + `runCustomAnalysis()`、G2 `/api/analysis/deepdive` + `deepDive()`、Web の `AnalysisPage` から利用可能（決定的サジェスト→コード反映→実行）。
+- G1/G2: **Done(MVP/API+SDK+Web)** — G1 `/api/exec/run` + `runCustomAnalysis()`、G2 `/api/analysis/deepdive` + `deepDive()`、Web の `AnalysisPage` から利用可能（決定的サジェスト→コード反映→実行）。
+ - G1/G2: **Done(MVP/API+SDK+Web)** — G1 `/api/exec/run` + `runCustomAnalysis()`（失敗時 `error_code` と redact 済みログを返却）／G2 `/api/analysis/deepdive` + `deepDive()`（サジェストに `tags`/`diagnostics` 付与）、Web の `AnalysisPage` から利用可能（決定的サジェスト→コード反映→単発/一括実行）。
 - フロントは主要ページが実装済み。Storybook は導入済み（MSW/Router/Docs/A11y、VR運用まで整備）。
 - H2（視覚化運用）: ChartsPage ヘッダに served% スパークライン（24本/80%しきい値線/各バー詳細 tooltip/ヘルプアイコン）。Home に SLO charts_summary（served%/avg_wait/series）。
 - H1‑EXEC: テンプレ経路（inline/subprocess）に協調中断 checkpoint を追加し、pytest で cancel/timeout を検証。
@@ -124,10 +125,10 @@
 | ID | スコープ | 状態 | リファレンス | 受け入れ基準/次アクション |
 |----|----------|------|--------------|---------------------------|
 | T-G1-EXEC | カスタム実行 API/SDK/WEB | **Done(MVP)** | API: `/api/exec/run`, SDK: `runCustomAnalysis()` , Web: `AnalysisPage` | JSON出力（language/library/outputs[]）で結果表示（text/svg/vega）。Vega は VegaView で描画。 |
-| T-G1-SEC | サンドボックス安全強化 | **WIP** | `apps/api/services/sandbox.py` | AST許可制（json/csv/os/time/math/statistics/random）/ 危険呼び出しdeny、RLIMIT(AS/CPU/NOFILE/NPROC/STACK) 適用。stderr redact/上限の強化。 |
+| T-G1-SEC | サンドボックス安全強化 | **WIP(初期適用済)** | `apps/api/services/sandbox.py` | AST許可制/危険呼び出しdeny/ RLIMIT(AS/CPU/NOFILE) + 追加で NPROC/STACK を subprocess 経路に適用済。stderr redact/上限・ログ構造化を継続強化。 |
 | T-G1-TPL | 実用テンプレの提供 | **Done(初期)** | `AnalysisPage` | 移動平均・相関行列テンプレの挿入ボタン（出力はVega-Lite JSON）。 |
 | T-G2-SUGG | 深掘りサジェスト API/SDK/WEB | **Done(MVP)** | API: `/api/analysis/deepdive`, SDK: `deepDive()` , Web: `AnalysisPage` | プロンプト→決定的サジェスト（trend/corrなど）→「コードに反映」→実行 |
-| T-G2-RUN | 提案の即時実行（一括可） | **WIP** | `AnalysisPage` | 各サジェストカードから「この提案を実行」。将来は複数選択→一括実行+進捗バー |
+| T-G2-RUN | 提案の即時実行（一括可） | **Done(初期/逐次)** | `AnalysisPage` | カードから実行＋選択→一括実行（逐次）。失敗は `error_code` を友好文にマップ。進捗バー/中断は次段階 |
 | T-G-PLAN | Plan 連動（依存生成） | **TODO** | `PlanPage`/API | サジェスト→Planタスク化（depends_on生成、issues.csv 連携）。 |
 | T-G-TEST | テスト（ユニット/VR/E2E） | **WIP** | tests | forbidden_import/timeout/format_error の単体、AnalysisPage の E2E、Storybook VR（analysis-default） |
 
