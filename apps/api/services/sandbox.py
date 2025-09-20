@@ -117,6 +117,7 @@ class SandboxRunner:
         - Returns a dict compatible with ChartResult
         """
         import json as _json
+        import ast as _ast
         import textwrap
         tmpdir = tempfile.mkdtemp(prefix="autoeda_exec_")
         try:
@@ -195,6 +196,34 @@ class SandboxRunner:
                 print(json.dumps(out, ensure_ascii=False))
                 """
             )
+
+            # Host-side AST scanning (forbidden imports/calls)
+            try:
+                tree = _ast.parse(code)
+                allowed_imports = {"json", "csv", "os"}
+                banned_calls = {"eval", "exec", "compile", "__import__", "open"}
+                banned_os_calls = {"system", "popen", "remove", "unlink", "rmdir", "rename", "chdir", "chmod", "chown"}
+                for node in _ast.walk(tree):
+                    if isinstance(node, _ast.Import):
+                        for alias in node.names:
+                            root = (alias.name or "").split(".")[0]
+                            if root not in allowed_imports:
+                                raise SandboxError(f"forbidden import: {root}")
+                    elif isinstance(node, _ast.ImportFrom):
+                        root = (node.module or "").split(".")[0]
+                        if root and root not in allowed_imports:
+                            raise SandboxError(f"forbidden import: {root}")
+                    elif isinstance(node, _ast.Call):
+                        if isinstance(node.func, _ast.Name) and node.func.id in banned_calls:
+                            raise SandboxError(f"forbidden call: {node.func.id}")
+                        if isinstance(node.func, _ast.Attribute) and isinstance(node.func.value, _ast.Name):
+                            if node.func.value.id == 'os' and node.func.attr in banned_os_calls:
+                                raise SandboxError(f"forbidden os call: os.{node.func.attr}")
+            except SandboxError:
+                raise
+            except Exception:
+                # AST 解析に失敗しても後段のallowlistでガード
+                pass
 
             def _preexec():  # POSIX only
                 with contextlib.suppress(Exception):

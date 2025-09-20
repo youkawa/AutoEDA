@@ -12,6 +12,8 @@ from .services import metrics
 from .services import charts as chartsvc
 from . import config as app_config
 from .services import plan as plan_svc
+import os as _os
+import json as _json
 
 
 class Reference(BaseModel):
@@ -266,6 +268,15 @@ def metrics_slo() -> Dict[str, Any]:
         "ChartJobFinished": {"p95": 2000},
         "ChartBatchFinished": {"p95": 4000},
     }
+    # allow env override (JSON)
+    try:
+        raw = _os.getenv("AUTOEDA_SLO_THRESHOLDS")
+        if raw:
+            env_cfg = _json.loads(raw)
+            if isinstance(env_cfg, dict):
+                thresholds.update(env_cfg)
+    except Exception:
+        pass
     evaluation = metrics.detect_violations(thresholds)
     return {"snapshot": snapshot, "evaluation": evaluation, "thresholds": thresholds}
 
@@ -500,6 +511,7 @@ class ChartJob(BaseModel):
     status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
     result: Optional[ChartResult] = None
     error: Optional[str] = None
+    error_code: Optional[Literal["timeout", "cancelled", "forbidden_import", "format_error", "unknown"]] = None
 
 
 class ChartBatchStatus(BaseModel):
@@ -511,6 +523,12 @@ class ChartBatchStatus(BaseModel):
     items: List[Dict[str, Any]]
     results: Optional[List[ChartResult]] = None
     results_map: Optional[Dict[str, ChartResult]] = None
+    queued: Optional[int] = None
+    cancelled: Optional[int] = None
+    parallelism: Optional[int] = None
+    parallelism_effective: Optional[int] = None
+    served: Optional[int] = None
+    avg_wait_ms: Optional[int] = None
 
 
 @app.post("/api/charts/generate", response_model=ChartJob)

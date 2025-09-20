@@ -137,6 +137,7 @@ export function HomePage() {
                         <span>p95: {v.p95 ?? 0}ms</span>
                         <span>minG: {(v.groundedness_min ?? 1).toFixed(2)}</span>
                         <span>n={v.count ?? 0}</span>
+                        <span className={`rounded px-2 py-0.5 text-[11px] ${ok ? 'bg-emerald-500/30 text-emerald-50' : 'bg-amber-500/30 text-amber-50'}`}>{ok ? 'OK' : 'NG'}</span>
                       </div>
                     </li>
                   );})}

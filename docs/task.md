@@ -11,8 +11,9 @@
   - CH-07: コードコピー（UI） — Done
   - CH-06: 再実行＋履歴1件保持（単発） — Partial
   - CH-02: 単発ステップUIをサーバ `stage` 同期（generating/rendering/done） — Done(単発)
-  - CH-12: 並列ワーカープール（ENV: `AUTOEDA_CHARTS_PARALLELISM`） — Done(初期)
-  - CH-11: 協調キャンセル（runningにcancel flag伝播） — WIP
+- CH-12: 並列ワーカープール（ENV: `AUTOEDA_CHARTS_PARALLELISM`） — Done(初期)
+  - バッチ: `parallelism_effective` 厳守とフェアスケジューラ（RR） — Done(初期)
+  - CH-11: 協調キャンセル（runningにcancel flag伝播） — WIP（UIはキュー/実行中の一括キャンセルに対応）
   - CH-14: メタ拡充（engine/sandbox/parallelism/duration） — Done(初期)
   - CH-03: 実行MVP（`AUTOEDA_SANDBOX_EXECUTE=1` で安全サブプロセス実行） — WIP（LLM透過は未）
   - バッチ: `parallelism`受理＋`parallelism_effective` 返却（ENV上限内）。スケジューラでバッチ単位の同時実行上限を遵守 — Done(初期)
@@ -61,7 +62,7 @@
 | T-H1-FE | 「チャート作成」ボタン〜結果表示 | **Done(MVP)** | `ChartsPage`, `client-sdk` | SDKポーリング対応で非同期完了待ち。タブ/ダウンロード/エラー提示実装済み |
 | T-H1-VR | Charts 単発 Story + VR | **Done(初期)** | `ChartsPage.stories.tsx`, `tests/storybook/charts.spec.ts` | ConsistentOnly/Empty のスナップショット（Linuxベースライン） |
 | T-H2-API | 一括生成 `/api/charts/generate-batch` + ジョブ/バッチステータス | **Done(MVP/非同期ポーリング)** | `services/charts.py` | 非同期時は`batch_id`のみ返却→進捗/結果は`GET /api/charts/batches/{id}`で集計 |
-| T-H2-FE | 複数選択・一括生成バー/進捗 | **WIP** | `ChartsPage` | UIは実装済み。一括はSDKポーリングで結果反映（進捗/再試行は次イテレーション） |
+| T-H2-FE | 複数選択・一括生成バー/進捗 | **WIP(分解表示)** | `ChartsPage` | R/Q/F/C/served の分解表示と live region 統一。avg_wait を表示 |
 | T-HSEC | サンドボックス実行基盤 | **WIP** | `apps/api/services/sandbox.py` | MVP導入（NWブロック/メモ制限のフック）。将来subprocess隔離/allowlist導入 |
 | T-HOBS | メトリクス/監視 | **WIP** | `metrics.record_event` | ChartJobFinished/ChartBatchFinished を記録。KPI集計のAPI/可視化は今後 |
 
@@ -71,6 +72,7 @@
 |----|----------|------|--------------|---------------------------|
 | T-H1-STEP | 単発ステップUIを実処理に連動（CH-02） | **Done(単発)** | `ChartsPage`, `client-sdk` | progressコールバックでstage=generating/rendering/doneを反映 |
 | T-H1-STEP | 単発ステップUIを実処理に連動（CH-02） | **Done(単発)** | `ChartsPage`, `client-sdk` | SDKのprogressポーリングでstage=generating/rendering/doneを反映 |
+| T-H2-FAIR | バッチ間フェアスケジューラ | **Done(初期)** | `charts.py` | 簡易RRで飢餓を回避（_LAST_SERVED_BATCH）。今後は公正性メトリクスで監視 |
 | T-H1-EXEC | LLMコード生成＋安全実行（CH-03） | **WIP(実行基盤MVP)** | `sandbox.py`, `charts.py` | `AUTOEDA_SANDBOX_EXECUTE=1` で安全サブプロセス実行（Vega JSON生成）＋ cancel/timeout 監視。今後LLM透過化 |
 | T-H1-FAIL | 失敗理由提示とテンプレフォールバック（CH-05） | **TODO** | FE/SDK 例外整形 | 空応答/安全フィルタ/JSON不正の理由を人間可読で提示、テンプレへ退避 |
 | T-H1-RERUN | パラメータ調整→再実行（履歴1件）（CH-06） | **TODO** | `ChartsPage` | 列/集計単位の編集UI、直前結果の履歴保持・復元 |
@@ -128,14 +130,14 @@
 
 ---
 
-## 3. 次のイテレーション候補
+## 3. 次のイテレーション（優先順）
 
-1. **H1（単発生成の仕上げ）**: `T-H1-STEP`/`T-H1-EXEC`/`T-H1-FAIL`/`T-H1-RERUN`/`T-H1-COPY`/`T-H1-META` を順に実装。Storybookで状態再現→VR対象へ追加。
-2. **H2（一括生成の強化）**: `T-H2-CANCEL`/`T-H2-QUEUE`/`T-H2-BACKOFF` を実装。並列度=ENV、失敗時の個別再試行+指数バックオフ、進捗UI連動。
-3. **Sandbox 強化**: `T-HSEC` を継続（allowlist/NW遮断/timeout/mem をより厳格に）。安全に失敗する設計。
-4. **Capability F/G 着手**: `T-F1-PLAN`（計画生成API+UI）→`T-F2-REVISE`（差分適用）→`T-G1-EXEC`（コード生成/実行）→`T-G2-INTERACTIVE`（深掘り）を段階導入。
-5. **CI/観測**: VRレポート/アーティファクトの保存期間見直し。H系イベントのKPIダッシュ（p95/成功率/失敗理由）を `metrics.slo_snapshot` 拡張で可視化。
-6. **E2E 拡充 (T-TEST-03)**: Settings プロバイダ切替・Charts 成功/失敗・Recipes の一連シナリオ。
+1. H2 スケジューラ仕上げ（中〜高）：/batches/{id} の集計（queued/running/succeeded/failed/cancelled）をUI進捗バーと live region に完全連動。公正性のメトリクス化
+2. H1‑EXEC 強化（高）：AST deny‑list拡張（import/exec系）、詳細エラーのAPI整形（type=timeout/cancelled/forbidden_import/format_error）、テンプレ系にも協調中断
+3. F2 UI 雛形拡充（中）：Plan の並べ替え/フィルタ、依存の視覚化、検証結果の強調表示
+4. CH‑13（中）：段階フォールバック（テンプレ→軽量LLM→指数バックオフ再試行）
+5. 保存/共有（CH‑16〜19）（中）：最小保存API＋一覧→Notebookセル出力
+6. CI/観測（中）：H系KPI（p95/成功率/失敗理由）を `metrics.slo_snapshot` に取り込み、Homeカードに色分け表示（閾値のenv化）
 
 ---
 
@@ -143,11 +145,11 @@
 
 | Story | 状態 | 対応タスク | 備考 |
 |-------|------|------------|------|
-| F1: 計画自動生成 | 未実装 | `T-F1-PLAN` | RAG+WebSearch/JSON Schema/整合検査含む |
-| F2: 人手レビュー・差分適用 | 未実装 | `T-F2-REVISE` | 循環/未解決入力=0、diff提示 |
+| F1: 計画自動生成 | Done(MVP/API) | `T-F1-PLAN` | RAG+プロファイル由来の骨子（決定的） |
+| F2: 人手レビュー・差分適用 | Done(MVP/検証) | `T-F2-REVISE`, `T-F2-UI` | 検証API実装/Plan UI雛形。差分パッチは後続 |
 | G1: カスタム分析の生成・実行 | 未実装 | `T-G1-EXEC` | サンドボックス `code_exec` 実運用化 |
 | G2: 深掘り指示の再生成 | 未実装 | `T-G2-INTERACTIVE` | 差分パッチ生成・再実行・比較 |
-| CH-03/05/06/07/11/12/13/14 | 未実装/一部 | `T-H1-EXEC` ほか | 上記 2.1.1 の各タスクを参照 |
+| CH-03/05/06/11/12/13/16〜19 | 一部/未実装 | `T-H1-EXEC`/`T-H2-*`/`T-H3-*` | 07/14はDone、02は単発Done、12は初期Done |
 | CH-16〜19 | 未実装 | `T-H3-*` | 保存/共有/バージョン/ピン留め |
 
 ### 4.1 追加タスク定義（F/G）
