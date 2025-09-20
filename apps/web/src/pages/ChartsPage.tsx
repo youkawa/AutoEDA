@@ -118,7 +118,9 @@ export function ChartsPage() {
                     style={{ width: `${Math.round((batchProgress.done / Math.max(1, batchProgress.total)) * 100)}%` }}
                   />
                 </div>
-                <div className="mt-1 text-[11px] text-slate-500">R:{batchProgress.running ?? 0} Q:{batchProgress.queued ?? 0} F:{batchProgress.failed ?? 0} C:{batchProgress.cancelled ?? 0}</div>
+                <div className="mt-1 text-[11px] text-slate-500" title="R:実行中 / Q:キュー / F:失敗 / C:中断 / S:進捗済み">
+                  R:{batchProgress.running ?? 0} Q:{batchProgress.queued ?? 0} F:{batchProgress.failed ?? 0} C:{batchProgress.cancelled ?? 0} S:{batchProgress.served ?? 0}
+                </div>
               </div>
             ) : null}
             <Button
