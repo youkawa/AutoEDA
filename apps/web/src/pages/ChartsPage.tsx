@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { suggestCharts, generateChartWithProgress, generateChartsBatch, beginChartsBatchWithIds, getChartsBatchStatusWithMap, saveChart, listSavedCharts, type ChartsBatchStatus, type SavedChart } from '@autoeda/client-sdk';
+import { suggestCharts, generateChartWithProgress, generateChartsBatch, beginChartsBatchWithIds, getChartsBatchStatusWithMap, saveChart, listSavedCharts, deleteSavedChart, type ChartsBatchStatus, type SavedChart } from '@autoeda/client-sdk';
 import type { ChartCandidate } from '@autoeda/schemas';
 import { Button, useToast } from '@autoeda/ui-kit';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/Card';
@@ -170,7 +170,13 @@ export function ChartsPage() {
               <div key={it.id} className="rounded-xl border border-slate-200 p-2">
                 <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
                   <span className="truncate" title={it.title || it.hint || it.chart_id || it.id}>{it.title || it.hint || it.chart_id || it.id}</span>
-                  <span>{new Date(it.created_at).toLocaleString()}</span>
+                  <span className="flex items-center gap-2">
+                    <span>{new Date(it.created_at).toLocaleString()}</span>
+                    <button className="rounded bg-rose-50 px-2 py-0.5 text-rose-600 hover:bg-rose-100" onClick={async ()=>{
+                      try { await deleteSavedChart(it.id); setSaved((arr)=>arr.filter((x)=>x.id!==it.id)); toast('削除しました','success'); }
+                      catch { toast('削除に失敗しました','error'); }
+                    }}>削除</button>
+                  </span>
                 </div>
                 {it.svg ? (
                   <div className="rounded border border-slate-200 bg-white p-2" dangerouslySetInnerHTML={{ __html: it.svg }} />

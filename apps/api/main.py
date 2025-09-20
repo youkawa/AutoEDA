@@ -794,3 +794,12 @@ def charts_save(req: ChartSaveRequest) -> ChartSavedItem:
 def charts_list(dataset_id: Optional[str] = None) -> List[ChartSavedItem]:
     out = [ChartSavedItem(**it) for it in charts_store.list_items(dataset_id)]
     return out
+
+
+@app.delete("/api/charts/{saved_id}")
+def charts_delete(saved_id: str) -> Dict[str, Any]:
+    ok = charts_store.delete_item(saved_id)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+    log_event("ChartDeleted", {"id": saved_id})
+    return {"deleted": True}

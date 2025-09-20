@@ -420,6 +420,12 @@ export async function listSavedCharts(datasetId?: string): Promise<SavedChart[]>
   }
 }
 
+export async function deleteSavedChart(id: string): Promise<void> {
+  const url = `${API_BASE ?? ''}/api/charts/${encodeURIComponent(id)}`;
+  const res = await fetch(url, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
 export async function applyPiiPolicy(datasetId: string, mask_policy: 'MASK' | 'HASH' | 'DROP', columns: string[]): Promise<PIIApplyResult> {
   try {
     return await postJSON<PIIApplyResult>('/api/pii/apply', { dataset_id: datasetId, mask_policy, columns });

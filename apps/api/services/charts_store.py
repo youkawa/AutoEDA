@@ -36,3 +36,12 @@ def list_items(dataset_id: str | None = None) -> List[Dict[str, Any]]:
         items = [it for it in items if it.get("dataset_id") == dataset_id]
     return items
 
+
+def delete_item(item_id: str) -> bool:
+    data = _load()
+    items: List[Dict[str, Any]] = data.get("items", [])
+    before = len(items)
+    items = [it for it in items if it.get("id") != item_id]
+    data["items"] = items
+    _save(data)
+    return len(items) < before

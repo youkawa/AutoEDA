@@ -10,6 +10,7 @@ lerna-debug.log*
 # Python artifacts
 __pycache__/
 *.py[cod]
+.python-version
 
 node_modules
 dist
