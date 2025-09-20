@@ -58,6 +58,7 @@
 | ID | スコープ | 状態 | リファレンス | 受け入れ基準/次アクション |
 |----|----------|------|--------------|---------------------------|
 | T-H1-STEP | 単発ステップUIを実処理に連動（CH-02） | **TODO** | `ChartsPage`, `charts.py` | job/batch ステータスに応じて準備→生成→実行→描画を連動（擬似から実値へ） |
+| T-H1-STEP | 単発ステップUIを実処理に連動（CH-02） | **Done(単発)** | `ChartsPage`, `client-sdk` | SDKのprogressポーリングでstage=generating/rendering/doneを反映 |
 | T-H1-EXEC | LLMコード生成＋安全実行（CH-03） | **TODO** | `sandbox.py`, `orchestrator` | SandboxRunner を本実行モードに拡張（allowlist/timeout/mem/NW遮断）＋LLM透過コード生成の最小経路 |
 | T-H1-EXEC | LLMコード生成＋安全実行（CH-03） | **WIP(実行基盤MVP)** | `sandbox.py`, `charts.py` | `AUTOEDA_SANDBOX_EXECUTE=1` で安全サブプロセス実行（Vega JSON生成）。今後LLM透過化 |
 | T-H1-FAIL | 失敗理由提示とテンプレフォールバック（CH-05） | **TODO** | FE/SDK 例外整形 | 空応答/安全フィルタ/JSON不正の理由を人間可読で提示、テンプレへ退避 |
@@ -65,7 +66,7 @@
 | T-H1-COPY | コード表示＋コピー（CH-07） | **TODO** | `ChartsPage` | 「コードをコピー」ボタン追加（クリップボード書込） |
 | T-H1-META | メタデータ拡充（CH-14） | **Done(初期)** | `charts.py`, `sandbox.py` | engine/sandbox/parallelism/seed/duration_ms を `result.meta` に付与 |
 | T-H2-CANCEL | running の協調中断（CH-11） | **WIP(協調キャンセル)** | `charts.py` | running ジョブに cancel flag を伝搬し完了時に cancelled へ（中断ポイント導入は今後） |
-| T-H2-QUEUE | 並列度cap/キュー制御（CH-12） | **Done(初期)** | `charts.py` | `AUTOEDA_CHARTS_PARALLELISM` でワーカー数制御（デフォルト1） |
+| T-H2-QUEUE | 並列度cap/キュー制御（CH-12） | **Done(初期)** | `charts.py` | `AUTOEDA_CHARTS_PARALLELISM` でワーカー数制御。batchのparallelismはメタに反映（effective=ENV上限） |
 | T-H2-BACKOFF | 段階的フォールバック+再試行（CH-13） | **TODO** | FE/SDK/API | テンプレ→軽量LLM→指数バックオフ再試行（最大3回） |
 
 #### 2.1.2 Capability H — 保存/共有（P2）
@@ -123,7 +124,7 @@
 | ID | スコープ | 状態 | リファレンス | 受け入れ基準/次アクション |
 |----|----------|------|--------------|---------------------------|
 | T-F1-PLAN | 計画生成 API/UI | **Done(MVP/API)** | `docs/requirements_v2.md` F1 | `POST /api/plan/generate` 実装（RAG+プロファイル由来の骨子）。UI/保存は今後 |
-| T-F2-REVISE | 計画差分適用 | **TODO** | F2 | パッチ生成・循環/未解決=0 を満たす検証、`EDAPlanRevised` ログ |
+| T-F2-REVISE | 計画差分適用 | **Done(MVP/検証のみ)** | F2 | `/api/plan/revise` に循環/未解決/曖昧受入の検証を実装（400整形）。差分生成は今後 |
 | T-G1-EXEC | カスタム実行基盤 | **TODO** | G1 | `code_exec`（NW遮断/timeout/mem/whitelist）で各タスク実行、検証フック合格/不合格表示 |
 | T-G2-INTERACTIVE | 深掘り対話 | **TODO** | G2 | プロンプト→差分コード→再実行→比較レポート、`CustomCodePatched` ログ |
 
