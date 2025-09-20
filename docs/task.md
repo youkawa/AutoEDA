@@ -141,12 +141,11 @@
 
 ## 3. 次のイテレーション（優先順）
 
-1. H1‑EXEC（高・継続）: `run_generated_chart` に phase1/phase2 遅延（ENV: `AUTOEDA_SB_TEST_DELAY_MS/_DELAY2_MS`）を導入し、AST deny‑list + RLIMIT を維持。キャンセル/タイムアウトの境界テストを追加してGreenを確認。失敗時stderrの先頭要約を `error_detail` として安全伝播（最大500文字、PII/Secretsをredact）。FEで「詳細」トグルとコピーに対応。
-2. H2（中）: VR ストーリーを「閾値ライン強調」「凡例なし」の 2 パターンに分割（URLクエリで legend/th を制御）。OS差ノイズの影響をさらに低減（maxDiffPixelRatio=0.02 維持）。
-3. F2（中）: issues.csv に missing_deps 集約列を追加し、Plan ヘッダに最終検証時刻/バージョンを表示。ソート/フィルタはURLクエリ/LocalStorageへ永続化。
-4. CH‑13（中）：段階フォールバック（テンプレ→軽量LLM→指数バックオフ再試行）
-5. 保存/共有（CH‑16〜19）（中）：最小保存API＋一覧→Notebookセル出力
-6. CI/観測（中）：OpenAPI 互換失敗時に SDK/FE の friendly map 更新 TODO を PR コメントに提示。
+1. CI/観測（高）: OpenAPI互換の差分要約をPR本文に自動追記（型/enum/requiredの破壊性区分とMigration Guide）。HomeのSLOカードにChartsKPI（served%/avg_wait_ms）を恒常表示。`/api/metrics/slo` に charts_summary を同梱（実装済のためDocs整備）。
+2. H1‑EXEC（中〜高・仕上げ）: redactパターン拡張（クレデンシャル断片/UUID/URL秘匿）。FEにerror_detailの「コピー」アクション。OpenAPIにerror_detail（optional）補助記載。
+3. CH‑13（中）: 段階フォールバック（テンプレ→軽量LLM（response_schema）→指数バックオフ最大3回）＋空応答/ブロック理由の人間可読化。単体/統合テスト追加。
+4. H3 保存/共有（中）: MVP `POST /api/charts/save` / `GET /api/charts/list` を追加（ローカルJSON永続）。UIの保存/履歴は後続。
+5. Docs（中）: Planガイド（MDX）— issues.csv の項目説明と依存グラフの読み方を追記。
 
 ---
 
