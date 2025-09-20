@@ -104,7 +104,7 @@
 
 ## 3. 次のイテレーション（優先順）
 
-1. CI/観測（高）: OpenAPI互換の差分要約をPR本文へ自動追記（型/enum/requiredの破壊性区分とMigration Guide）。HomeのSLOカードにCharts系KPI（served%/avg_wait_ms）を統合。`/api/metrics/slo` に charts_summary を同梱。
+1. CI/観測（高）: OpenAPI互換の差分要約をPR本文へ自動追記（型/enum/requiredの破壊性区分とMigration Guide）— 初期実装完了。HomeのSLOカードにCharts系KPI（served%/avg_wait_ms）を統合（済）。`/api/metrics/slo` に charts_summary を同梱（済）。
 2. H1‑EXEC（中〜高・仕上げ）: redactパターン拡張（クレデンシャル断片/UUID/URL秘匿）。FEにerror_detailの「コピー」を追加。OpenAPIにerror_detail（optional）を補助記載。
 3. CH‑13（中）: 段階フォールバック（テンプレ→軽量LLM（response_schema適用）→指数バックオフ再試行（最大3回））と空応答/ブロック理由の人間可読化。単体/統合テストを追加。
 4. H3 保存/共有（中）: MVP `POST /api/charts/save` / `GET /api/charts/list` を追加（ローカルJSON永続）— UI「保存/履歴」は後続。
