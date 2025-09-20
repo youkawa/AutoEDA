@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 from . import metrics
-from .sandbox import SandboxRunner
+from .sandbox import SandboxRunner, SandboxError
 
 _DATA_DIR = Path("data/charts")
 _JOBS: Dict[str, Dict[str, Any]] = {}
@@ -153,7 +153,10 @@ def _start_worker_once() -> None:
                 else:
                     friendly = f"実行に失敗しました: {msg}"
                     code = "unknown"
-                _JOBS[job_id].update({"status": "failed", "error": friendly, "error_code": code})
+                detail = None
+                if isinstance(exc, SandboxError) and getattr(exc, "logs", None):
+                    detail = str(exc.logs)[:500]
+                _JOBS[job_id].update({"status": "failed", "error": friendly, "error_code": code, **({"error_detail": detail} if detail else {})})
                 try:
                     t0 = _JOBS[job_id].get("t0") or time.perf_counter()
                     dur = int((time.perf_counter() - t0) * 1000)
@@ -165,6 +168,7 @@ def _start_worker_once() -> None:
                         "hint": item.get("spec_hint"),
                         "status": "failed",
                         "error_code": code,
+                        **({"error_detail": detail} if detail else {}),
                     })
                 except Exception:
                     pass
@@ -432,6 +436,8 @@ def get_batch(batch_id: str) -> Optional[Dict[str, Any]]:
                     it["error"] = j.get("error")
                 if j.get("error_code"):
                     it["error_code"] = j.get("error_code")
+                if j.get("error_detail"):
+                    it["error_detail"] = j.get("error_detail")
             if it["status"] == "succeeded":
                 done += 1
                 if j.get("result"):

@@ -16,7 +16,10 @@ import tempfile
 
 
 class SandboxError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, code: Optional[str] = None, logs: Optional[str] = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.logs = logs
 
 
 class SandboxRunner:
@@ -119,7 +122,7 @@ class SandboxRunner:
                 if cancel_check and cancel_check():
                     with contextlib.suppress(Exception):
                         proc.kill()
-                    raise SandboxError("cancelled")
+                    raise SandboxError("cancelled", code="cancelled")
                 if (time.perf_counter() - started) >= self.timeout_sec:
                     with contextlib.suppress(Exception):
                         proc.kill()
@@ -250,17 +253,17 @@ class SandboxRunner:
                         for alias in node.names:
                             root = (alias.name or "").split(".")[0]
                             if root not in allowed_imports:
-                                raise SandboxError(f"forbidden import: {root}")
+                                raise SandboxError(f"forbidden import: {root}", code="forbidden_import")
                     elif isinstance(node, _ast.ImportFrom):
                         root = (node.module or "").split(".")[0]
                         if root and root not in allowed_imports:
-                            raise SandboxError(f"forbidden import: {root}")
+                            raise SandboxError(f"forbidden import: {root}", code="forbidden_import")
                     elif isinstance(node, _ast.Call):
                         if isinstance(node.func, _ast.Name) and node.func.id in banned_calls:
-                            raise SandboxError(f"forbidden call: {node.func.id}")
+                            raise SandboxError(f"forbidden call: {node.func.id}", code="forbidden_import")
                         if isinstance(node.func, _ast.Attribute) and isinstance(node.func.value, _ast.Name):
                             if node.func.value.id == 'os' and node.func.attr in banned_os_calls:
-                                raise SandboxError(f"forbidden os call: os.{node.func.attr}")
+                                raise SandboxError(f"forbidden os call: os.{node.func.attr}", code="forbidden_import")
             except SandboxError:
                 raise
             except Exception:
@@ -296,9 +299,14 @@ class SandboxRunner:
                 if waited >= self.timeout_sec:
                     with contextlib.suppress(Exception):
                         proc.kill()
-                    raise SandboxError("timeout")
+                    raise SandboxError("timeout", code="timeout")
             out = (proc.stdout.read() if proc.stdout else "").strip()
-            obj = _json.loads(out or "{}")
+            err = (proc.stderr.read() if proc.stderr else "").strip()
+            try:
+                obj = _json.loads(out or "{}")
+            except Exception:
+                logs = (err or out)[:500]
+                raise SandboxError("format_error", code="format_error", logs=logs)
             # add meta
             obj.setdefault("meta", {})
             obj["meta"].update({"engine": "generated", "duration_ms": None})
