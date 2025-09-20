@@ -370,6 +370,62 @@ export async function emitRecipes(datasetId: string): Promise<RecipeEmitResult> 
   }
 }
 
+// --- G1: Custom analysis execution ---
+export type ExecRunResult = { task_id: string; status: 'succeeded'|'failed'|'skipped'; logs: string[]; outputs: { type: string; mime: string; content: any }[]; error_code?: 'timeout'|'cancelled'|'forbidden_import'|'format_error'|'unknown' };
+
+export async function runCustomAnalysis(datasetId: string, code: string, taskId = 'adhoc', timeoutMs = 3000): Promise<ExecRunResult> {
+  try {
+    return await postJSON<ExecRunResult>('/api/exec/run', { dataset_id: datasetId, code, task_id: taskId, language: 'python', timeout_ms: timeoutMs });
+  } catch (e) {
+    return { task_id: taskId, status: 'failed', logs: [e instanceof Error ? e.message : 'failed'], outputs: [] };
+  }
+}
+
+// --- G2: Deep-dive interactive suggestions ---
+export type DeepDiveSuggestion = { title: string; why?: string; code?: string; spec?: any; tags?: string[]; diagnostics?: Record<string, unknown> };
+export type DeepDiveResponse = { suggestions: DeepDiveSuggestion[] };
+
+export async function deepDive(datasetId: string, prompt: string): Promise<DeepDiveResponse> {
+  try {
+    return await postJSON<DeepDiveResponse>('/api/analysis/deepdive', { dataset_id: datasetId, prompt });
+  } catch (_) {
+    return { suggestions: [{ title: '分布の形状を確認', why: 'ヒストグラムで歪度や多峰性を確認' }] };
+  }
+}
+
+// --- H3: Save / List charts (local JSON store via API) ---
+export type SavedChart = { id: string; dataset_id: string; chart_id?: string; title?: string; hint?: string; svg?: string; vega?: any; created_at: string };
+
+export async function saveChart(datasetId: string, options: { chartId?: string; title?: string; hint?: string; svg?: string; vega?: any }): Promise<SavedChart> {
+  try {
+    return await postJSON<SavedChart>('/api/charts/save', {
+      dataset_id: datasetId,
+      chart_id: options.chartId,
+      title: options.title,
+      hint: options.hint,
+      svg: options.svg,
+      vega: options.vega,
+    });
+  } catch (e) {
+    throw e instanceof Error ? e : new Error('failed to save chart');
+  }
+}
+
+export async function listSavedCharts(datasetId?: string): Promise<SavedChart[]> {
+  try {
+    const q = datasetId ? `?dataset_id=${encodeURIComponent(datasetId)}` : '';
+    return await getJSON<SavedChart[]>(`/api/charts/list${q}`);
+  } catch {
+    return [];
+  }
+}
+
+export async function deleteSavedChart(id: string): Promise<void> {
+  const url = `${API_BASE ?? ''}/api/charts/${encodeURIComponent(id)}`;
+  const res = await fetch(url, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
 export async function applyPiiPolicy(datasetId: string, mask_policy: 'MASK' | 'HASH' | 'DROP', columns: string[]): Promise<PIIApplyResult> {
   try {
     return await postJSON<PIIApplyResult>('/api/pii/apply', { dataset_id: datasetId, mask_policy, columns });

@@ -92,14 +92,23 @@ jobs:
               const diff = JSON.parse(fs.readFileSync('reports/openapi_compat_diff.json', 'utf8'));
               const miss = diff.missing || [];
               const extra = diff.extra || [];
+              const reqMiss = diff.required_missing || [];
+              const reqExtra = diff.required_extra || [];
+              const typeChanges = diff.type_changes || [];
+              const typeRows = typeChanges.map(tc => `| TypeChange | ${tc.prop}: ${tc.from} -> ${tc.to} |`).join('\n');
               table = '\n\n| Type | Values |\n|---|---|\n' +
-                      `| Missing | ${miss.join(', ') || '-'} |\n` +
-                      `| Extra | ${extra.join(', ') || '-'} |\n`;
-              destructive = miss.length ? 'breaking' : (extra.length ? 'non-breaking' : 'unknown');
+                      `| Enum Missing | ${miss.join(', ') || '-'} |\n` +
+                      `| Enum Extra | ${extra.join(', ') || '-'} |\n` +
+                      `| Required Missing | ${reqMiss.join(', ') || '-'} |\n` +
+                      `| Required Extra | ${reqExtra.join(', ') || '-'} |\n` +
+                      (typeRows ? ('\n' + typeRows) : '');
+              destructive = (miss.length || reqMiss.length || reqExtra.length || typeChanges.length) ? 'breaking' : (extra.length ? 'non-breaking' : 'unknown');
             } catch (e) { /* ignore */ }
             const guide = '\n\n**Migration Guide (suggested):**\n' +
               '- If values are Missing: add them back in server schema or relax enum, and update UI mapping.\n' +
               '- If values are Extra: extend client mapping (friendly messages) and document new codes.\n' +
+              '- For Required changes: avoid adding new required fields or coordinate client/server rollout; treat as breaking.\n' +
+              '- For Type changes: ensure server/client types remain compatible; avoid narrowing types; treat as breaking.\n' +
               '- Ensure SDK exceptions carry `error_code` and UI shows human-readable text.';
             const { data: pr } = await github.rest.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: context.issue.number });
             const body = pr.body || '';

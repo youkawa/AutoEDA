@@ -10,8 +10,11 @@ from .services import evaluator
 from .services import orchestrator
 from .services import metrics
 from .services import charts as chartsvc
+from .services import sandbox
 from . import config as app_config
 from .services import plan as plan_svc
+from .services import charts_store
+from .services.security import redact
 import os as _os
 import json as _json
 
@@ -636,8 +639,10 @@ class PlanReviseRequest(BaseModel):
 
 class ExecRunRequest(BaseModel):
     task_id: str
+    dataset_id: Optional[str] = None
     code: Optional[str] = None
     language: Literal["python", "sql"] = "python"
+    timeout_ms: Optional[int] = Field(default=3000, ge=100, le=20000)
 
 
 class ExecRunResult(BaseModel):
@@ -645,6 +650,8 @@ class ExecRunResult(BaseModel):
     status: Literal["succeeded", "failed", "skipped"] = "skipped"
     logs: List[str] = []
     outputs: List[Dict[str, Any]] = []
+    # エラー時の機械判別コード（UIで友好メッセージに変換）
+    error_code: Optional[Literal["timeout", "cancelled", "forbidden_import", "format_error", "unknown"]] = None
 
 
 @app.post("/api/plan/generate", response_model=PlanModel)
@@ -666,8 +673,133 @@ def plan_revise(req: PlanReviseRequest) -> PlanModel:
 
 @app.post("/api/exec/run", response_model=ExecRunResult)
 def exec_run(req: ExecRunRequest) -> ExecRunResult:
-    """Experimental stub: does not execute code; returns skipped.
+    # MVP: Python のみサポート。code が無い場合は skipped。
+    if req.language != "python" or not (req.code and req.code.strip()):
+        return ExecRunResult(task_id=req.task_id, status="skipped", logs=["no-op"], outputs=[])
+    try:
+        runner = sandbox.SandboxRunner()
+        res = runner.run_code_exec(code=req.code, dataset_id=req.dataset_id, timeout_sec=(req.timeout_ms or 3000)/1000.0)
+        outs = res.get("outputs") or []
+        return ExecRunResult(task_id=req.task_id, status="succeeded", logs=[], outputs=outs)
+    except sandbox.SandboxError as exc:
+        code = getattr(exc, "code", None)
+        raw = getattr(exc, "logs", None)
+        msg = redact(str(raw)[:500] if raw else str(exc))
+        # 不明コードは 'unknown' に丸める
+        ec: Optional[str] = code if isinstance(code, str) and code in {"timeout", "cancelled", "forbidden_import", "format_error", "unknown"} else "unknown"
+        return ExecRunResult(task_id=req.task_id, status="failed", logs=[msg], outputs=[], error_code=ec) 
 
-    実装方針（今後）: SandboxRunner / allowlist / timeout / mem / NW遮断で実行し検証フック評価。
-    """
-    return ExecRunResult(task_id=req.task_id, status="skipped", logs=["experimental endpoint"], outputs=[])
+# --- G2: Deep-dive interactive suggestions (MVP deterministic) ---
+class DeepDiveRequest(BaseModel):
+    dataset_id: str
+    prompt: str
+
+
+class DeepDiveSuggestion(BaseModel):
+    title: str
+    why: Optional[str] = None
+    code: Optional[str] = None
+    spec: Optional[Dict[str, Any]] = None
+    tags: Optional[List[str]] = None
+    diagnostics: Optional[Dict[str, Any]] = None
+
+
+class DeepDiveResponse(BaseModel):
+    suggestions: List[DeepDiveSuggestion]
+
+
+@app.post("/api/analysis/deepdive", response_model=DeepDiveResponse)
+def analysis_deepdive(req: DeepDiveRequest) -> DeepDiveResponse:
+    text = (req.prompt or "").lower()
+    sugg: List[DeepDiveSuggestion] = []
+    if any(k in text for k in ["trend", "時系列", "推移"]):
+        sugg.append(DeepDiveSuggestion(
+            title="時系列の推移を検証",
+            why="トレンド/季節性の有無を確認",
+            spec={
+                "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+                "mark": "line",
+                "data": {"name": "data"},
+                "encoding": {"x": {"field":"x","type":"quantitative"}, "y": {"field":"y","type":"quantitative"}},
+                "datasets": {"data": [{"x": i, "y": v} for i, v in enumerate([1,2,3,2,4,3,5])]},
+                "description": "deepdive line"
+            },
+            tags=["trend"],
+            diagnostics={"seasonality": False, "expected_window": 3}
+        ))
+    if any(k in text for k in ["相関", "correlation", "関係"]):
+        sugg.append(DeepDiveSuggestion(
+            title="相関の有無を確認",
+            why="散布図で線形関係や外れ値の有無を確認",
+            spec={
+                "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+                "mark": "point",
+                "data": {"name": "data"},
+                "encoding": {"x": {"field":"x","type":"quantitative"}, "y": {"field":"y","type":"quantitative"}},
+                "datasets": {"data": [{"x": x, "y": y} for x, y in [(1,2),(2,2.5),(3,3),(4,3.8),(5,5)]]},
+                "description": "deepdive scatter"
+            },
+            tags=["correlation"],
+            diagnostics={"hypothesis": "linear", "outlier_sensitive": True}
+        ))
+    if not sugg:
+        sugg.append(DeepDiveSuggestion(title="分布の形状を確認", why="ヒストグラムで歪度や多峰性を確認"))
+    return DeepDiveResponse(suggestions=sugg)
+
+
+# --- H3: Charts save/list (MVP local JSON store) ---
+class ChartSaveRequest(BaseModel):
+    dataset_id: str
+    chart_id: Optional[str] = None
+    title: Optional[str] = None
+    hint: Optional[str] = None
+    # 片方あればOK（SVG優先）。vegaは application/json 相当。
+    svg: Optional[str] = None
+    vega: Optional[Dict[str, Any]] = None
+
+
+class ChartSavedItem(BaseModel):
+    id: str
+    dataset_id: str
+    chart_id: Optional[str] = None
+    title: Optional[str] = None
+    hint: Optional[str] = None
+    svg: Optional[str] = None
+    vega: Optional[Dict[str, Any]] = None
+    created_at: str
+
+
+@app.post("/api/charts/save", response_model=ChartSavedItem)
+def charts_save(req: ChartSaveRequest) -> ChartSavedItem:
+    if not (req.svg or req.vega):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="either svg or vega must be provided")
+    from uuid import uuid4
+    from datetime import datetime as _dt
+    item = {
+        "id": uuid4().hex[:12],
+        "dataset_id": req.dataset_id,
+        "chart_id": req.chart_id,
+        "title": req.title,
+        "hint": req.hint,
+        "svg": req.svg,
+        "vega": req.vega,
+        "created_at": _dt.utcnow().isoformat() + "Z",
+    }
+    charts_store.add_item(item)
+    log_event("ChartSaved", {"dataset_id": req.dataset_id, "chart_id": req.chart_id, "has_svg": bool(req.svg), "has_vega": bool(req.vega)})
+    return ChartSavedItem(**item)
+
+
+@app.get("/api/charts/list", response_model=List[ChartSavedItem])
+def charts_list(dataset_id: Optional[str] = None) -> List[ChartSavedItem]:
+    out = [ChartSavedItem(**it) for it in charts_store.list_items(dataset_id)]
+    return out
+
+
+@app.delete("/api/charts/{saved_id}")
+def charts_delete(saved_id: str) -> Dict[str, Any]:
+    ok = charts_store.delete_item(saved_id)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+    log_event("ChartDeleted", {"id": saved_id})
+    return {"deleted": True}

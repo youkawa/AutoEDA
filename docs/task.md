@@ -1,6 +1,6 @@
 # AutoEDA 実装計画 (タスクトラッカー)
 
-更新日: 2025-09-20 / 担当: AutoEDA Tech Lead（追記6: CH‑13 初期実装 — charts のフォールバック+再試行を追加）
+更新日: 2025-09-20 / 担当: AutoEDA Tech Lead（追記8: H1‑EXEC の安全強化, ExecRunResult.error_code を OpenAPI 反映, G2 一括実行の A11y 進捗アナウンス 追加）
 
 ---
 
@@ -23,10 +23,11 @@
   - F1: `/api/plan/generate` — Done(MVP/API)
   - F2: `/api/plan/revise` — Done(MVP/検証のみ)（循環/未解決/曖昧受入の検証、400整形）。差分パッチ生成は今後
   - PlanPage（UI雛形）を追加し、ソート/フィルタ/未解決依存の可視化/JSONダウンロードを提供 — Done(初期)
-  - G系は未実装（実行基盤はHのMVPを流用可能）
+- G1/G2: **Done(MVP/API+SDK+Web)** — G1 `/api/exec/run` + `runCustomAnalysis()`、G2 `/api/analysis/deepdive` + `deepDive()`、Web の `AnalysisPage` から利用可能（決定的サジェスト→コード反映→実行）。
+ - G1/G2: **Done(MVP/API+SDK+Web)** — G1 `/api/exec/run` + `runCustomAnalysis()`（失敗時 `error_code` と redact 済みログを返却）／G2 `/api/analysis/deepdive` + `deepDive()`（サジェストに `tags`/`diagnostics` 付与）、Web の `AnalysisPage` から利用可能（決定的サジェスト→コード反映→単発/一括実行）。
 - フロントは主要ページが実装済み。Storybook は導入済み（MSW/Router/Docs/A11y、VR運用まで整備）。
 - H2（視覚化運用）: ChartsPage ヘッダに served% スパークライン（24本/80%しきい値線/各バー詳細 tooltip/ヘルプアイコン）。Home に SLO charts_summary（served%/avg_wait/series）。
-- H1‑EXEC: テンプレ経路（inline/subprocess）に協調中断 checkpoint を追加し、pytest で cancel/timeout を検証。
+- H1‑EXEC: テンプレ経路（inline/subprocess）に協調中断 checkpoint を追加し、pytest で cancel/timeout を検証。run_generated_chart に RLIMIT_NPROC/STACK を付与し、cancel 時の `error_code=cancelled` を一貫付与。
   - 付記: run_template_subprocess における `AUTOEDA_SB_TEST_DELAY2_MS` の環境変数未伝播を修正（timeout/二段階遅延の境界テストが安定）。
 - F2 UI: Plan 検証の NG を行頭ピル＋行背景で強調、issues.csv/plan.csv をエクスポート可能。
 - CI: OpenAPI 互換チェック（ChartJob.error_code）を workflow に組込み、PR コメントと Artifact を自動出力。
@@ -83,7 +84,7 @@
 | T-H1-STEP | 単発ステップUIを実処理に連動（CH-02） | **Done(単発)** | `ChartsPage`, `client-sdk` | progressコールバックでstage=generating/rendering/doneを反映 |
 | T-H1-STEP | 単発ステップUIを実処理に連動（CH-02） | **Done(単発)** | `ChartsPage`, `client-sdk` | SDKのprogressポーリングでstage=generating/rendering/doneを反映 |
 | T-H2-FAIR | バッチ間フェアスケジューラ | **Done(初期)** | `charts.py` | 簡易RRで飢餓を回避（_LAST_SERVED_BATCH）。今後は公正性メトリクスで監視 |
-| T-H1-EXEC | LLMコード生成＋安全実行（CH-03） | **WIP(実行基盤MVP)** | `sandbox.py`, `charts.py` | `AUTOEDA_SANDBOX_EXECUTE=1` で安全サブプロセス実行（Vega JSON生成）＋ cancel/timeout 監視。今後LLM透過化 |
+| T-H1-EXEC | LLMコード生成＋安全実行（CH-03） | **WIP→進捗** | `sandbox.py`, `charts.py` | run_generated_chart に RLIMIT_NPROC/STACK を追加、cancel 時に `error_code=cancelled` を一貫化。AST 事前検査と RLIMIT の二重ガードを維持。 |
 | T-H1-FAIL | 失敗理由提示とテンプレフォールバック（CH-05） | **TODO** | FE/SDK 例外整形 | 空応答/安全フィルタ/JSON不正の理由を人間可読で提示、テンプレへ退避 |
 | T-H1-RERUN | パラメータ調整→再実行（履歴1件）（CH-06） | **TODO** | `ChartsPage` | 列/集計単位の編集UI、直前結果の履歴保持・復元 |
 | T-H1-COPY | コード表示＋コピー（CH-07） | **Done** | `ChartsPage` | 「コードをコピー」ボタン追加（クリップボード書込） |
@@ -102,24 +103,6 @@
 | T-H3-SHARE | 共有リンク/エクスポート（CH-18） | **TODO** | API/FE | 読取専用リンク生成、Notebookセル（コード+画像）出力 |
 | T-H3-PIN | ダッシュボードへピン留め（CH-19） | **TODO** | FE | Home/Dashboard にカード配置・整列（ドラッグ） |
 
-## 3. 次のイテレーション（優先順）
-
-1. CI/観測（高）: OpenAPI互換の差分要約をPR本文へ自動追記（型/enum/requiredの破壊性区分とMigration Guide）。HomeのSLOカードにCharts系KPI（served%/avg_wait_ms）を統合。`/api/metrics/slo` に charts_summary を同梱。
-2. H1‑EXEC（中〜高・仕上げ）: redactパターン拡張（クレデンシャル断片/UUID/URL秘匿）。FEにerror_detailの「コピー」を追加。OpenAPIにerror_detail（optional）を補助記載。
-3. CH‑13（中）: 段階フォールバック（テンプレ→軽量LLM（response_schema適用）→指数バックオフ再試行（最大3回））と空応答/ブロック理由の人間可読化。単体/統合テストを追加。
-4. H3 保存/共有（中）: MVP `POST /api/charts/save` / `GET /api/charts/list` を追加（ローカルJSON永続）— UI「保存/履歴」は後続。
-5. Docs（中）: Planガイド（MDX）に issues.csv の項目説明と依存グラフの読み方を追記。
-
-## 4. 未実装ユーザーストーリー（requirements_v2 由来・現状反映）
-
-| Story | 状態 | 対応タスク | 備考 |
-|-------|------|------------|------|
-| F1: 計画自動生成 | Done(MVP/API) | `T-F1-PLAN` | RAG+プロファイル骨子（決定的） |
-| F2: 人手レビュー・差分適用 | Done(MVP/検証) | `T-F2-REVISE` | 差分生成は後続、検証は実装 |
-| G1: カスタム分析の生成・実行 | 未実装 | `T-G1-EXEC` | 実行基盤はHのMVPを流用可能 |
-| G2: 深掘り指示の再生成 | 未実装 | `T-G2-INTERACTIVE` | |
-| CH-03/05/06/11/13/16〜19 | 一部/未実装 | `T-H1-EXEC`/`T-H1-FAIL`/`T-H1-RERUN`/`T-H2-*`/`T-H3-*` | 07/14は初期Done、02は単発Done、12は初期Done |
-
 ### 2.2 安定化・不具合修正（完了）
 
 | ID | 内容 | 状態 | リファレンス | 備考 |
@@ -137,27 +120,42 @@
 | T-CI-02 | 必須チェック contexts 追加 | **Done** | GH API | `required_status_checks/contexts` に `ci / web` を登録済み |
 | T-CI-03 | Storybook VR を継続運用 | **WIP** | `tests/storybook/*.spec.ts` | OS別ベースライン運用、差分閾値 0.01–0.03、レポート保全 |
 
----
+### 2.1.3 Capability G — カスタム実行 / 深掘り（G1/G2）
+
+| ID | スコープ | 状態 | リファレンス | 受け入れ基準/次アクション |
+|----|----------|------|--------------|---------------------------|
+| T-G1-EXEC | カスタム実行 API/SDK/WEB | **Done(MVP+error_code)** | API: `/api/exec/run`, SDK: `runCustomAnalysis()` , Web: `AnalysisPage` | JSON出力（language/library/outputs[]）。エラーは `error_code`（timeout/cancelled/forbidden_import/format_error/unknown）で返却し UI に友好表示。 |
+| T-G1-SEC | サンドボックス安全強化 | **WIP(初期適用済)** | `apps/api/services/sandbox.py` | AST許可制/危険呼び出しdeny/ RLIMIT(AS/CPU/NOFILE) + 追加で NPROC/STACK を subprocess 経路に適用済。stderr redact/上限・ログ構造化を継続強化。 |
+| T-G1-TPL | 実用テンプレの提供 | **Done(初期)** | `AnalysisPage` | 移動平均・相関行列テンプレの挿入ボタン（出力はVega-Lite JSON）。 |
+| T-G2-SUGG | 深掘りサジェスト API/SDK/WEB | **Done(MVP)** | API: `/api/analysis/deepdive`, SDK: `deepDive()` , Web: `AnalysisPage` | プロンプト→決定的サジェスト（trend/corrなど）→「コードに反映」→実行 |
+| T-G2-RUN | 提案の即時実行（一括可） | **Done(逐次+A11y)** | `AnalysisPage` | カードから実行＋選択→一括実行（逐次）。失敗は `error_code` を友好文にマップ。aria-live で進捗を読み上げ（`一括実行: n/N 件完了`）。 |
+| T-G-PLAN | Plan 連動（依存生成） | **TODO** | `PlanPage`/API | サジェスト→Planタスク化（depends_on生成、issues.csv 連携）。 |
+| T-G-TEST | テスト（ユニット/VR/E2E） | **WIP** | tests | forbidden_import/timeout/format_error の単体、AnalysisPage の E2E、Storybook VR（analysis-default） |
 
 ## 3. 次のイテレーション（優先順）
 
-1. CI/観測（高）: OpenAPI互換の差分要約をPR本文に自動追記（型/enum/requiredの破壊性区分とMigration Guide）。HomeのSLOカードにChartsKPI（served%/avg_wait_ms）を恒常表示。`/api/metrics/slo` に charts_summary を同梱（実装済のためDocs整備）。
-2. H1‑EXEC（中〜高・仕上げ）: redactパターン拡張（クレデンシャル断片/UUID/URL秘匿）。FEにerror_detailの「コピー」アクション。OpenAPIにerror_detail（optional）補助記載。
-3. CH‑13（中）: 段階フォールバック（テンプレ→軽量LLM（response_schema）→指数バックオフ最大3回）＋空応答/ブロック理由の人間可読化。単体/統合テスト追加。
-4. H3 保存/共有（中）: MVP `POST /api/charts/save` / `GET /api/charts/list` を追加（ローカルJSON永続）。UIの保存/履歴は後続。
-5. Docs（中）: Planガイド（MDX）— issues.csv の項目説明と依存グラフの読み方を追記。
+1. H1‑EXEC（高）: サンドボックス安全強化
+   - import 属性 deny/OS 呼出しの網羅、RLIMIT(NPROC/STACK) の適用拡大、stderr redact/上限、ログ構造化
+   - UI 友好エラーマップ（timeout/cancelled/forbidden_import/format_error/unknown）を統一
+2. G2（中〜高）: 深掘りの実用化
+   - サジェストにタグ/診断（trend/corr/outlier）付与、複数選択→一括実行＋進捗バー
+   - Plan 連動（依存生成・issues.csv 反映）と保存
+3. H3 保存/共有（中）: 最小 API/SDK/UI
+   - `POST /api/charts/save` / `GET /api/charts/list`（ローカル永続）を追加し、履歴/バージョンへ拡張可能な足場を作成
+4. CI/観測（中）: OpenAPI互換レポート強化
+   - type/required 差分の自動説明/ラベル、Docs 同期
+5. Docs（中）: ガイド整備
+   - G1/G2 API ガイド（安全な出力例/テンプレ）と Plan ガイド（issues.csv/依存グラフ）を MDX に追加
 
----
-
-## 4. 未実装ユーザーストーリー（requirements_v2 由来）
+## 4. 未実装ユーザーストーリー（requirements_v2 由来・現状反映）
 
 | Story | 状態 | 対応タスク | 備考 |
 |-------|------|------------|------|
 | F1: 計画自動生成 | Done(MVP/API) | `T-F1-PLAN` | RAG+プロファイル由来の骨子（決定的） |
 | F2: 人手レビュー・差分適用 | Done(MVP/検証) | `T-F2-REVISE`, `T-F2-UI` | 検証API実装/Plan UI雛形。差分パッチは後続 |
-| G1: カスタム分析の生成・実行 | 未実装 | `T-G1-EXEC` | サンドボックス `code_exec` 実運用化 |
-| G2: 深掘り指示の再生成 | 未実装 | `T-G2-INTERACTIVE` | 差分パッチ生成・再実行・比較 |
-| CH-03/05/06/11/12/13/16〜19 | 一部/未実装 | `T-H1-EXEC`/`T-H2-*`/`T-H3-*` | 07/14はDone、02は単発Done、12は初期Done |
+| G1: カスタム分析の生成・実行 | Done(MVP/API) | `T-G1-EXEC` | `/api/exec/run`（SandboxRunner.run_code_exec）。SDK `runCustomAnalysis()` 追加 |
+| G2: 深掘り指示の再生成 | Done(MVP/API) | `T-G2-INTERACTIVE` | `/api/analysis/deepdive` 決定的サジェスト。SDK `deepDive()` 追加 |
+| CH-03/05/06/11/12/13/16〜19 | 一部/未実装 | `T-H1-EXEC`/`T-H2-*`/`T-H3-*` | 07/14はDone、02は単発Done、12は初期Done、13は初期実装（フォールバック+再試行） |
 | CH-16〜19 | 未実装 | `T-H3-*` | 保存/共有/バージョン/ピン留め |
 
 ### 4.1 追加タスク定義（F/G）
@@ -166,8 +164,8 @@
 |----|----------|------|--------------|---------------------------|
 | T-F1-PLAN | 計画生成 API/UI | **Done(MVP/API)** | `docs/requirements_v2.md` F1 | `POST /api/plan/generate` 実装（RAG+プロファイル由来の骨子）。UI/保存は今後 |
 | T-F2-REVISE | 計画差分適用 | **Done(MVP/検証のみ)** | F2 | `/api/plan/revise` に循環/未解決/曖昧受入の検証を実装（400整形）。差分生成は今後 |
-| T-G1-EXEC | カスタム実行基盤 | **TODO** | G1 | `code_exec`（NW遮断/timeout/mem/whitelist）で各タスク実行、検証フック合格/不合格表示 |
-| T-G2-INTERACTIVE | 深掘り対話 | **TODO** | G2 | プロンプト→差分コード→再実行→比較レポート、`CustomCodePatched` ログ |
+| T-G1-EXEC | カスタム実行基盤 | **Done(MVP/API+SDK+WEB)** | G1 | `/api/exec/run` 実装、SDK `runCustomAnalysis()`、`AnalysisPage` から実行・結果描画（Vega） |
+| T-G2-INTERACTIVE | 深掘り対話 | **Done(MVP/API+SDK+WEB)** | G2 | `/api/analysis/deepdive` 実装、SDK `deepDive()`、提案→コード反映/即時実行をUIで提供 |
 
 ---
 
@@ -182,6 +180,7 @@
 ---
 
 ## 6. 変更履歴
+- 2025-09-20: H1‑EXEC 強化 — run_generated_chart の preexec に RLIMIT_NPROC/STACK を追加、cancel に `error_code=cancelled` を付与。ExecRunResult に `error_code` を追加（OpenAPI 反映）。G2 一括実行に aria-live の進捗アナウンスを追加。OpenAPI 互換スクリプトに ExecRunResult の presence を記録。
 
 - 2025-09-20: H1‑EXEC: `run_template_subprocess` の `AUTOEDA_SB_TEST_DELAY2_MS` 未伝播を修正。`tests/python/test_sandbox_matrix.py` と `test_sandbox_cancel_timing.py` をGreen化。
 - 2025-09-20: H1‑EXEC: `run_generated_chart` に 2段階チェックポイント（generation/render）を追加し、ランタイムの `__import__` ガードを撤廃（AST+RLIMITに一本化）。新規 `tests/python/test_sandbox_exec_matrix.py` を追加し、success/timeout/cancel/cancel‑timing をGreen化。失敗時stderrの要約を `error_detail` として `get_batch().items[]` に伝播（FEは友好的なエラー表示を実装済）。
