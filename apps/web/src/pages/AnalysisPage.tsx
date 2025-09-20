@@ -14,6 +14,7 @@ export function AnalysisPage() {
   const [selected, setSelected] = useState<Record<number, boolean>>({});
   const [inflight, setInflight] = useState(false);
   const [announce, setAnnounce] = useState<string>('');
+  const [cancelBulk, setCancelBulk] = useState(false);
 
   const defaultCode = useMemo(() => (
 `# 入力: in.json から csv_path が渡されます
@@ -203,9 +204,11 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
                     if (idxs.length===0) return;
                     setInflight(true);
                     setAnnounce(`選択した提案 ${idxs.length} 件を順次実行します`);
+                    setCancelBulk(false);
                     try {
                       let done = 0;
                       for (const i of idxs) {
+                        if (cancelBulk) { setAnnounce('一括実行を中断しました'); break; }
                         await runSuggestion(i, suggs[i]!);
                         done += 1;
                         setAnnounce(`一括実行: ${done} / ${idxs.length} 件完了`);
@@ -217,6 +220,9 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
                     }
                   }}
                 >選択を一括実行</Button>
+                {inflight ? (
+                  <Button variant="secondary" size="sm" onClick={()=>{ setCancelBulk(true); setAnnounce('一括実行の中断を指示しました'); }}>一括実行を停止</Button>
+                ) : null}
               </div>
             ) : null}
           </div>

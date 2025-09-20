@@ -1,6 +1,6 @@
 # AutoEDA 実装計画 (タスクトラッカー)
 
-更新日: 2025-09-20 / 担当: AutoEDA Tech Lead（追記8: H1‑EXEC の安全強化, ExecRunResult.error_code を OpenAPI 反映, G2 一括実行の A11y 進捗アナウンス 追加）
+更新日: 2025-09-20 / 担当: AutoEDA Tech Lead（追記9: H1‑EXEC open()制限/JWT&URL userinfo マスク、G2 一括中断、H3 保存/削除UI、PR #24/#25/#26 反映）
 
 ---
 
@@ -26,7 +26,7 @@
 - G1/G2: **Done(MVP/API+SDK+Web)** — G1 `/api/exec/run` + `runCustomAnalysis()`、G2 `/api/analysis/deepdive` + `deepDive()`、Web の `AnalysisPage` から利用可能（決定的サジェスト→コード反映→実行）。
  - G1/G2: **Done(MVP/API+SDK+Web)** — G1 `/api/exec/run` + `runCustomAnalysis()`（失敗時 `error_code` と redact 済みログを返却）／G2 `/api/analysis/deepdive` + `deepDive()`（サジェストに `tags`/`diagnostics` 付与）、Web の `AnalysisPage` から利用可能（決定的サジェスト→コード反映→単発/一括実行）。
 - フロントは主要ページが実装済み。Storybook は導入済み（MSW/Router/Docs/A11y、VR運用まで整備）。
-- H2（視覚化運用）: ChartsPage ヘッダに served% スパークライン（24本/80%しきい値線/各バー詳細 tooltip/ヘルプアイコン）。Home に SLO charts_summary（served%/avg_wait/series）。
+- H2（視覚化運用）: ChartsPage ヘッダに served% スパークライン（24本/80%しきい値線/各バー詳細 tooltip/ヘルプアイコン）。Home に SLO charts_summary（served%/avg_wait/series）。AnalysisPage に一括実行の中断ボタンを追加（aria-live 告知）。
 - H1‑EXEC: テンプレ経路（inline/subprocess）に協調中断 checkpoint を追加し、pytest で cancel/timeout を検証。run_generated_chart に RLIMIT_NPROC/STACK を付与し、cancel 時の `error_code=cancelled` を一貫付与。
   - 付記: run_template_subprocess における `AUTOEDA_SB_TEST_DELAY2_MS` の環境変数未伝播を修正（timeout/二段階遅延の境界テストが安定）。
 - F2 UI: Plan 検証の NG を行頭ピル＋行背景で強調、issues.csv/plan.csv をエクスポート可能。
@@ -134,18 +134,11 @@
 
 ## 3. 次のイテレーション（優先順）
 
-1. H1‑EXEC（高）: サンドボックス安全強化
-   - import 属性 deny/OS 呼出しの網羅、RLIMIT(NPROC/STACK) の適用拡大、stderr redact/上限、ログ構造化
-   - UI 友好エラーマップ（timeout/cancelled/forbidden_import/format_error/unknown）を統一
-2. G2（中〜高）: 深掘りの実用化
-   - サジェストにタグ/診断（trend/corr/outlier）付与、複数選択→一括実行＋進捗バー
-   - Plan 連動（依存生成・issues.csv 反映）と保存
-3. H3 保存/共有（中）: 最小 API/SDK/UI
-   - `POST /api/charts/save` / `GET /api/charts/list`（ローカル永続）を追加し、履歴/バージョンへ拡張可能な足場を作成
-4. CI/観測（中）: OpenAPI互換レポート強化
-   - type/required 差分の自動説明/ラベル、Docs 同期
-5. Docs（中）: ガイド整備
-   - G1/G2 API ガイド（安全な出力例/テンプレ）と Plan ガイド（issues.csv/依存グラフ）を MDX に追加
+1. H1‑EXEC（高）: stderr 要約の安全化（PII/Secrets マスクの拡張）と単体テスト整備（forbidden_open/path/timeout/cancel 境界）
+2. H2（中〜高）: Charts 一括の「キャンセル済み」UI整合（running→cancelled のピル/再試行導線）と announcer 文言の統一
+3. H3 保存/共有（中）: 保存一覧ページ（/charts/saved/:datasetId）— 検索/削除/再描画/復元→再実行
+4. CI/観測（中）: OpenAPI互換レポの破壊性分類を強化（required/type 追加）と PR 自動コメントの精緻化
+5. Docs（中）: G1/G2/H の MDX ガイド（テンプレ例/安全上の注意/運用Tips）
 
 ## 4. 未実装ユーザーストーリー（requirements_v2 由来・現状反映）
 

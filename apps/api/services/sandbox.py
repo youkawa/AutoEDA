@@ -196,6 +196,26 @@ class SandboxRunner:
                         if isinstance(node.func, _ast.Attribute) and isinstance(node.func.value, _ast.Name):
                             if node.func.value.id == 'os' and node.func.attr in banned_os_calls:
                                 raise SandboxError(f"forbidden os call: os.{node.func.attr}", code="forbidden_import")
+                        # open(): read-only に制限（w/a/+ / x は拒否）。パスは in.json か csv_path のみ許可。
+                        if isinstance(node.func, _ast.Name) and node.func.id == 'open':
+                            mode_arg = None
+                            # 位置引数2番目
+                            if len(node.args) >= 2 and isinstance(node.args[1], _ast.Constant) and isinstance(node.args[1].value, str):
+                                mode_arg = node.args[1].value
+                            # キーワード mode
+                            for kw in getattr(node, 'keywords', []) or []:
+                                if kw.arg == 'mode' and isinstance(kw.value, _ast.Constant) and isinstance(kw.value.value, str):
+                                    mode_arg = kw.value.value
+                            if mode_arg and any(x in mode_arg for x in ('w','a','+','x')):
+                                raise SandboxError("forbidden open mode", code="forbidden_import")
+                            # 第1引数がリテラルなら in.json のみ許可
+                            if node.args and isinstance(node.args[0], _ast.Constant) and isinstance(node.args[0].value, str):
+                                if node.args[0].value != 'in.json':
+                                    raise SandboxError("forbidden open path", code="forbidden_import")
+                            # 変数なら csv_path のみ許可
+                            if node.args and isinstance(node.args[0], _ast.Name):
+                                if node.args[0].id != 'csv_path':
+                                    raise SandboxError("forbidden open target", code="forbidden_import")
             except SandboxError:
                 raise
             except Exception:
