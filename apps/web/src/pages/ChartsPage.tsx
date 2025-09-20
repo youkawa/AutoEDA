@@ -18,7 +18,7 @@ export function ChartsPage() {
   const [selectedDetail, setSelectedDetail] = useState<ChartCandidate | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchInFlight, setBatchInFlight] = useState(false);
-  type BatchProgress = { total: number; done: number; failed: number; running?: number; queued?: number; cancelled?: number };
+  type BatchProgress = { total: number; done: number; failed: number; running?: number; queued?: number; cancelled?: number; served?: number; avg_wait_ms?: number };
   const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
   const [batchItems, setBatchItems] = useState<{ chart_id?: string; status: string; stage?: 'generating'|'rendering'|'done' }[]>([]);
   const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
@@ -97,6 +97,7 @@ export function ChartsPage() {
                 {typeof batchProgress.running === 'number' ? `（実行中 ${batchProgress.running}）` : ''}
                 {typeof batchProgress.queued === 'number' ? `（キュー ${batchProgress.queued}）` : ''}
                 {typeof batchProgress.cancelled === 'number' && batchProgress.cancelled > 0 ? `（中断 ${batchProgress.cancelled}）` : ''}
+                {typeof batchProgress.avg_wait_ms === 'number' ? `（平均待機 ${batchProgress.avg_wait_ms}ms）` : ''}
               </span>
             ) : (
               <span>{selectedIds.size} 件選択中</span>
@@ -104,7 +105,7 @@ export function ChartsPage() {
             {/* live region for screen readers */}
             {batchInFlight && batchProgress ? (
               <div className="sr-only" aria-live="polite">
-                バッチ進捗 完了 {batchProgress.done} / 全 {batchProgress.total}、実行中 {batchProgress.running ?? 0}、キュー {batchProgress.queued ?? 0}、失敗 {batchProgress.failed ?? 0}、中断 {batchProgress.cancelled ?? 0}
+                バッチ進捗 完了 {batchProgress.done} / 全 {batchProgress.total}、実行中 {batchProgress.running ?? 0}、キュー {batchProgress.queued ?? 0}、失敗 {batchProgress.failed ?? 0}、中断 {batchProgress.cancelled ?? 0}{typeof batchProgress.avg_wait_ms === 'number' ? `、平均待機 ${batchProgress.avg_wait_ms} ミリ秒` : ''}
               </div>
             ) : null}
           </div>
@@ -152,7 +153,7 @@ export function ChartsPage() {
                     while (!finished) {
                       await new Promise((r) => setTimeout(r, 300));
                       const st: ChartsBatchStatus = await getChartsBatchStatusWithMap(batchId);
-                      setBatchProgress({ total: st.total, done: st.done, failed: st.failed, running: st.running, queued: st.queued, cancelled: st.cancelled });
+                      setBatchProgress({ total: st.total, done: st.done, failed: st.failed, running: st.running, queued: st.queued, cancelled: st.cancelled, served: st.served, avg_wait_ms: st.avg_wait_ms });
                       setBatchItems(st.items ?? []);
                       if (st.results_map && Object.keys(st.results_map).length > 0) {
                         const next: Record<string, ChartRender> = { ...results };
