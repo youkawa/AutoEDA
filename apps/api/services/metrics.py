@@ -53,12 +53,38 @@ def load_event_log(path: Path | str | None = None) -> Iterable[Dict[str, Any]]:
 
 
 def slo_snapshot() -> Dict[str, Any]:
+    """Return in-memory percentiles plus lightweight status breakdown from event log.
+
+    - events: p95/groundedness_min/count (in-memory)
+    - breakdown: for key events, success_rate and failure reasons (from persisted JSONL)
+    """
     with _LOCK:
-        events = {
-            name: _summarize(metrics)
-            for name, metrics in _STORE.items()
-        }
-    return {"events": events}
+        events = {name: _summarize(m) for name, m in _STORE.items()}
+    breakdown = _status_breakdown(["ChartJobFinished", "ChartBatchFinished"])
+    return {"events": events, "breakdown": breakdown}
+
+
+def _status_breakdown(event_names: List[str]) -> Dict[str, Any]:
+    counters: Dict[str, Any] = {}
+    for ev in event_names:
+        total = 0
+        ok = 0
+        failures = 0
+        by_code: Dict[str, int] = {}
+        for rec in load_event_log():
+            if rec.get("event_name") != ev:
+                continue
+            total += 1
+            status = str(rec.get("status") or "").lower()
+            if status in {"succeeded", "success", "ok"}:
+                ok += 1
+            elif status in {"failed", "error", "cancelled"}:
+                failures += 1
+                code = str(rec.get("error_code") or rec.get("error") or "unknown")
+                by_code[code] = by_code.get(code, 0) + 1
+        rate = (ok / total) if total else 0.0
+        counters[ev] = {"total": total, "success_rate": round(rate, 3), "failures": failures, "failure_by_code": by_code}
+    return counters
 
 
 def detect_violations(slo_config: Dict[str, Dict[str, float]]) -> Dict[str, Dict[str, bool]]:

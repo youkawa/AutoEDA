@@ -200,9 +200,16 @@ class SandboxRunner:
             # Host-side AST scanning (forbidden imports/calls)
             try:
                 tree = _ast.parse(code)
+                # 明示allowlist（標準ライブラリの一部のみ）
                 allowed_imports = {"json", "csv", "os"}
-                banned_calls = {"eval", "exec", "compile", "__import__", "open"}
-                banned_os_calls = {"system", "popen", "remove", "unlink", "rmdir", "rename", "chdir", "chmod", "chown"}
+                # 危険なビルトイン/関数呼び出しを拒否
+                banned_calls = {"eval", "exec", "compile", "__import__", "open", "input", "breakpoint"}
+                # OS 経由の実行/FS破壊/環境変更を拒否
+                banned_os_calls = {
+                    "system", "popen", "spawnv", "spawnve", "spawnvp", "spawnvpe",
+                    "remove", "unlink", "rmdir", "removedirs", "rename", "renames",
+                    "chdir", "chmod", "chown",
+                }
                 for node in _ast.walk(tree):
                     if isinstance(node, _ast.Import):
                         for alias in node.names:
