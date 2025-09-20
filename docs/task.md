@@ -102,24 +102,6 @@
 | T-H3-SHARE | 共有リンク/エクスポート（CH-18） | **TODO** | API/FE | 読取専用リンク生成、Notebookセル（コード+画像）出力 |
 | T-H3-PIN | ダッシュボードへピン留め（CH-19） | **TODO** | FE | Home/Dashboard にカード配置・整列（ドラッグ） |
 
-## 3. 次のイテレーション（優先順）
-
-1. CI/観測（高）: OpenAPI互換の差分要約をPR本文へ自動追記（型/enum/requiredの破壊性区分とMigration Guide）— 初期実装完了。HomeのSLOカードにCharts系KPI（served%/avg_wait_ms）を統合（済）。`/api/metrics/slo` に charts_summary を同梱（済）。
-2. H1‑EXEC（中〜高・仕上げ）: redactパターン拡張（クレデンシャル断片/UUID/URL秘匿）。FEにerror_detailの「コピー」を追加。OpenAPIにerror_detail（optional）を補助記載。
-3. CH‑13（中）: 段階フォールバック（テンプレ→軽量LLM（response_schema適用）→指数バックオフ再試行（最大3回））と空応答/ブロック理由の人間可読化。単体/統合テストを追加。
-4. H3 保存/共有（中）: MVP `POST /api/charts/save` / `GET /api/charts/list` を追加（ローカルJSON永続）— UI「保存/履歴」は後続。
-5. Docs（中）: Planガイド（MDX）に issues.csv の項目説明と依存グラフの読み方を追記。
-
-## 4. 未実装ユーザーストーリー（requirements_v2 由来・現状反映）
-
-| Story | 状態 | 対応タスク | 備考 |
-|-------|------|------------|------|
-| F1: 計画自動生成 | Done(MVP/API) | `T-F1-PLAN` | RAG+プロファイル骨子（決定的） |
-| F2: 人手レビュー・差分適用 | Done(MVP/検証) | `T-F2-REVISE` | 差分生成は後続、検証は実装 |
-| G1: カスタム分析の生成・実行 | 未実装 | `T-G1-EXEC` | 実行基盤はHのMVPを流用可能 |
-| G2: 深掘り指示の再生成 | 未実装 | `T-G2-INTERACTIVE` | |
-| CH-03/05/06/11/13/16〜19 | 一部/未実装 | `T-H1-EXEC`/`T-H1-FAIL`/`T-H1-RERUN`/`T-H2-*`/`T-H3-*` | 07/14は初期Done、02は単発Done、12は初期Done |
-
 ### 2.2 安定化・不具合修正（完了）
 
 | ID | 内容 | 状態 | リファレンス | 備考 |
@@ -136,6 +118,34 @@
 | T-CI-01 | main ブランチ保護（PR必須/レビュー/Auto-merge） | **Done** | GH 設定 | 必須チェック contexts を固定（例: `ci / web`） |
 | T-CI-02 | 必須チェック contexts 追加 | **Done** | GH API | `required_status_checks/contexts` に `ci / web` を登録済み |
 | T-CI-03 | Storybook VR を継続運用 | **WIP** | `tests/storybook/*.spec.ts` | OS別ベースライン運用、差分閾値 0.01–0.03、レポート保全 |
+
+## 3. 次のイテレーション（優先順）
+
+1. H1‑EXEC（高）: サンドボックス安全強化（import属性deny、RLIMIT NPROC/STACKの適用拡大、stderr redact/上限）。UI の友好エラー(map)を追随。
+2. G2（中〜高）: サジェストへのタグ/診断付与、Plan 連動（依存生成）、一括実行と進捗バー。
+3. H3 保存/共有（中）: `POST /api/charts/save` / `GET /api/charts/list`（ローカル永続）＋SDK/簡易UI。履歴/バージョンは後続。
+4. CI/観測（中）: OpenAPI互換サマリの破壊性分類の拡張（type/required差分の説明自動化）と Docs 反映。
+5. Docs（中）: G1/G2 API ガイド（安全な出力例/テンプレ）と Plan ガイド（issues.csv/依存グラフ）をMDXに追加。
+
+## 4. 未実装ユーザーストーリー（requirements_v2 由来・現状反映）
+
+| Story | 状態 | 対応タスク | 備考 |
+|-------|------|------------|------|
+| F1: 計画自動生成 | Done(MVP/API) | `T-F1-PLAN` | RAG+プロファイル由来の骨子（決定的） |
+| F2: 人手レビュー・差分適用 | Done(MVP/検証) | `T-F2-REVISE`, `T-F2-UI` | 検証API実装/Plan UI雛形。差分パッチは後続 |
+| G1: カスタム分析の生成・実行 | Done(MVP/API) | `T-G1-EXEC` | `/api/exec/run`（SandboxRunner.run_code_exec）。SDK `runCustomAnalysis()` 追加 |
+| G2: 深掘り指示の再生成 | Done(MVP/API) | `T-G2-INTERACTIVE` | `/api/analysis/deepdive` 決定的サジェスト。SDK `deepDive()` 追加 |
+| CH-03/05/06/11/12/13/16〜19 | 一部/未実装 | `T-H1-EXEC`/`T-H2-*`/`T-H3-*` | 07/14はDone、02は単発Done、12は初期Done、13は初期実装（フォールバック+再試行） |
+| CH-16〜19 | 未実装 | `T-H3-*` | 保存/共有/バージョン/ピン留め |
+
+### 4.1 追加タスク定義（F/G）
+
+| ID | スコープ | 状態 | リファレンス | 受け入れ基準/次アクション |
+|----|----------|------|--------------|---------------------------|
+| T-F1-PLAN | 計画生成 API/UI | **Done(MVP/API)** | `docs/requirements_v2.md` F1 | `POST /api/plan/generate` 実装（RAG+プロファイル由来の骨子）。UI/保存は今後 |
+| T-F2-REVISE | 計画差分適用 | **Done(MVP/検証のみ)** | F2 | `/api/plan/revise` に循環/未解決/曖昧受入の検証を実装（400整形）。差分生成は今後 |
+| T-G1-EXEC | カスタム実行基盤 | **Done(MVP/API+SDK+WEB)** | G1 | `/api/exec/run` 実装、SDK `runCustomAnalysis()`、`AnalysisPage` から実行・結果描画（Vega） |
+| T-G2-INTERACTIVE | 深掘り対話 | **Done(MVP/API+SDK+WEB)** | G2 | `/api/analysis/deepdive` 実装、SDK `deepDive()`、提案→コード反映/即時実行をUIで提供 |
 
 ---
 
