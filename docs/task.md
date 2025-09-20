@@ -134,11 +134,17 @@
 
 ## 3. 次のイテレーション（優先順）
 
-1. H1‑EXEC（高）: stderr 要約の安全化（PII/Secrets マスクの拡張）と単体テスト整備（forbidden_open/path/timeout/cancel 境界）
-2. H2（中〜高）: Charts 一括の「キャンセル済み」UI整合（running→cancelled のピル/再試行導線）と announcer 文言の統一
-3. H3 保存/共有（中）: 保存一覧ページ（/charts/saved/:datasetId）— 検索/削除/再描画/復元→再実行
-4. CI/観測（中）: OpenAPI互換レポの破壊性分類を強化（required/type 追加）と PR 自動コメントの精緻化
-5. Docs（中）: G1/G2/H の MDX ガイド（テンプレ例/安全上の注意/運用Tips） — docs/guides/g1-g2-h.mdx を追加
+1. H2（中〜高）: VR/E2E の安定化と A11y 一貫性
+   - Storybook VR: Charts/Analysis の代表ケースを追加し、announcer の文言を snapshot で検証（maxDiffPixelRatio=0.02）
+   - E2E: Charts 一括の「中断のみ再試行」を追加（MSWで安定化）
+2. H3（中）: 保存一覧の機能拡張
+   - 依存表示（hint/metadataのUI強化）、CSV エクスポート（id,title,hint,created_at）、履歴からの復元→提案画面へ反映
+3. CI/観測（中）: OpenAPI互換レポの PR コメント拡張
+   - schemas（required/type）の詳細テーブルを PR コメントへ追記、破壊性ラベル付与（openapi:breaking/…）
+4. Docs（中）: MDX ガイド拡充
+   - G1/G2 のテンプレ集（スカッタ/棒/折れ・移動平均・相関行列）、トラブルシュート（format_error の直し方）
+5. H1‑EXEC（中）: 失敗ログの構造化
+   - `error_detail`: { kind, reason, first_lines[], redacted: true } に拡張（後方互換維持）、UIの詳細表示を整理
 
 ## 4. 未実装ユーザーストーリー（requirements_v2 由来・現状反映）
 
@@ -173,6 +179,7 @@
 ---
 
 ## 6. 変更履歴
+- 2025-09-20: CI/観測: OpenAPI互換レポを schema 単位の required/type 差分まで集計。ドキュメント（MDX）に G1/G2/H ガイドを追加。
 - 2025-09-20: H1‑EXEC 強化 — run_generated_chart の preexec に RLIMIT_NPROC/STACK を追加、cancel に `error_code=cancelled` を付与。ExecRunResult に `error_code` を追加（OpenAPI 反映）。G2 一括実行に aria-live の進捗アナウンスを追加。OpenAPI 互換スクリプトに ExecRunResult の presence を記録。
 
 - 2025-09-20: H1‑EXEC: `run_template_subprocess` の `AUTOEDA_SB_TEST_DELAY2_MS` 未伝播を修正。`tests/python/test_sandbox_matrix.py` と `test_sandbox_cancel_timing.py` をGreen化。
