@@ -1,6 +1,6 @@
 # AutoEDA 実装計画 (タスクトラッカー)
 
-更新日: 2025-09-20 / 担当: AutoEDA Tech Lead（追記7: G1/G2 の MVP(API/SDK/WEB) を追加、CH‑13 初期実装反映）
+更新日: 2025-09-20 / 担当: AutoEDA Tech Lead（追記8: H1‑EXEC の安全強化, ExecRunResult.error_code を OpenAPI 反映, G2 一括実行の A11y 進捗アナウンス 追加）
 
 ---
 
@@ -27,7 +27,7 @@
  - G1/G2: **Done(MVP/API+SDK+Web)** — G1 `/api/exec/run` + `runCustomAnalysis()`（失敗時 `error_code` と redact 済みログを返却）／G2 `/api/analysis/deepdive` + `deepDive()`（サジェストに `tags`/`diagnostics` 付与）、Web の `AnalysisPage` から利用可能（決定的サジェスト→コード反映→単発/一括実行）。
 - フロントは主要ページが実装済み。Storybook は導入済み（MSW/Router/Docs/A11y、VR運用まで整備）。
 - H2（視覚化運用）: ChartsPage ヘッダに served% スパークライン（24本/80%しきい値線/各バー詳細 tooltip/ヘルプアイコン）。Home に SLO charts_summary（served%/avg_wait/series）。
-- H1‑EXEC: テンプレ経路（inline/subprocess）に協調中断 checkpoint を追加し、pytest で cancel/timeout を検証。
+- H1‑EXEC: テンプレ経路（inline/subprocess）に協調中断 checkpoint を追加し、pytest で cancel/timeout を検証。run_generated_chart に RLIMIT_NPROC/STACK を付与し、cancel 時の `error_code=cancelled` を一貫付与。
   - 付記: run_template_subprocess における `AUTOEDA_SB_TEST_DELAY2_MS` の環境変数未伝播を修正（timeout/二段階遅延の境界テストが安定）。
 - F2 UI: Plan 検証の NG を行頭ピル＋行背景で強調、issues.csv/plan.csv をエクスポート可能。
 - CI: OpenAPI 互換チェック（ChartJob.error_code）を workflow に組込み、PR コメントと Artifact を自動出力。
@@ -84,7 +84,7 @@
 | T-H1-STEP | 単発ステップUIを実処理に連動（CH-02） | **Done(単発)** | `ChartsPage`, `client-sdk` | progressコールバックでstage=generating/rendering/doneを反映 |
 | T-H1-STEP | 単発ステップUIを実処理に連動（CH-02） | **Done(単発)** | `ChartsPage`, `client-sdk` | SDKのprogressポーリングでstage=generating/rendering/doneを反映 |
 | T-H2-FAIR | バッチ間フェアスケジューラ | **Done(初期)** | `charts.py` | 簡易RRで飢餓を回避（_LAST_SERVED_BATCH）。今後は公正性メトリクスで監視 |
-| T-H1-EXEC | LLMコード生成＋安全実行（CH-03） | **WIP(実行基盤MVP)** | `sandbox.py`, `charts.py` | `AUTOEDA_SANDBOX_EXECUTE=1` で安全サブプロセス実行（Vega JSON生成）＋ cancel/timeout 監視。今後LLM透過化 |
+| T-H1-EXEC | LLMコード生成＋安全実行（CH-03） | **WIP→進捗** | `sandbox.py`, `charts.py` | run_generated_chart に RLIMIT_NPROC/STACK を追加、cancel 時に `error_code=cancelled` を一貫化。AST 事前検査と RLIMIT の二重ガードを維持。 |
 | T-H1-FAIL | 失敗理由提示とテンプレフォールバック（CH-05） | **TODO** | FE/SDK 例外整形 | 空応答/安全フィルタ/JSON不正の理由を人間可読で提示、テンプレへ退避 |
 | T-H1-RERUN | パラメータ調整→再実行（履歴1件）（CH-06） | **TODO** | `ChartsPage` | 列/集計単位の編集UI、直前結果の履歴保持・復元 |
 | T-H1-COPY | コード表示＋コピー（CH-07） | **Done** | `ChartsPage` | 「コードをコピー」ボタン追加（クリップボード書込） |
@@ -124,11 +124,11 @@
 
 | ID | スコープ | 状態 | リファレンス | 受け入れ基準/次アクション |
 |----|----------|------|--------------|---------------------------|
-| T-G1-EXEC | カスタム実行 API/SDK/WEB | **Done(MVP)** | API: `/api/exec/run`, SDK: `runCustomAnalysis()` , Web: `AnalysisPage` | JSON出力（language/library/outputs[]）で結果表示（text/svg/vega）。Vega は VegaView で描画。 |
+| T-G1-EXEC | カスタム実行 API/SDK/WEB | **Done(MVP+error_code)** | API: `/api/exec/run`, SDK: `runCustomAnalysis()` , Web: `AnalysisPage` | JSON出力（language/library/outputs[]）。エラーは `error_code`（timeout/cancelled/forbidden_import/format_error/unknown）で返却し UI に友好表示。 |
 | T-G1-SEC | サンドボックス安全強化 | **WIP(初期適用済)** | `apps/api/services/sandbox.py` | AST許可制/危険呼び出しdeny/ RLIMIT(AS/CPU/NOFILE) + 追加で NPROC/STACK を subprocess 経路に適用済。stderr redact/上限・ログ構造化を継続強化。 |
 | T-G1-TPL | 実用テンプレの提供 | **Done(初期)** | `AnalysisPage` | 移動平均・相関行列テンプレの挿入ボタン（出力はVega-Lite JSON）。 |
 | T-G2-SUGG | 深掘りサジェスト API/SDK/WEB | **Done(MVP)** | API: `/api/analysis/deepdive`, SDK: `deepDive()` , Web: `AnalysisPage` | プロンプト→決定的サジェスト（trend/corrなど）→「コードに反映」→実行 |
-| T-G2-RUN | 提案の即時実行（一括可） | **Done(初期/逐次)** | `AnalysisPage` | カードから実行＋選択→一括実行（逐次）。失敗は `error_code` を友好文にマップ。進捗バー/中断は次段階 |
+| T-G2-RUN | 提案の即時実行（一括可） | **Done(逐次+A11y)** | `AnalysisPage` | カードから実行＋選択→一括実行（逐次）。失敗は `error_code` を友好文にマップ。aria-live で進捗を読み上げ（`一括実行: n/N 件完了`）。 |
 | T-G-PLAN | Plan 連動（依存生成） | **TODO** | `PlanPage`/API | サジェスト→Planタスク化（depends_on生成、issues.csv 連携）。 |
 | T-G-TEST | テスト（ユニット/VR/E2E） | **WIP** | tests | forbidden_import/timeout/format_error の単体、AnalysisPage の E2E、Storybook VR（analysis-default） |
 
@@ -180,6 +180,7 @@
 ---
 
 ## 6. 変更履歴
+- 2025-09-20: H1‑EXEC 強化 — run_generated_chart の preexec に RLIMIT_NPROC/STACK を追加、cancel に `error_code=cancelled` を付与。ExecRunResult に `error_code` を追加（OpenAPI 反映）。G2 一括実行に aria-live の進捗アナウンスを追加。OpenAPI 互換スクリプトに ExecRunResult の presence を記録。
 
 - 2025-09-20: H1‑EXEC: `run_template_subprocess` の `AUTOEDA_SB_TEST_DELAY2_MS` 未伝播を修正。`tests/python/test_sandbox_matrix.py` と `test_sandbox_cancel_timing.py` をGreen化。
 - 2025-09-20: H1‑EXEC: `run_generated_chart` に 2段階チェックポイント（generation/render）を追加し、ランタイムの `__import__` ガードを撤廃（AST+RLIMITに一本化）。新規 `tests/python/test_sandbox_exec_matrix.py` を追加し、success/timeout/cancel/cancel‑timing をGreen化。失敗時stderrの要約を `error_detail` として `get_batch().items[]` に伝播（FEは友好的なエラー表示を実装済）。

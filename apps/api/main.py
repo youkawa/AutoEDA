@@ -649,6 +649,8 @@ class ExecRunResult(BaseModel):
     status: Literal["succeeded", "failed", "skipped"] = "skipped"
     logs: List[str] = []
     outputs: List[Dict[str, Any]] = []
+    # エラー時の機械判別コード（UIで友好メッセージに変換）
+    error_code: Optional[Literal["timeout", "cancelled", "forbidden_import", "format_error", "unknown"]] = None
 
 
 @app.post("/api/plan/generate", response_model=PlanModel)
@@ -682,7 +684,9 @@ def exec_run(req: ExecRunRequest) -> ExecRunResult:
         code = getattr(exc, "code", None)
         raw = getattr(exc, "logs", None)
         msg = redact(str(raw)[:500] if raw else str(exc))
-        return ExecRunResult(task_id=req.task_id, status="failed", logs=[msg], outputs=[], error_code=code)
+        # 不明コードは 'unknown' に丸める
+        ec: Optional[str] = code if isinstance(code, str) and code in {"timeout", "cancelled", "forbidden_import", "format_error", "unknown"} else "unknown"
+        return ExecRunResult(task_id=req.task_id, status="failed", logs=[msg], outputs=[], error_code=ec) 
 
 # --- G2: Deep-dive interactive suggestions (MVP deterministic) ---
 class DeepDiveRequest(BaseModel):

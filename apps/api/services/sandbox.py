@@ -114,6 +114,10 @@ class SandboxRunner:
                         resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
                     if hasattr(resource, 'RLIMIT_STACK'):
                         resource.setrlimit(resource.RLIMIT_STACK, (8 * 1024 * 1024, 8 * 1024 * 1024))
+                    if hasattr(resource, 'RLIMIT_NPROC'):
+                        resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
+                    if hasattr(resource, 'RLIMIT_STACK'):
+                        resource.setrlimit(resource.RLIMIT_STACK, (8 * 1024 * 1024, 8 * 1024 * 1024))
             # Propagate testing delays for both generate and rendering phases
             env = {
                 "PYTHONUNBUFFERED": "1",
@@ -406,7 +410,7 @@ class SandboxRunner:
                 if cancel_check and cancel_check():
                     with contextlib.suppress(Exception):
                         proc.kill()
-                    raise SandboxError("cancelled")
+                    raise SandboxError("cancelled", code="cancelled")
                 time.sleep(interval)
                 waited += interval
                 if waited >= self.timeout_sec:

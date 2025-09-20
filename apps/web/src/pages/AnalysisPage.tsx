@@ -13,6 +13,7 @@ export function AnalysisPage() {
   const [suggOutputs, setSuggOutputs] = useState<Record<number, Output[]>>({});
   const [selected, setSelected] = useState<Record<number, boolean>>({});
   const [inflight, setInflight] = useState(false);
+  const [announce, setAnnounce] = useState<string>('');
 
   const defaultCode = useMemo(() => (
 `# 入力: in.json から csv_path が渡されます
@@ -76,6 +77,7 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
       if (res.status === 'succeeded') {
         setSuggOutputs((m) => ({ ...m, [index]: outs }));
         toast('提案を実行しました', 'success');
+        setAnnounce(`提案 #${index + 1} を実行しました`);
       } else {
         const map: Record<string, string> = {
           timeout: '実行がタイムアウトしました（制限超過）。',
@@ -88,9 +90,11 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
         const errCode = (res as { error_code?: ErrCode } | undefined)?.error_code as ErrCode | undefined;
         const msg = errCode ? (map[errCode] ?? '失敗しました') : (res.logs?.[0] ?? '失敗しました');
         toast(msg, 'error');
+        setAnnounce(`提案 #${index + 1} の実行に失敗しました`);
       }
     } catch {
       toast('提案の実行に失敗しました', 'error');
+      setAnnounce(`提案 #${index + 1} の実行に失敗しました`);
     }
   }
 
@@ -198,11 +202,16 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
                     const idxs = Object.entries(selected).filter(([,v])=>v).map(([k])=>Number(k)).sort((a,b)=>a-b);
                     if (idxs.length===0) return;
                     setInflight(true);
+                    setAnnounce(`選択した提案 ${idxs.length} 件を順次実行します`);
                     try {
+                      let done = 0;
                       for (const i of idxs) {
                         await runSuggestion(i, suggs[i]!);
+                        done += 1;
+                        setAnnounce(`一括実行: ${done} / ${idxs.length} 件完了`);
                       }
                       toast('選択した提案を実行しました', 'success');
+                      setAnnounce('一括実行が完了しました');
                     } finally {
                       setInflight(false);
                     }
@@ -264,6 +273,8 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
           </div>
         </CardContent>
       </Card>
+      {/* Screen reader announcements for progress */}
+      <div className="sr-only" aria-live="polite" aria-atomic="true">{announce}</div>
     </div>
   );
 }

@@ -78,6 +78,25 @@ def main() -> None:
             if t_cur != t_base:
                 type_changes[k] = (t_base, t_cur)
 
+    # ExecRunResult basic check (presence of error_code as string/enum)
+    exec_basic = {}
+    if "ExecRunResult" in comps_cur:
+        exec_cur = comps_cur["ExecRunResult"]
+        props_exec: Dict[str, Any] = exec_cur.get("properties", {}) or {}
+        ec_exec = props_exec.get("error_code")
+        if ec_exec is None:
+            exec_basic = {"present": False}
+        else:
+            t = ec_exec.get("type") or None
+            enum2 = ec_exec.get("enum") or []
+            if not enum2:
+                for key in ("anyOf", "oneOf"):
+                    for it in ec_exec.get(key, []) or []:
+                        if it.get("enum"):
+                            enum2 = it.get("enum")
+                            break
+            exec_basic = {"present": True, "type": t, "enum": enum2}
+
     report = {
         "enum_expected": sorted(expected),
         "enum_actual": sorted(actual),
@@ -88,6 +107,7 @@ def main() -> None:
         "required_missing": sorted(list(required_missing)),
         "required_extra": sorted(list(required_extra)),
         "type_changes": [{"prop": k, "from": v[0], "to": v[1]} for k, v in sorted(type_changes.items())],
+        "exec_error_code": exec_basic,
     }
     outdir = Path("reports"); outdir.mkdir(parents=True, exist_ok=True)
     (outdir / "openapi_compat_diff.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
