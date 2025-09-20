@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { HomePage } from './pages/HomePage';
+import { SavedChartsPage } from './pages/SavedChartsPage';
 import { DatasetsPage } from './pages/DatasetsPage';
 import { EdaPage } from './pages/EdaPage';
 import { ChartsPage } from './pages/ChartsPage';
@@ -28,6 +29,7 @@ export default function App() {
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/eda/:datasetId" element={<EdaPage />} />
               <Route path="/charts/:datasetId" element={<ChartsPage />} />
+              <Route path="/charts/saved/:datasetId" element={<SavedChartsPage />} />
               <Route path="/qna/:datasetId" element={<QnaPage />} />
               <Route path="/plan/:datasetId" element={<PlanPage />} />
               <Route path="/analysis/:datasetId" element={<AnalysisPage />} />
