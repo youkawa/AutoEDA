@@ -267,7 +267,8 @@ class SandboxRunner:
             try:
                 obj = _json.loads(out or "{}")
             except Exception:
-                logs = (err or out)[:500]
+                from .security import summarize_logs  # lazy import
+                logs = summarize_logs(err or out, max_lines=6, max_chars=500)
                 raise SandboxError("format_error", code="format_error", logs=logs)
             obj.setdefault("meta", {})
             obj["meta"].update({"engine": "code_exec", "dataset_id": dataset_id})
@@ -442,7 +443,8 @@ class SandboxRunner:
             try:
                 obj = _json.loads(out or "{}")
             except Exception:
-                logs = (err or out)[:500]
+                from .security import summarize_logs  # lazy import
+                logs = summarize_logs(err or out, max_lines=6, max_chars=500)
                 raise SandboxError("format_error", code="format_error", logs=logs)
             # add meta
             obj.setdefault("meta", {})

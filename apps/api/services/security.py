@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from typing import Optional
 
 _EMAIL = re.compile(r"\b([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+)\.[A-Za-z]{2,}\b")
 _BEARER = re.compile(r"(?i)\bBearer\s+([A-Za-z0-9._\-]+)\b")
@@ -42,3 +43,31 @@ def redact(text: str, *, max_len: int = 500) -> str:
     if max_len and len(s) > max_len:
         s = s[: max_len - 3] + "..."
     return s
+
+
+def summarize_logs(text: Optional[str], *, max_lines: int = 6, max_chars: int = 500) -> str:
+    """Produce a short, redacted summary of stderr/stdout for safe UI display.
+
+    - Applies redact() first
+    - Keeps only the first `max_lines` lines (joined with \n)
+    - If a Python Traceback is detected, tries to include the final error line
+    - Trims to `max_chars`
+    """
+    if not text:
+        return ""
+    s = redact(str(text), max_len=max_chars * 2)  # redact before slicing
+    lines = s.splitlines()
+    # Try to capture final exception line from a traceback
+    if any(l.startswith("Traceback ") for l in lines):
+        for i in range(len(lines) - 1, -1, -1):
+            if lines[i].strip():
+                last = lines[i].strip()
+                # Prepend final exception line if not already in the head
+                if last not in lines[:max_lines]:
+                    lines = (lines[: max_lines - 1]) + [last]
+                break
+    head = lines[:max_lines]
+    out = "\n".join(head)
+    if len(out) > max_chars:
+        out = out[: max_chars - 3] + "..."
+    return out
