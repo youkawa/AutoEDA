@@ -166,7 +166,7 @@ export function ChartsPage() {
                         }
                         setResults(next);
                         finished = true;
-                        setAnnounce('バッチが完了しました');
+                        setAnnounce(`バッチが完了しました。完了 ${st.done} / 全 ${st.total}、失敗 ${st.failed ?? 0}、中断 ${st.cancelled ?? 0}`);
                       } else if (Array.isArray(st.results)) {
                         const next: Record<string, ChartRender> = { ...results };
                         for (let i = 0; i < pairs.length; i++) {
@@ -178,7 +178,7 @@ export function ChartsPage() {
                         }
                         setResults(next);
                         finished = true;
-                        setAnnounce('バッチが完了しました');
+                        setAnnounce(`バッチが完了しました。完了 ${st.done} / 全 ${st.total}、失敗 ${st.failed ?? 0}、中断 ${st.cancelled ?? 0}`);
                       }
                     }
                   }
@@ -199,20 +199,20 @@ export function ChartsPage() {
                 size="sm"
                 onClick={async () => {
                   try {
-                    const queued = batchItems.filter((it) => it.status === 'queued').map((it) => it.chart_id).filter(Boolean) as string[];
-                    if (queued.length === 0) return;
+                    const jobIds = batchItems.filter((it) => it.status === 'queued' || it.status === 'running').map((it) => it.chart_id).filter(Boolean) as string[];
+                    if (jobIds.length === 0) return;
                     await fetch(`${(import.meta as unknown as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE ?? ''}/api/charts/batches/${currentBatchId}/cancel`, {
                       method: 'POST',
                       headers: { 'content-type': 'application/json' },
-                      body: JSON.stringify({ job_ids: queued }),
+                      body: JSON.stringify({ job_ids: jobIds }),
                     });
-                    toast('キュー中のジョブをキャンセルしました', 'success');
+                    toast('キュー/実行中のジョブにキャンセルを指示しました', 'success');
                   } catch {
                     toast('キャンセルに失敗しました', 'error');
                   }
                 }}
               >
-                キャンセル（キュー）
+                キャンセル（キュー/実行中）
               </Button>
             ) : null}
             {!batchInFlight && batchItems.some((it) => it.status === 'failed') ? (
