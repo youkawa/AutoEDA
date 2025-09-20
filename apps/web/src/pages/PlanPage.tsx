@@ -269,7 +269,7 @@ export function PlanPage() {
                 const esc = (s: string) => `"${String(s).replace(/"/g,'""')}"`;
                 const ts = new Date().toISOString();
                 const ver = plan?.version ?? 'v1';
-                const meta = `# validated_at=${ts} version=${ver}`;
+                const meta = `# validated_at=${ts} version=${ver} dataset_id=${datasetId}`;
                 const csv = [meta, header.join(','), ...rows.map(([a,b,c,d]) => [esc(a),esc(b),esc(c),esc(d)].join(','))].join('\n');
                 const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
                 const a = document.createElement('a'); a.href = url; a.download = `issues_${datasetId}.csv`; a.click(); URL.revokeObjectURL(url);

@@ -95,10 +95,14 @@ jobs:
                       `| Missing | ${miss.join(', ') || '-'} |\n` +
                       `| Extra | ${extra.join(', ') || '-'} |\n`;
             } catch (e) { /* ignore */ }
+            const guide = '\n\n**Migration Guide (suggested):**\n' +
+              '- If values are Missing: add them back in server schema or relax enum, and update UI mapping.\n' +
+              '- If values are Extra: extend client mapping (friendly messages) and document new codes.\n' +
+              '- Ensure SDK exceptions carry `error_code` and UI shows human-readable text.';
             const { data: pr } = await github.rest.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: context.issue.number });
             const body = pr.body || '';
             const marker = '\n\n---\nOpenAPI Compatibility Summary:\n';
-            const next = body.includes(marker) ? body.split(marker)[0] + marker + '\n' + summary + table : body + marker + '\n' + summary + table;
+            const next = body.includes(marker) ? body.split(marker)[0] + marker + '\n' + summary + table + guide : body + marker + '\n' + summary + table + guide;
             await github.rest.pulls.update({ owner: context.repo.owner, repo: context.repo.repo, pull_number: context.issue.number, body: next });
       - name: Evaluate API NFR (p95 & thresholds)
         run: python3 apps/api/scripts/evaluate_nfr.py
