@@ -395,6 +395,22 @@ export function ChartsPage() {
                         <Button
                           variant="secondary"
                           size="sm"
+                          onClick={async () => {
+                            try {
+                              const code = results[chart.id]?.code ?? '';
+                              if (!code) return;
+                              await navigator.clipboard.writeText(String(code));
+                              toast('コードをコピーしました', 'success');
+                            } catch {
+                              toast('コードのコピーに失敗しました', 'error');
+                            }
+                          }}
+                        >
+                          コードをコピー
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           onClick={() => {
                             const r = results[chart.id];
                             if (!r?.src) return;

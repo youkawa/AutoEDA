@@ -21,7 +21,9 @@ _BATCHES: Dict[str, Dict[str, Any]] = {}
 _QUEUE: "list[Dict[str, Any]]" = []
 _CV = threading.Condition()
 _ASYNC = os.environ.get("AUTOEDA_CHARTS_ASYNC", "0") in {"1", "true", "TRUE"}
+_PARALLEL = max(1, int(os.environ.get("AUTOEDA_CHARTS_PARALLELISM", "1") or "1"))
 _WORKER_STARTED = False
+_CANCEL_FLAGS: Dict[str, bool] = {}
 
 
 def _ensure_dir() -> None:
@@ -52,9 +54,13 @@ def _start_worker_once() -> None:
                     result = runner.run_template(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
                 outdir = _DATA_DIR / job_id
                 outdir.mkdir(parents=True, exist_ok=True)
-                payload = {"job_id": job_id, "status": "succeeded", "result": result}
-                (outdir / "result.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-                _JOBS[job_id].update(payload)
+                # cooperative cancel: if cancel requested during run, mark as cancelled and skip persistence
+                if _CANCEL_FLAGS.get(job_id):
+                    _JOBS[job_id].update({"status": "cancelled"})
+                else:
+                    payload = {"job_id": job_id, "status": "succeeded", "result": result}
+                    (outdir / "result.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+                    _JOBS[job_id].update(payload)
                 # metrics
                 try:
                     t0 = _JOBS[job_id].get("t0") or time.perf_counter()
@@ -72,9 +78,10 @@ def _start_worker_once() -> None:
                 _JOBS[job_id].update({"status": "failed", "error": str(exc)})
             # small yield
             time.sleep(0.01)
-
-    t = threading.Thread(target=_worker, daemon=True, name="charts-worker")
-    t.start()
+    # spawn N workers
+    for i in range(_PARALLEL):
+        t = threading.Thread(target=_worker, daemon=True, name=f"charts-worker-{i+1}")
+        t.start()
     _WORKER_STARTED = True
 
 
@@ -143,17 +150,24 @@ def _template_result(spec_hint: Optional[str], dataset_id: Optional[str] = None)
         "spec = { 'mark': '%s', 'data': {'values': [{'x':0,'y':1}]}}\n"
         "print(json.dumps(spec))\n" % (kind if kind in {"bar", "line"} else "point")
     )
-    return {
+    result = {
         "language": "python",
         "library": "vega",
         "code": code,
         "seed": 42,
-        "meta": {"dataset_id": dataset_id, "hint": spec_hint},
+        "meta": {
+            "dataset_id": dataset_id,
+            "hint": spec_hint,
+            "engine": "template",
+            "sandbox": os.environ.get("AUTOEDA_SANDBOX_SUBPROCESS", "0") in {"1", "true", "TRUE"} and "subprocess" or "inline",
+            "parallelism": _PARALLEL,
+        },
         "outputs": [
             {"type": "image", "mime": "image/svg+xml", "content": svg},
             {"type": "vega", "mime": "application/json", "content": vega_spec},
         ],
     }
+    return result
 
 
 def generate(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -327,6 +341,9 @@ def cancel_batch(batch_id: str, job_ids: List[str]) -> int:
     for it in st.get("items", []):
         if it.get("job_id") in targets and it.get("status") == "queued":
             it["status"] = "cancelled"
+        elif it.get("job_id") in targets and it.get("status") == "running":
+            # cooperative cancel for running jobs
+            _CANCEL_FLAGS[it["job_id"]] = True
     # update counters via get_batch recompute path
     _BATCHES[batch_id] = st
     return removed
