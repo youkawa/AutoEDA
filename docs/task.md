@@ -1,6 +1,6 @@
 # AutoEDA 実装計画 (タスクトラッカー)
 
-更新日: 2025-09-20 / 担当: AutoEDA Tech Lead（追記5: H1‑EXEC の delay2 伝播不具合を修正し、サブプロセス系テスト（matrix/cancel‑timing）をグリーン化）
+更新日: 2025-09-20 / 担当: AutoEDA Tech Lead（追記6: CH‑13 初期実装 — charts のフォールバック+再試行を追加）
 
 ---
 
@@ -91,7 +91,7 @@
 | T-H2-CANCEL | running の協調中断（CH-11） | **WIP(協調キャンセル)** | `charts.py` | running ジョブに cancel flag を伝搬し完了時に cancelled へ（中断ポイント導入は今後） |
 | T-H2-QUEUE | 並列度cap/キュー制御（CH-12） | **Done(初期)** | `charts.py` | ワーカープール（ENV）。バッチ`parallelism`受理＋effective算出・遵守 |
 | T-H2-STEP | バッチ進捗UI（items[].stage反映） | **WIP** | `ChartsPage` | カード上に stage ピル（生成中/描画中/完了）表示 — 追加済み、さらなる連動は今後 |
-| T-H2-BACKOFF | 段階的フォールバック+再試行（CH-13） | **TODO** | FE/SDK/API | テンプレ→軽量LLM→指数バックオフ再試行（最大3回） |
+| T-H2-BACKOFF | 段階的フォールバック+再試行（CH-13） | **Done(初期)** | FE/SDK/API | テンプレ(Subprocess/Inline)間のフォールバック＋指数バックオフ（ENV: `AUTOEDA_CHARTS_RETRIES`）。timeout/cancel/forbiddenは即確定 |
 
 #### 2.1.2 Capability H — 保存/共有（P2）
 
