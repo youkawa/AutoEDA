@@ -26,6 +26,8 @@ _WORKER_STARTED = False
 _CANCEL_FLAGS: Dict[str, bool] = {}
 _BATCH_LIMITS: Dict[str, int] = {}
 _BATCH_RUNNING: Dict[str, int] = {}
+_BATCH_WAIT_SUM: Dict[str, int] = {}
+_BATCH_WAIT_COUNT: Dict[str, int] = {}
 _LAST_SERVED_BATCH: Optional[str] = None
 
 
@@ -72,6 +74,16 @@ def _start_worker_once() -> None:
                             _CV.wait(timeout=0.05)
                             continue
                         _BATCH_RUNNING[batch_id] = running_now + 1
+                # measure wait time
+                try:
+                    t0 = _JOBS[job_id].get("t0")
+                    if t0 is not None and batch_id:
+                        wait_ms = int((time.perf_counter() - t0) * 1000)
+                        _BATCH_WAIT_SUM[batch_id] = _BATCH_WAIT_SUM.get(batch_id, 0) + wait_ms
+                        _BATCH_WAIT_COUNT[batch_id] = _BATCH_WAIT_COUNT.get(batch_id, 0) + 1
+                        _JOBS[job_id]["t_start"] = time.perf_counter()
+                except Exception:
+                    pass
                 runner = SandboxRunner()
                 # stage: generating -> running -> rendering
                 _JOBS[job_id]["stage"] = "generating"
@@ -377,7 +389,16 @@ def get_batch(batch_id: str) -> Optional[Dict[str, Any]]:
             else:
                 running += 1
         queued = max(0, st.get("total", 0) - (done + running + failed + cancelled))
-        st.update({"done": done, "running": running, "failed": failed, "cancelled": cancelled, "queued": queued})
+        served = done + running + failed + cancelled
+        avg_wait_ms = None
+        try:
+            s = _BATCH_WAIT_SUM.get(batch_id, 0)  # type: ignore[name-defined]
+            c = _BATCH_WAIT_COUNT.get(batch_id, 0)  # type: ignore[name-defined]
+            if c > 0:
+                avg_wait_ms = int(s / c)
+        except Exception:
+            pass
+        st.update({"done": done, "running": running, "failed": failed, "cancelled": cancelled, "queued": queued, "served": served, "avg_wait_ms": avg_wait_ms})
         if done + failed == st.get("total", 0):
             st["results"] = results
             st["results_map"] = results_map

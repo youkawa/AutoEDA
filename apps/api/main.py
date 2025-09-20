@@ -516,6 +516,8 @@ class ChartBatchStatus(BaseModel):
     cancelled: Optional[int] = None
     parallelism: Optional[int] = None
     parallelism_effective: Optional[int] = None
+    served: Optional[int] = None
+    avg_wait_ms: Optional[int] = None
 
 
 @app.post("/api/charts/generate", response_model=ChartJob)
