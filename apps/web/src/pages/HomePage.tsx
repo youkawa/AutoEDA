@@ -12,7 +12,7 @@ export function HomePage() {
   type SloSnapshot = { events?: Record<string, SloEvent> };
   type EvalFlags = Record<string, boolean>;
   type SloBreakdown = Record<string, { total: number; success_rate: number; failures: number; failure_by_code: Record<string, number> }>;
-  type SloPayload = { snapshot?: SloSnapshot; evaluation?: Record<string, EvalFlags>; thresholds?: Record<string, Record<string, number>>; breakdown?: SloBreakdown };
+  type SloPayload = { snapshot?: SloSnapshot; evaluation?: Record<string, EvalFlags>; thresholds?: Record<string, Record<string, number>>; breakdown?: SloBreakdown; charts_summary?: { served_pct?: number; avg_wait_ms?: number; series?: number[] } };
   const [slo, setSlo] = useState<SloPayload>({});
 
   useEffect(() => {
@@ -157,6 +157,20 @@ export function HomePage() {
               ) : (
                 <p className="mt-1 leading-relaxed">`python apps/api/scripts/check_slo.py` で自動検証できます。</p>
               )}
+              {slo?.charts_summary ? (
+                <div className="mt-3 rounded border border-white/25 bg-white/10 p-2 text-[11px] text-white/80" title="直近の served%（served/total*100）トレンド">
+                  <div className="mb-1 flex items-center gap-3">
+                    <span>served: {Math.max(0, Math.min(100, Number(slo.charts_summary.served_pct ?? 0)))}%</span>
+                    <span>avg_wait: {slo.charts_summary.avg_wait_ms ?? '-'}ms</span>
+                  </div>
+                  <div className="flex h-6 items-end gap-0.5">
+                    {(slo.charts_summary.series ?? []).map((v, i) => (
+                      <span key={`hsp-${i}`} className="w-1.5 rounded-sm bg-white/70" title={`${v}%`} style={{ height: `${Math.max(2, Math.round((Math.max(0, Math.min(100, Number(v ?? 0)))/100)*20))}px` }} />
+                    ))}
+                  </div>
+                  <div className="mt-1 text-white/60">ENV で閾値を上書き可能: <code className="rounded bg-white/20 px-1">AUTOEDA_SLO_THRESHOLDS</code></div>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

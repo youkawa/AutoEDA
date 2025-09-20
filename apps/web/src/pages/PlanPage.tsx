@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button, useToast } from '@autoeda/ui-kit';
+import { Pill } from '../components/ui/Pill';
 
 type PlanTask = { id: string; title: string; why?: string; tool?: string; depends_on?: string[]; acceptance?: string };
 type PlanModel = { version: string; tasks: PlanTask[] };
@@ -11,10 +12,18 @@ export function PlanPage() {
   const [plan, setPlan] = useState<PlanModel | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<'id'|'title'|'tool'>(() => {
+    const q = new URLSearchParams(window.location.search);
+    const qs = q.get('sort');
+    if (qs === 'title' || qs === 'tool') return qs;
     const v = localStorage.getItem('plan.sortKey');
     return (v === 'title' || v === 'tool') ? v : 'id';
   });
-  const [filterText, setFilterText] = useState(() => localStorage.getItem('plan.filterText') ?? '');
+  const [filterText, setFilterText] = useState(() => {
+    const q = new URLSearchParams(window.location.search);
+    const qf = q.get('q');
+    if (qf) return qf;
+    return localStorage.getItem('plan.filterText') ?? '';
+  });
   const toast = useToast();
   const [missingDeps, setMissingDeps] = useState<string[]>([]);
 
@@ -121,6 +130,7 @@ export function PlanPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="text-slate-500">
+                <th className="px-2 py-1">状態</th>
                 <th className="px-2 py-1">ID</th>
                 <th className="px-2 py-1">タイトル</th>
                 <th className="px-2 py-1">ツール</th>
@@ -144,15 +154,20 @@ export function PlanPage() {
                   const vb = (b[sortKey] ?? '').toString().toLowerCase();
                   return va.localeCompare(vb);
                 })
-                .map((t) => (
+                .map((t) => {
+                  const deps = t.depends_on ?? [];
+                  const ids = new Set(plan.tasks.map((x) => x.id));
+                  const ok = deps.every((d) => ids.has(d));
+                  return (
                 <tr key={t.id} className="border-t border-slate-100">
+                  <td className="px-2 py-1">{ok ? <Pill tone="emerald">OK</Pill> : <Pill tone="amber">NG</Pill>}</td>
                   <td className="px-2 py-1 font-mono text-xs">{t.id}</td>
                   <td className="px-2 py-1">{t.title}</td>
                   <td className="px-2 py-1 text-slate-600">{t.tool ?? '-'}</td>
-                  <td className="px-2 py-1 text-slate-600">{(t.depends_on ?? []).join(', ') || '-'}</td>
+                  <td className="px-2 py-1 text-slate-600">{deps.join(', ') || '-'}</td>
                   <td className="px-2 py-1 text-slate-600">{t.acceptance ?? '-'}</td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
           {missingDeps.length > 0 ? (
@@ -161,16 +176,29 @@ export function PlanPage() {
             </div>
           ) : null}
           <div className="mt-3 text-xs text-slate-500">
-            <p className="font-semibold text-slate-600">依存グラフ（簡易）</p>
-            <ul className="mt-1 list-disc pl-5">
-              {plan.tasks.map((t) => (
-                <li key={`dep-${t.id}`}>
-                  <span className="font-mono">{t.id}</span>
-                  <span className="mx-1">→</span>
-                  <span>{(t.depends_on ?? []).join(', ') || '-'}</span>
-                </li>
-              ))}
-            </ul>
+            <p className="font-semibold text-slate-600">依存グラフ（簡易 SVG）</p>
+            {(() => {
+              const nodes = plan.tasks.map((t, i) => ({ id: t.id, x: 20 + (i%8)*60, y: 20 + Math.floor(i/8)*50 }));
+              const pos = new Map(nodes.map((n) => [n.id, n] as const));
+              const edges: { from: string; to: string }[] = [];
+              plan.tasks.forEach((t) => (t.depends_on ?? []).forEach((d) => edges.push({ from: d, to: t.id })));
+              const w = 520; const h = Math.max(80, 20 + Math.ceil(nodes.length/8)*50);
+              return (
+                <svg width={w} height={h} className="mt-2 rounded border border-slate-200 bg-white">
+                  {edges.map((e, idx) => {
+                    const a = pos.get(e.from); const b = pos.get(e.to);
+                    if (!a || !b) return null;
+                    return <line key={`e-${idx}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#94a3b8" strokeWidth={1} />
+                  })}
+                  {nodes.map((n) => (
+                    <g key={`n-${n.id}`}>
+                      <circle cx={n.x} cy={n.y} r={7} fill="#1e293b" />
+                      <text x={n.x+10} y={n.y+4} fontSize={10} fill="#334155" className="font-mono">{n.id}</text>
+                    </g>
+                  ))}
+                </svg>
+              );
+            })()}
           </div>
           <div className="mt-3">
             <Button

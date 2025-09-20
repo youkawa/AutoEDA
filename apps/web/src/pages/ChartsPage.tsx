@@ -62,7 +62,7 @@ export function ChartsPage() {
   useEffect(() => {
     if (!datasetId) return;
     const base = ((import.meta as unknown as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE) ?? '';
-    fetch(`${base}/api/metrics/charts/snapshots?dataset_id=${encodeURIComponent(datasetId)}&limit=12`)
+    fetch(`${base}/api/metrics/charts/snapshots?dataset_id=${encodeURIComponent(datasetId)}&limit=24`)
       .then((r) => r.ok ? r.json() : Promise.reject())
       .then((obj: unknown) => {
         const rec = obj as { series?: { served_pct?: number }[] } | undefined;
@@ -90,11 +90,11 @@ export function ChartsPage() {
           <div className="flex items-center gap-3 text-sm text-slate-500">
             <span className="inline-flex items-center gap-2"><BarChart3 className="h-4 w-4" />{charts.length} 件の候補が見つかりました。</span>
             {spark.length > 0 ? (
-              <span className="inline-flex items-center gap-2" title="直近の served 比率（%）">
+              <span className="inline-flex items-center gap-2" title="直近の served 比率（%）。served% = served/total * 100">
                 <span className="text-xs text-slate-400">served%</span>
                 <span className="flex h-4 items-end gap-0.5">
                   {spark.map((v, i) => (
-                    <span key={`sp-${i}`} className="w-1.5 rounded-sm bg-brand-500/70" style={{ height: `${Math.max(2, Math.round((v/100)*12))}px` }} />
+                    <span key={`sp-${i}`} className="w-1.5 rounded-sm bg-brand-500/70" title={`${v}%`} style={{ height: `${Math.max(2, Math.round((v/100)*12))}px` }} />
                   ))}
                 </span>
               </span>
@@ -144,7 +144,7 @@ export function ChartsPage() {
                     style={{ width: `${Math.round((batchProgress.done / Math.max(1, batchProgress.total)) * 100)}%` }}
                   />
                 </div>
-                <div className="mt-1 text-[11px] text-slate-500" title="用語: R=実行中, Q=キュー, F=失敗, C=中断, S=progress済み（served）。avg_waitはキュー待機の平均(ms)">
+                <div className="mt-1 text-[11px] text-slate-500" title="用語: R=実行中, Q=キュー, F=失敗, C=中断, S=progress済み（served）。served% = served/total * 100。avg_wait はキュー待機の平均(ms)">
                   R:{batchProgress.running ?? 0} Q:{batchProgress.queued ?? 0} F:{batchProgress.failed ?? 0} C:{batchProgress.cancelled ?? 0} S:{batchProgress.served ?? 0}
                 </div>
               </div>
