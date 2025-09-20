@@ -392,12 +392,12 @@ def get_batch(batch_id: str) -> Optional[Dict[str, Any]]:
         served = done + running + failed + cancelled
         avg_wait_ms = None
         try:
-            s = _BATCH_WAIT_SUM.get(batch_id, 0)  # type: ignore[name-defined]
-            c = _BATCH_WAIT_COUNT.get(batch_id, 0)  # type: ignore[name-defined]
+            s = _BATCH_WAIT_SUM.get(batch_id, 0)
+            c = _BATCH_WAIT_COUNT.get(batch_id, 0)
             if c > 0:
                 avg_wait_ms = int(s / c)
         except Exception:
-            pass
+            avg_wait_ms = None
         st.update({"done": done, "running": running, "failed": failed, "cancelled": cancelled, "queued": queued, "served": served, "avg_wait_ms": avg_wait_ms})
         if done + failed == st.get("total", 0):
             st["results"] = results
