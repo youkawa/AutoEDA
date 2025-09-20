@@ -85,7 +85,10 @@ export function SavedChartsPage() {
                       if (!datasetId) return;
                       setInflight(`rerun:${it.id}`);
                       try {
-                        const res = await generateChartWithProgress(datasetId, (it.hint as any) || 'bar', [], () => {});
+                        const hint = (it.hint ?? 'bar').toString().toLowerCase();
+                        const allowed = ['bar','line','scatter'] as const;
+                        const kind: 'bar'|'line'|'scatter' = (allowed as readonly string[]).includes(hint) ? (hint as 'bar'|'line'|'scatter') : 'bar';
+                        const res = await generateChartWithProgress(datasetId, kind, [], () => {});
                         if (res?.outputs?.[0]?.mime === 'image/svg+xml') {
                           toast('再実行しました（提案へ表示されます）', 'success');
                         } else {
@@ -141,4 +144,3 @@ export function SavedChartsPage() {
     </div>
   );
 }
-
