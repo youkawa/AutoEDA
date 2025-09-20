@@ -110,6 +110,10 @@ class SandboxRunner:
                         resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
                     if hasattr(resource, 'RLIMIT_STACK'):
                         resource.setrlimit(resource.RLIMIT_STACK, (8 * 1024 * 1024, 8 * 1024 * 1024))
+                    if hasattr(resource, 'RLIMIT_NPROC'):
+                        resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
+                    if hasattr(resource, 'RLIMIT_STACK'):
+                        resource.setrlimit(resource.RLIMIT_STACK, (8 * 1024 * 1024, 8 * 1024 * 1024))
             # Propagate testing delays for both generate and rendering phases
             env = {
                 "PYTHONUNBUFFERED": "1",

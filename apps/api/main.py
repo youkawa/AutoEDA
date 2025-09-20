@@ -13,6 +13,7 @@ from .services import charts as chartsvc
 from .services import sandbox
 from . import config as app_config
 from .services import plan as plan_svc
+from .services.security import redact
 import os as _os
 import json as _json
 
@@ -679,8 +680,9 @@ def exec_run(req: ExecRunRequest) -> ExecRunResult:
         return ExecRunResult(task_id=req.task_id, status="succeeded", logs=[], outputs=outs)
     except sandbox.SandboxError as exc:
         code = getattr(exc, "code", None)
-        # 友好化はクライアント側で行う
-        return ExecRunResult(task_id=req.task_id, status="failed", logs=[str(exc)], outputs=[], error_code=code)
+        raw = getattr(exc, "logs", None)
+        msg = redact(str(raw)[:500] if raw else str(exc))
+        return ExecRunResult(task_id=req.task_id, status="failed", logs=[msg], outputs=[], error_code=code)
 
 # --- G2: Deep-dive interactive suggestions (MVP deterministic) ---
 class DeepDiveRequest(BaseModel):

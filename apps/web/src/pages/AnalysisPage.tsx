@@ -73,8 +73,20 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
         mime: String(o.mime ?? ''),
         content: o.content as unknown,
       })) : [];
-      setSuggOutputs((m) => ({ ...m, [index]: outs }));
-      toast('提案を実行しました', 'success');
+      if (res.status === 'succeeded') {
+        setSuggOutputs((m) => ({ ...m, [index]: outs }));
+        toast('提案を実行しました', 'success');
+      } else {
+        const map: Record<string, string> = {
+          timeout: '実行がタイムアウトしました（制限超過）。',
+          cancelled: '実行がキャンセルされました。',
+          forbidden_import: '安全ポリシーにより禁止されたモジュール/関数が検出されました。',
+          format_error: '出力形式が不正です（JSON解析に失敗）。',
+          unknown: '不明なエラーが発生しました。',
+        };
+        const msg = (res as any).error_code ? (map[(res as any).error_code] ?? '失敗しました') : (res.logs?.[0] ?? '失敗しました');
+        toast(msg, 'error');
+      }
     } catch {
       toast('提案の実行に失敗しました', 'error');
     }
