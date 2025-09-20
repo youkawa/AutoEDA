@@ -64,11 +64,11 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
     setRunning(true);
     try {
       const res = await runCustomAnalysis(datasetId, code, 'adhoc');
-      const outs = Array.isArray(res.outputs) ? res.outputs.map((o) => ({
-        type: (o.type === 'vega' || o.type === 'image' || o.type === 'text') ? o.type : 'text',
-        mime: String(o.mime ?? ''),
-        content: o.content as unknown,
-      })) as Output[] : [];
+      const outs: Output[] = Array.isArray(res.outputs) ? res.outputs.map((o) => {
+        const t = (o.type === 'vega' || o.type === 'image' || o.type === 'text') ? o.type : 'text';
+        const mapped: Output = { type: t, mime: String(o.mime ?? ''), content: o.content as unknown };
+        return mapped;
+      }) : [];
       setOutputs(outs);
       if (res.status === 'succeeded') toast('実行に成功しました', 'success');
       else toast(res.logs?.[0] ?? '実行に失敗しました', 'error');
