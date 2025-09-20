@@ -98,7 +98,14 @@ export function ChartsPage() {
             <span className="inline-flex items-center gap-2"><BarChart3 className="h-4 w-4" />{charts.length} 件の候補が見つかりました。</span>
             {spark.length > 0 ? (
               <span className="inline-flex items-center gap-2" title="直近の served 比率（%）。served% = served/total * 100">
-                <span className="text-xs text-slate-400">served%</span>
+                <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                  <span>served%</span>
+                  <span
+                    className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[9px] text-slate-500"
+                    title="served% = served/total × 100"
+                  >?
+                  </span>
+                </span>
                 <span className="relative flex h-5 items-end gap-0.5">
                   {/* しきい値ライン 80% */}
                   <span className="absolute left-0 right-0 border-t border-dashed border-emerald-400/60" style={{ top: `${Math.max(0, 16 - Math.round(16 * 0.8))}px` }} title="しきい値 80%" />

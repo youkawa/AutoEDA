@@ -62,6 +62,18 @@ jobs:
               issue_number: context.issue.number,
               body
             });
+      - name: Save OpenAPI compat result
+        if: always()
+        run: |
+          mkdir -p reports
+          echo "${{ steps.openapi_compat.outcome }}" > reports/openapi_compat.txt
+      - name: Upload OpenAPI compat artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-compat
+          path: reports/openapi_compat.txt
+          if-no-files-found: warn
       - name: Evaluate API NFR (p95 & thresholds)
         run: python3 apps/api/scripts/evaluate_nfr.py
       - name: Check SLO thresholds

@@ -231,6 +231,20 @@ export function PlanPage() {
               size="sm"
               className="ml-2"
               onClick={() => {
+                // issues.csv: id, issue
+                const header = ['id','issue'];
+                const rows: [string,string][] = Object.entries(issuesMap).flatMap(([id, arr]) => arr.map((msg) => [id, msg]));
+                if (rows.length === 0) return;
+                const csv = [header.join(','), ...rows.map(([a,b]) => `"${String(a).replace(/"/g,'""')}","${String(b).replace(/"/g,'""')}"`)].join('\n');
+                const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+                const a = document.createElement('a'); a.href = url; a.download = `issues_${datasetId}.csv`; a.click(); URL.revokeObjectURL(url);
+              }}
+            >issues.csv</Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="ml-2"
+              onClick={() => {
                 if (!plan) return;
                 const header = ['id','title','tool','depends_on','acceptance'];
                 const rows = plan.tasks.map(t => [t.id, t.title, t.tool??'', (t.depends_on??[]).join('|'), t.acceptance??'']);

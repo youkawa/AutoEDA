@@ -36,3 +36,12 @@ def test_template_subprocess_cancel_cooperative(monkeypatch):
         runner.run_template_subprocess(spec_hint="bar", dataset_id="ds_x", cancel_check=_check)
     t.join()
     assert "cancelled" in str(ei.value)
+
+
+def test_template_subprocess_timeout(monkeypatch):
+    # induce delay inside child process to exceed timeout
+    monkeypatch.setenv("AUTOEDA_SB_TEST_DELAY_MS", "200")
+    runner = SandboxRunner(timeout_sec=0.05)
+    with pytest.raises(SandboxError) as ei:
+        runner.run_template_subprocess(spec_hint="bar", dataset_id="ds_x")
+    assert "timeout" in str(ei.value)

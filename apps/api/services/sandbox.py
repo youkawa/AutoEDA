@@ -79,8 +79,11 @@ class SandboxRunner:
         """
         import json as _json  # local alias
         code = (
-            "import json;\n"
-            "kind=json.loads(open('in.json').read()).get('kind','bar');\n"
+            "import json, os, time;\n"
+            "cfg=json.loads(open('in.json').read());\n"
+            "kind=cfg.get('kind','bar');\n"
+            "delay_ms=int(os.environ.get('AUTOEDA_SB_TEST_DELAY_MS','0') or '0');\n"
+            "if delay_ms>0: time.sleep(delay_ms/1000.0);\n"
             "spec={'mark': kind if kind in ('bar','line') else 'point','data':{'values':[{'x':0,'y':1}]}};\n"
             "print(json.dumps({'language':'python','library':'vega','code':'# generated','outputs':[{'type':'vega','mime':'application/json','content':spec}]}, ensure_ascii=False))\n"
         )
@@ -97,7 +100,7 @@ class SandboxRunner:
                     resource.setrlimit(resource.RLIMIT_AS, (self.mem_limit_mb * 1024 * 1024, self.mem_limit_mb * 1024 * 1024))
                     resource.setrlimit(resource.RLIMIT_CPU, (2, 2))
                     resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
-            env = {"PYTHONUNBUFFERED": "1", "PATH": "/usr/bin:/bin"}
+            env = {"PYTHONUNBUFFERED": "1", "PATH": "/usr/bin:/bin", "AUTOEDA_SB_TEST_DELAY_MS": os.environ.get("AUTOEDA_SB_TEST_DELAY_MS", "")}
             proc = subprocess.Popen(["python3", "-I", "-c", code], cwd=tmpdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, preexec_fn=_preexec if hasattr(os, 'setuid') else None)
             started = time.perf_counter()
             while True:
