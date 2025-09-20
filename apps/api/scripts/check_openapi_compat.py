@@ -1,7 +1,7 @@
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, Set, Tuple
+from typing import Any, Dict, Set, Tuple, List
 
 
 def fail(msg: str) -> None:
@@ -97,6 +97,55 @@ def main() -> None:
                             break
             exec_basic = {"present": True, "type": t, "enum": enum2}
 
+    # Global scan over all schemas for required/type changes
+    schemas_report: List[Dict[str, Any]] = []
+    global_required_missing: Set[Tuple[str, str]] = set()
+    global_required_extra: Set[Tuple[str, str]] = set()
+    global_type_changes: List[Dict[str, str]] = []
+    if data_base:
+        comps_base_all = data_base.get("components", {}).get("schemas", {})
+        for name, cur_schema in comps_cur.items():
+            base_schema = comps_base_all.get(name, {})
+            cur_props: Dict[str, Any] = cur_schema.get("properties", {}) or {}
+            base_props: Dict[str, Any] = base_schema.get("properties", {}) or {}
+            cur_req = set(cur_schema.get("required", []) or [])
+            base_req = set(base_schema.get("required", []) or [])
+            req_missing = sorted(list(base_req - cur_req))
+            req_extra = sorted(list(cur_req - base_req))
+
+            def get_type(x: Dict[str, Any]) -> str:
+                if "type" in x and isinstance(x["type"], str):
+                    return x["type"]
+                for alt in ("oneOf", "anyOf", "allOf"):
+                    if x.get(alt):
+                        types = []
+                        for it in x[alt]:
+                            t = it.get("type")
+                            if isinstance(t, str):
+                                types.append(t)
+                        if types:
+                            return "/".join(sorted(set(types)))
+                return "unknown"
+
+            t_changes: List[Dict[str, str]] = []
+            for k in set(cur_props.keys()) & set(base_props.keys()):
+                t_cur = get_type(cur_props[k])
+                t_base = get_type(base_props[k])
+                if t_cur != t_base:
+                    t_changes.append({"prop": k, "from": t_base, "to": t_cur})
+                    global_type_changes.append({"schema": name, "prop": k, "from": t_base, "to": t_cur})
+            for m in req_missing:
+                global_required_missing.add((name, m))
+            for e in req_extra:
+                global_required_extra.add((name, e))
+            if req_missing or req_extra or t_changes:
+                schemas_report.append({
+                    "schema": name,
+                    "required_missing": req_missing,
+                    "required_extra": req_extra,
+                    "type_changes": t_changes,
+                })
+
     report = {
         "enum_expected": sorted(expected),
         "enum_actual": sorted(actual),
@@ -107,13 +156,14 @@ def main() -> None:
         "required_missing": sorted(list(required_missing)),
         "required_extra": sorted(list(required_extra)),
         "type_changes": [{"prop": k, "from": v[0], "to": v[1]} for k, v in sorted(type_changes.items())],
+        "schemas": schemas_report,
         "exec_error_code": exec_basic,
     }
     outdir = Path("reports"); outdir.mkdir(parents=True, exist_ok=True)
     (outdir / "openapi_compat_diff.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
 
     # Exit non-zero only when clearly breaking (enum missing OR required added/removed OR type changes)
-    breaking = bool(enum_missing or required_missing or required_extra or type_changes)
+    breaking = bool(enum_missing or required_missing or required_extra or type_changes or global_required_missing or global_required_extra or global_type_changes)
     if breaking:
         fail("OpenAPI compatibility: breaking changes detected (see reports/openapi_compat_diff.json)")
     print("[openapi-compat] OpenAPI compatibility checks passed (no breaking changes).")

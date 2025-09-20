@@ -138,7 +138,7 @@
 2. H2（中〜高）: Charts 一括の「キャンセル済み」UI整合（running→cancelled のピル/再試行導線）と announcer 文言の統一
 3. H3 保存/共有（中）: 保存一覧ページ（/charts/saved/:datasetId）— 検索/削除/再描画/復元→再実行
 4. CI/観測（中）: OpenAPI互換レポの破壊性分類を強化（required/type 追加）と PR 自動コメントの精緻化
-5. Docs（中）: G1/G2/H の MDX ガイド（テンプレ例/安全上の注意/運用Tips）
+5. Docs（中）: G1/G2/H の MDX ガイド（テンプレ例/安全上の注意/運用Tips） — docs/guides/g1-g2-h.mdx を追加
 
 ## 4. 未実装ユーザーストーリー（requirements_v2 由来・現状反映）
 
