@@ -63,6 +63,12 @@ export function AppLayout() {
             match: (pathname) => pathname.startsWith('/qna/'),
           },
           {
+            label: '計画',
+            to: `/plan/${datasetId}`,
+            icon: FileCode,
+            match: (pathname) => pathname.startsWith('/plan/'),
+          },
+          {
             label: '次アクション',
             to: `/actions/${datasetId}`,
             icon: ClipboardCheck,
@@ -106,6 +112,13 @@ export function AppLayout() {
             label: 'Q&A',
             to: '#',
             icon: MessageSquare,
+            disabled: true,
+            description: 'データセットを選択してください',
+          },
+          {
+            label: '計画',
+            to: '#',
+            icon: FileCode,
             disabled: true,
             description: 'データセットを選択してください',
           },

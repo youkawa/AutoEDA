@@ -24,6 +24,9 @@ _ASYNC = os.environ.get("AUTOEDA_CHARTS_ASYNC", "0") in {"1", "true", "TRUE"}
 _PARALLEL = max(1, int(os.environ.get("AUTOEDA_CHARTS_PARALLELISM", "1") or "1"))
 _WORKER_STARTED = False
 _CANCEL_FLAGS: Dict[str, bool] = {}
+_BATCH_LIMITS: Dict[str, int] = {}
+_BATCH_RUNNING: Dict[str, int] = {}
+_LAST_SERVED_BATCH: Optional[str] = None
 
 
 def _ensure_dir() -> None:
@@ -38,16 +41,37 @@ def _start_worker_once() -> None:
         return
 
     def _worker():
+        global _LAST_SERVED_BATCH
         while True:
             with _CV:
                 while not _QUEUE:
                     _CV.wait()
-                job = _QUEUE.pop(0)
+                # Fair scheduler: round-robin by batch_id
+                job_idx = 0
+                if _LAST_SERVED_BATCH is not None:
+                    for idx, j in enumerate(_QUEUE):
+                        if (j.get("item") or {}).get("batch_id") != _LAST_SERVED_BATCH:
+                            job_idx = idx
+                            break
+                job = _QUEUE.pop(job_idx)
             job_id = job["job_id"]
             _JOBS[job_id]["status"] = "running"
             _JOBS[job_id]["stage"] = "generating"
             try:
                 item = job["item"]
+                _LAST_SERVED_BATCH = item.get("batch_id")
+                # batch-level parallelism gate
+                batch_id = item.get("batch_id")
+                if batch_id:
+                    with _CV:
+                        limit = _BATCH_LIMITS.get(batch_id, _PARALLEL)
+                        running_now = _BATCH_RUNNING.get(batch_id, 0)
+                        if running_now >= limit:
+                            # put it back to the queue tail and wait briefly
+                            _QUEUE.append(job)
+                            _CV.wait(timeout=0.05)
+                            continue
+                        _BATCH_RUNNING[batch_id] = running_now + 1
                 runner = SandboxRunner()
                 # stage: generating -> running -> rendering
                 _JOBS[job_id]["stage"] = "generating"
@@ -85,9 +109,22 @@ def _start_worker_once() -> None:
                 except Exception:
                     pass
             except Exception as exc:
-                _JOBS[job_id].update({"status": "failed", "error": str(exc)})
+                msg = str(exc)
+                if "timeout" in msg:
+                    friendly = "実行がタイムアウトしました（制限時間超過）。"
+                elif "cancelled" in msg:
+                    friendly = "実行がキャンセルされました。"
+                else:
+                    friendly = f"実行に失敗しました: {msg}"
+                _JOBS[job_id].update({"status": "failed", "error": friendly})
             # small yield
             time.sleep(0.01)
+            # decrement running counter for batch
+            if item.get("batch_id"):
+                with _CV:
+                    b = item.get("batch_id")
+                    _BATCH_RUNNING[b] = max(0, _BATCH_RUNNING.get(b, 1) - 1)
+                    _CV.notify_all()
     # spawn N workers
     for i in range(_PARALLEL):
         t = threading.Thread(target=_worker, daemon=True, name=f"charts-worker-{i+1}")
@@ -241,6 +278,8 @@ def generate_batch(items: List[Dict[str, Any]], parallelism: int = 3) -> Dict[st
     if _ASYNC:
         _start_worker_once()
         effective = max(1, min(int(parallelism or 1), _PARALLEL))
+        # record limits for this batch
+        _BATCH_LIMITS[batch_id] = effective
         for it in items:
             job = generate({**it, "batch_id": batch_id})  # queued
             entry = {"job_id": job["job_id"], "status": job["status"]}

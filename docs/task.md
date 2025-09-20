@@ -1,14 +1,26 @@
 # AutoEDA 実装計画 (タスクトラッカー)
 
-更新日: 2025-09-19 / 担当: AutoEDA Tech Lead
+更新日: 2025-09-20 / 担当: AutoEDA Tech Lead
 
 ---
 
-## 1. 現状サマリ
+## 1. 現状サマリ（2025-09-20 時点）
 
 - バックエンド API (A1〜D1, C1/C2, S1) は実装済みで、メトリクスイベントも出力。
-- Capability H（チャート生成：CH-01〜CH-21）は P0 の中核（CH-01/02/04/08/20/21）と一部P1（A11y: CH-15、キュー: CH-12の一部=queuedのみキャンセル）をMVP実装済み。未了: CH-03（LLM実行本番化）/CH-05（詳細理由の提示強化）/CH-06（パラメータ再実行・履歴1件保持）/CH-07（コードのコピー）/CH-11（running中断）/CH-12（並列度制御）/CH-13（段階的フォールバック）/CH-14（メタ拡充）/CH-16〜19（保存・共有系）。
-- Capability F/G（計画生成・カスタム分析）は未実装（要件・設計は v2 に定義済み）。
+- Capability H は P0 中核（CH-01/02/04/08/20/21）に加え、以下を実装/前進：
+  - CH-07: コードコピー（UI） — Done
+  - CH-06: 再実行＋履歴1件保持（単発） — Partial
+  - CH-02: 単発ステップUIをサーバ `stage` 同期（generating/rendering/done） — Done(単発)
+  - CH-12: 並列ワーカープール（ENV: `AUTOEDA_CHARTS_PARALLELISM`） — Done(初期)
+  - CH-11: 協調キャンセル（runningにcancel flag伝播） — WIP
+  - CH-14: メタ拡充（engine/sandbox/parallelism/duration） — Done(初期)
+  - CH-03: 実行MVP（`AUTOEDA_SANDBOX_EXECUTE=1` で安全サブプロセス実行） — WIP（LLM透過は未）
+  - バッチ: `parallelism`受理＋`parallelism_effective` 返却（ENV上限内）。スケジューラでバッチ単位の同時実行上限を遵守 — Done(初期)
+  未了: CH-05 / CH-06（編集UI）/ CH-11（協調中断の強化）/ CH-13 / CH-16〜19。
+- Capability F/G：
+  - F1: `/api/plan/generate` — Done(MVP/API)
+  - F2: `/api/plan/revise` — Done(MVP/検証のみ)（循環/未解決/曖昧受入の検証、400整形）。差分パッチ生成は今後
+  - G系は未実装（実行基盤はHのMVPを流用可能）
 - フロントは主要ページが実装済み。Storybook は導入済み（MSW/Router/Docs/A11y、VR運用まで整備）。
 - テスト: pytest + Vitest + Playwright（Storybook VR）。Charts の代表ケースをVR対象に追加済み。
 - CI: web ジョブで Lint/Type/Vitest/API検証/Storybook/VR まで実行。main 保護は有効、必須チェック contexts は固定済み（"ci / web"）。
@@ -57,16 +69,16 @@
 
 | ID | スコープ | 状態 | リファレンス | 受け入れ基準/次アクション |
 |----|----------|------|--------------|---------------------------|
-| T-H1-STEP | 単発ステップUIを実処理に連動（CH-02） | **TODO** | `ChartsPage`, `charts.py` | job/batch ステータスに応じて準備→生成→実行→描画を連動（擬似から実値へ） |
+| T-H1-STEP | 単発ステップUIを実処理に連動（CH-02） | **Done(単発)** | `ChartsPage`, `client-sdk` | progressコールバックでstage=generating/rendering/doneを反映 |
 | T-H1-STEP | 単発ステップUIを実処理に連動（CH-02） | **Done(単発)** | `ChartsPage`, `client-sdk` | SDKのprogressポーリングでstage=generating/rendering/doneを反映 |
-| T-H1-EXEC | LLMコード生成＋安全実行（CH-03） | **TODO** | `sandbox.py`, `orchestrator` | SandboxRunner を本実行モードに拡張（allowlist/timeout/mem/NW遮断）＋LLM透過コード生成の最小経路 |
-| T-H1-EXEC | LLMコード生成＋安全実行（CH-03） | **WIP(実行基盤MVP)** | `sandbox.py`, `charts.py` | `AUTOEDA_SANDBOX_EXECUTE=1` で安全サブプロセス実行（Vega JSON生成）。今後LLM透過化 |
+| T-H1-EXEC | LLMコード生成＋安全実行（CH-03） | **WIP(実行基盤MVP)** | `sandbox.py`, `charts.py` | `AUTOEDA_SANDBOX_EXECUTE=1` で安全サブプロセス実行（Vega JSON生成）＋ cancel/timeout 監視。今後LLM透過化 |
 | T-H1-FAIL | 失敗理由提示とテンプレフォールバック（CH-05） | **TODO** | FE/SDK 例外整形 | 空応答/安全フィルタ/JSON不正の理由を人間可読で提示、テンプレへ退避 |
 | T-H1-RERUN | パラメータ調整→再実行（履歴1件）（CH-06） | **TODO** | `ChartsPage` | 列/集計単位の編集UI、直前結果の履歴保持・復元 |
-| T-H1-COPY | コード表示＋コピー（CH-07） | **TODO** | `ChartsPage` | 「コードをコピー」ボタン追加（クリップボード書込） |
+| T-H1-COPY | コード表示＋コピー（CH-07） | **Done** | `ChartsPage` | 「コードをコピー」ボタン追加（クリップボード書込） |
 | T-H1-META | メタデータ拡充（CH-14） | **Done(初期)** | `charts.py`, `sandbox.py` | engine/sandbox/parallelism/seed/duration_ms を `result.meta` に付与 |
 | T-H2-CANCEL | running の協調中断（CH-11） | **WIP(協調キャンセル)** | `charts.py` | running ジョブに cancel flag を伝搬し完了時に cancelled へ（中断ポイント導入は今後） |
-| T-H2-QUEUE | 並列度cap/キュー制御（CH-12） | **Done(初期)** | `charts.py` | `AUTOEDA_CHARTS_PARALLELISM` でワーカー数制御。batchのparallelismはメタに反映（effective=ENV上限） |
+| T-H2-QUEUE | 並列度cap/キュー制御（CH-12） | **Done(初期)** | `charts.py` | ワーカープール（ENV）。バッチ`parallelism`受理＋effective算出・遵守 |
+| T-H2-STEP | バッチ進捗UI（items[].stage反映） | **WIP** | `ChartsPage` | カード上に stage ピル（生成中/描画中/完了）表示 — 追加済み、さらなる連動は今後 |
 | T-H2-BACKOFF | 段階的フォールバック+再試行（CH-13） | **TODO** | FE/SDK/API | テンプレ→軽量LLM→指数バックオフ再試行（最大3回） |
 
 #### 2.1.2 Capability H — 保存/共有（P2）
@@ -77,6 +89,25 @@
 | T-H3-VERS | バージョン管理（CH-17） | **TODO** | API/SDK/FE | v1/v2…の差分表示・復元。メタに `version` を保持 |
 | T-H3-SHARE | 共有リンク/エクスポート（CH-18） | **TODO** | API/FE | 読取専用リンク生成、Notebookセル（コード+画像）出力 |
 | T-H3-PIN | ダッシュボードへピン留め（CH-19） | **TODO** | FE | Home/Dashboard にカード配置・整列（ドラッグ） |
+
+## 3. 次のイテレーション（優先順）
+
+1. H2 スケジューラ仕上げ（中〜高）：バッチごとの同時実行上限を厳密に遵守（先着順/公正性）し、UIのstage連動を強化（items[].stage の更新頻度/完了announceの統一）
+2. H1‑EXEC 強化（高）：allowlist インポート検査（ast/deny-list）、チェックポイント（長処理ループへのyield）追加、失敗理由の詳細提示（CH‑05）
+3. F2 UI 雛形（中）：Plan の一覧/詳細と検証結果表示、`/plan/:datasetId` を追加。差分適用のUIは後続
+4. CH‑13（中）：段階フォールバック（テンプレ→軽量LLM→指数バックオフ再試行）
+5. 保存/共有（CH‑16〜19）（中）：最小の保存API＋一覧→Notebookセル出力
+6. CI/観測（中）：H系KPI（p95/成功率/失敗理由）を `metrics.slo_snapshot` に取り込み、Homeに表示
+
+## 4. 未実装ユーザーストーリー（requirements_v2 由来・現状反映）
+
+| Story | 状態 | 対応タスク | 備考 |
+|-------|------|------------|------|
+| F1: 計画自動生成 | Done(MVP/API) | `T-F1-PLAN` | RAG+プロファイル骨子（決定的） |
+| F2: 人手レビュー・差分適用 | Done(MVP/検証) | `T-F2-REVISE` | 差分生成は後続、検証は実装 |
+| G1: カスタム分析の生成・実行 | 未実装 | `T-G1-EXEC` | 実行基盤はHのMVPを流用可能 |
+| G2: 深掘り指示の再生成 | 未実装 | `T-G2-INTERACTIVE` | |
+| CH-03/05/06/11/13/16〜19 | 一部/未実装 | `T-H1-EXEC`/`T-H1-FAIL`/`T-H1-RERUN`/`T-H2-*`/`T-H3-*` | 07/14は初期Done、02は単発Done、12は初期Done |
 
 ### 2.2 安定化・不具合修正（完了）
 
@@ -142,6 +173,7 @@
 
 ## 6. 変更履歴
 
+- 2025-09-20: H1-STEP(単発)完了、CH-07/14 Done(初期)、CH-06 部分、CH-11 協調、CH-12 並列/バッチ有効化、CH-03 実行MVPを追加。F1/F2 のAPI実装（MVP）を反映。
 - 2025-09-19: Capability H の実装状況を反映（P0の一部=実装済み、未実装CHをタスク化）。Capability F/G の未実装を追加タスク化。RAG/Gemini/EDA 安定化、Storybook VR 運用、Mermaid修正、タスク表を更新。
 - 2025-09-18: バックエンド/フロント実装状況に合わせてタスク表を更新。Storybook/ワイヤーフレーム同期タスクを完了扱いに。
 - 2025-09-15: 初版。

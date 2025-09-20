@@ -187,3 +187,8 @@ def evaluate_golden_queries(queries: Iterable[Dict[str, Any]], top_k: int = 5) -
         if expected_sources and not matched:
             missing.append(str(query_id))
     return {"missing": missing, "coverage": coverage}
+
+
+def _stable_id(text: str) -> str:
+    """Stable short id for documents."""
+    return hashlib.sha1((text or "").encode("utf-8")).hexdigest()[:12]

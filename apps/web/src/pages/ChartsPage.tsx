@@ -19,7 +19,7 @@ export function ChartsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchInFlight, setBatchInFlight] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ total: number; done: number; failed: number } | null>(null);
-  const [batchItems, setBatchItems] = useState<{ chart_id?: string; status: string }[]>([]);
+  const [batchItems, setBatchItems] = useState<{ chart_id?: string; status: string; stage?: 'generating'|'rendering'|'done' }[]>([]);
   const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
   const [announce, setAnnounce] = useState<string | null>(null);
   type Step = 'preparing' | 'generating' | 'running' | 'rendering' | 'done';
@@ -330,8 +330,8 @@ export function ChartsPage() {
                       <AlertTriangle className="h-4 w-4" /> 再確認を推奨
                     </span>
                   )}
-                  <div className="flex items-center gap-3">
-                    <label className="flex cursor-pointer items-center gap-2">
+                    <div className="flex items-center gap-3">
+                      <label className="flex cursor-pointer items-center gap-2">
                       <input
                         type="checkbox"
                         checked={selectedIds.has(chart.id)}
@@ -343,6 +343,14 @@ export function ChartsPage() {
                       />
                       <span className="text-xs text-slate-600">選択</span>
                     </label>
+                    {(() => {
+                      const it = batchItems.find((b) => b.chart_id === chart.id);
+                      const stage = it?.stage;
+                      if (!stage) return null;
+                      const map: Record<string, string> = { generating: '生成中', rendering: '描画中', done: '完了' };
+                      const tone = stage === 'done' ? 'emerald' : 'amber';
+                      return <Pill tone={tone}>{map[stage] ?? stage}</Pill>;
+                    })()}
                     <Button
                       variant={isHighConfidence ? 'primary' : 'secondary'}
                       size="sm"

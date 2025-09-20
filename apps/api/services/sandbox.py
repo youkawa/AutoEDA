@@ -131,6 +131,16 @@ class SandboxRunner:
 
             code = textwrap.dedent(
                 r"""
+                import builtins
+                _allowed = {'json','csv','os'}
+                _orig_import = builtins.__import__
+                def _guard_import(name, *args, **kwargs):
+                    root = (name or '').split('.')[0]
+                    if root not in _allowed:
+                        raise ImportError(f'disallowed module: {root}')
+                    return _orig_import(name, *args, **kwargs)
+                builtins.__import__ = _guard_import
+
                 import json, csv, os
                 cfg = json.loads(open('in.json','r',encoding='utf-8').read())
                 kind = cfg.get('kind','bar')
@@ -216,7 +226,7 @@ class SandboxRunner:
             obj.setdefault("meta", {})
             obj["meta"].update({"engine": "generated", "duration_ms": None})
             return obj
-        except Exception as exc:
+        except Exception:
             # fallback to template path
             from . import charts as chartsvc  # type: ignore
             return chartsvc._template_result(spec_hint, dataset_id)
