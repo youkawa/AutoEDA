@@ -131,6 +131,16 @@ class SandboxRunner:
 
             code = textwrap.dedent(
                 r"""
+                import builtins
+                _allowed = {'json','csv','os'}
+                _orig_import = builtins.__import__
+                def _guard_import(name, *args, **kwargs):
+                    root = (name or '').split('.')[0]
+                    if root not in _allowed:
+                        raise ImportError(f'disallowed module: {root}')
+                    return _orig_import(name, *args, **kwargs)
+                builtins.__import__ = _guard_import
+
                 import json, csv, os
                 cfg = json.loads(open('in.json','r',encoding='utf-8').read())
                 kind = cfg.get('kind','bar')

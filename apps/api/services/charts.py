@@ -26,6 +26,7 @@ _WORKER_STARTED = False
 _CANCEL_FLAGS: Dict[str, bool] = {}
 _BATCH_LIMITS: Dict[str, int] = {}
 _BATCH_RUNNING: Dict[str, int] = {}
+_LAST_SERVED_BATCH: Optional[str] = None
 
 
 def _ensure_dir() -> None:
@@ -40,16 +41,25 @@ def _start_worker_once() -> None:
         return
 
     def _worker():
+        global _LAST_SERVED_BATCH
         while True:
             with _CV:
                 while not _QUEUE:
                     _CV.wait()
-                job = _QUEUE.pop(0)
+                # Fair scheduler: round-robin by batch_id
+                job_idx = 0
+                if _LAST_SERVED_BATCH is not None:
+                    for idx, j in enumerate(_QUEUE):
+                        if (j.get("item") or {}).get("batch_id") != _LAST_SERVED_BATCH:
+                            job_idx = idx
+                            break
+                job = _QUEUE.pop(job_idx)
             job_id = job["job_id"]
             _JOBS[job_id]["status"] = "running"
             _JOBS[job_id]["stage"] = "generating"
             try:
                 item = job["item"]
+                _LAST_SERVED_BATCH = item.get("batch_id")
                 # batch-level parallelism gate
                 batch_id = item.get("batch_id")
                 if batch_id:
@@ -99,7 +109,14 @@ def _start_worker_once() -> None:
                 except Exception:
                     pass
             except Exception as exc:
-                _JOBS[job_id].update({"status": "failed", "error": str(exc)})
+                msg = str(exc)
+                if "timeout" in msg:
+                    friendly = "実行がタイムアウトしました（制限時間超過）。"
+                elif "cancelled" in msg:
+                    friendly = "実行がキャンセルされました。"
+                else:
+                    friendly = f"実行に失敗しました: {msg}"
+                _JOBS[job_id].update({"status": "failed", "error": friendly})
             # small yield
             time.sleep(0.01)
             # decrement running counter for batch

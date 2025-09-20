@@ -19,7 +19,7 @@ export function ChartsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchInFlight, setBatchInFlight] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ total: number; done: number; failed: number } | null>(null);
-  const [batchItems, setBatchItems] = useState<{ chart_id?: string; status: string }[]>([]);
+  const [batchItems, setBatchItems] = useState<{ chart_id?: string; status: string; stage?: 'generating'|'rendering'|'done' }[]>([]);
   const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
   const [announce, setAnnounce] = useState<string | null>(null);
   type Step = 'preparing' | 'generating' | 'running' | 'rendering' | 'done';
@@ -345,7 +345,7 @@ export function ChartsPage() {
                     </label>
                     {(() => {
                       const it = batchItems.find((b) => b.chart_id === chart.id);
-                      const stage = (it as any)?.stage as string | undefined;
+                      const stage = it?.stage;
                       if (!stage) return null;
                       const map: Record<string, string> = { generating: '生成中', rendering: '描画中', done: '完了' };
                       const tone = stage === 'done' ? 'emerald' : 'amber';
