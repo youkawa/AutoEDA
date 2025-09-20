@@ -11,6 +11,7 @@ export function AnalysisPage() {
   const [prompt, setPrompt] = useState('売上のトレンドと相関を見たい');
   const [suggs, setSuggs] = useState<DeepDiveSuggestion[]>([]);
   const [suggOutputs, setSuggOutputs] = useState<Record<number, Output[]>>({});
+  const [selected, setSelected] = useState<Record<number, boolean>>({});
   const [inflight, setInflight] = useState(false);
 
   const defaultCode = useMemo(() => (
@@ -91,7 +92,17 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
       }) : [];
       setOutputs(outs);
       if (res.status === 'succeeded') toast('実行に成功しました', 'success');
-      else toast(res.logs?.[0] ?? '実行に失敗しました', 'error');
+      else {
+        const map: Record<string, string> = {
+          timeout: '実行がタイムアウトしました（制限超過）。',
+          cancelled: '実行がキャンセルされました。',
+          forbidden_import: '安全ポリシーにより禁止されたモジュール/関数が検出されました。',
+          format_error: '出力形式が不正です（JSON解析に失敗）。',
+          unknown: '不明なエラーが発生しました。',
+        };
+        const msg = (res as any).error_code ? (map[(res as any).error_code] ?? '失敗しました') : (res.logs?.[0] ?? '失敗しました');
+        toast(msg, 'error');
+      }
     } catch (e) {
       toast(e instanceof Error ? e.message : '実行に失敗しました', 'error');
     } finally {
@@ -115,8 +126,21 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
             <div className="grid gap-3">
               {suggs.map((s, i) => (
                 <div key={i} className="rounded-lg border border-slate-200 p-3">
-                  <div className="text-sm font-semibold">{s.title}</div>
-                  {s.why && <div className="text-xs text-slate-600">{s.why}</div>}
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold">{s.title}</div>
+                      {s.why && <div className="text-xs text-slate-600">{s.why}</div>}
+                      {Array.isArray((s as any).tags) && (s as any).tags.length>0 ? (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {(s as any).tags.map((t: string, k: number)=>(<span key={k} className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700">{t}</span>))}
+                        </div>
+                      ) : null}
+                      {(s as any).diagnostics ? (
+                        <div className="mt-1 text-[11px] text-slate-600">{Object.entries((s as any).diagnostics as Record<string, unknown>).map(([k,v])=>`${k}: ${String(v)}`).join(' / ')}</div>
+                      ) : null}
+                    </div>
+                    <input type="checkbox" aria-label="選択" checked={!!selected[i]} onChange={(e)=>setSelected((m)=>({...m,[i]:e.target.checked}))} />
+                  </div>
                   {s.spec ? (
                     <details className="mt-2">
                       <summary className="cursor-pointer text-xs text-slate-600 underline">spec を表示</summary>
@@ -148,6 +172,29 @@ print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega'
                 </div>
               ))}
             </div>
+            {suggs.length>0 ? (
+              <div className="mt-2 flex items-center justify-between">
+                <div className="text-xs text-slate-600">選択: {Object.values(selected).filter(Boolean).length} / {suggs.length}</div>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={async ()=>{
+                    if (!datasetId) return;
+                    const idxs = Object.entries(selected).filter(([,v])=>v).map(([k])=>Number(k)).sort((a,b)=>a-b);
+                    if (idxs.length===0) return;
+                    setInflight(true);
+                    try {
+                      for (const i of idxs) {
+                        await runSuggestion(i, suggs[i]!);
+                      }
+                      toast('選択した提案を実行しました', 'success');
+                    } finally {
+                      setInflight(false);
+                    }
+                  }}
+                >選択を一括実行</Button>
+              </div>
+            ) : null}
           </div>
         </CardContent>
       </Card>

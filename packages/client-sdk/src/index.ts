@@ -371,7 +371,7 @@ export async function emitRecipes(datasetId: string): Promise<RecipeEmitResult> 
 }
 
 // --- G1: Custom analysis execution ---
-export type ExecRunResult = { task_id: string; status: 'succeeded'|'failed'|'skipped'; logs: string[]; outputs: { type: string; mime: string; content: any }[] };
+export type ExecRunResult = { task_id: string; status: 'succeeded'|'failed'|'skipped'; logs: string[]; outputs: { type: string; mime: string; content: any }[]; error_code?: 'timeout'|'cancelled'|'forbidden_import'|'format_error'|'unknown' };
 
 export async function runCustomAnalysis(datasetId: string, code: string, taskId = 'adhoc', timeoutMs = 3000): Promise<ExecRunResult> {
   try {
@@ -382,7 +382,7 @@ export async function runCustomAnalysis(datasetId: string, code: string, taskId 
 }
 
 // --- G2: Deep-dive interactive suggestions ---
-export type DeepDiveSuggestion = { title: string; why?: string; code?: string; spec?: any };
+export type DeepDiveSuggestion = { title: string; why?: string; code?: string; spec?: any; tags?: string[]; diagnostics?: Record<string, unknown> };
 export type DeepDiveResponse = { suggestions: DeepDiveSuggestion[] };
 
 export async function deepDive(datasetId: string, prompt: string): Promise<DeepDiveResponse> {
