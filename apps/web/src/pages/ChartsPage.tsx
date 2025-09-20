@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { suggestCharts, generateChart, generateChartsBatch, beginChartsBatchWithIds, getChartsBatchStatusWithMap, type ChartsBatchStatus } from '@autoeda/client-sdk';
+import { suggestCharts, generateChartWithProgress, generateChartsBatch, beginChartsBatchWithIds, getChartsBatchStatusWithMap, type ChartsBatchStatus } from '@autoeda/client-sdk';
 import type { ChartCandidate } from '@autoeda/schemas';
 import { Button, useToast } from '@autoeda/ui-kit';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/Card';
@@ -349,15 +349,18 @@ export function ChartsPage() {
                       onClick={async () => {
                         if (!datasetId) return;
                         setResults((s) => ({ ...s, [chart.id]: { loading: true, step: 'preparing', tab: 'viz' } }));
-                        setTimeout(() => setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), loading: true, step: 'generating', tab: 'viz' } })), 200);
-                        setTimeout(() => setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), loading: true, step: 'running', tab: 'viz' } })), 400);
                         try {
-                          const r = await generateChart(datasetId, chart.type);
+                          const r = await generateChartWithProgress(datasetId, chart.type, [], ({ stage }) => {
+                            if (!stage) return;
+                            const stepMap: Record<string, Step> = { generating: 'generating', rendering: 'rendering', done: 'done' };
+                            const step = stepMap[stage] ?? 'generating';
+                            setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), loading: step !== 'done', step, tab: 'viz' } }));
+                          });
                           const out = r.outputs?.[0];
                           if (out && out.mime === 'image/svg+xml' && typeof out.content === 'string') {
                             const src = `data:image/svg+xml;utf8,${encodeURIComponent(out.content)}`;
                             const meta = (r as unknown as { meta?: ChartMeta }).meta;
-                            setResults((s) => ({ ...s, [chart.id]: { loading: false, step: 'done', src, code: r.code, tab: 'viz', meta } }));
+                            setResults((s) => ({ ...s, [chart.id]: { ...(s[chart.id] ?? {}), loading: false, step: 'done', src, code: r.code, tab: 'viz', meta } }));
                           } else {
                             setResults((s) => ({ ...s, [chart.id]: { loading: false, step: 'done', error: '出力形式に未対応' } }));
                           }

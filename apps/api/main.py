@@ -612,9 +612,12 @@ def plan_generate(req: PlanGenerateRequest) -> PlanModel:
 
 @app.post("/api/plan/revise", response_model=PlanModel)
 def plan_revise(req: PlanReviseRequest) -> PlanModel:
-    """Experimental stub: echo back with version bump and no changes."""
-    base = req.plan
-    return PlanModel(version=f"{base.version}.1", generated_at=datetime.utcnow(), tasks=base.tasks)
+    try:
+        obj = plan_svc.revise_plan(req.plan.dict(), req.instruction)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    tasks = [PlanTask(**t) for t in obj.get("tasks", [])]
+    return PlanModel(version=obj.get("version", "v1"), generated_at=datetime.utcnow(), tasks=tasks)
 
 
 @app.post("/api/exec/run", response_model=ExecRunResult)

@@ -77,3 +77,68 @@ def generate_plan(dataset_id: str, goals: str | None = None, top_k: int = 5) -> 
     meta = {"hints": hints}
     return {"version": "v1", "tasks": tasks, "meta": meta}
 
+
+def _validate_no_cycles(tasks: List[Dict[str, Any]]) -> List[str]:
+    graph = {t["id"]: set(t.get("depends_on") or []) for t in tasks}
+    visiting: set[str] = set()
+    visited: set[str] = set()
+    issues: List[str] = []
+
+    def dfs(u: str) -> None:
+        if u in visited:
+            return
+        if u in visiting:
+            issues.append(f"cycle detected at {u}")
+            return
+        visiting.add(u)
+        for v in graph.get(u, ()):  # type: ignore[arg-type]
+            if v in graph:
+                dfs(v)
+            else:
+                # missing deps handled elsewhere
+                pass
+        visiting.remove(u)
+        visited.add(u)
+
+    for node in graph:
+        dfs(node)
+    return issues
+
+
+def _validate_missing_deps(tasks: List[Dict[str, Any]]) -> List[str]:
+    ids = {t["id"] for t in tasks}
+    issues: List[str] = []
+    for t in tasks:
+        for dep in t.get("depends_on") or []:
+            if dep not in ids:
+                issues.append(f"missing dependency: {t['id']} depends on {dep}")
+    return issues
+
+
+def _validate_ambiguous_acceptance(tasks: List[Dict[str, Any]]) -> List[str]:
+    bad_terms = ("適切に", "十分に", "なるべく", "できるだけ")
+    issues: List[str] = []
+    for t in tasks:
+        acc = (t.get("acceptance") or "").strip()
+        if acc and any(term in acc for term in bad_terms):
+            issues.append(f"ambiguous acceptance in {t['id']}")
+    return issues
+
+
+def validate_plan(tasks: List[Dict[str, Any]]) -> List[str]:
+    issues: List[str] = []
+    issues += _validate_missing_deps(tasks)
+    issues += _validate_no_cycles(tasks)
+    issues += _validate_ambiguous_acceptance(tasks)
+    return issues
+
+
+def revise_plan(plan: Dict[str, Any], instruction: str) -> Dict[str, Any]:
+    # MVP: no actual patching; validate and bump version
+    tasks: List[Dict[str, Any]] = plan.get("tasks") or []
+    issues = validate_plan(tasks)
+    if issues:
+        raise ValueError("; ".join(issues))
+    base_ver = str(plan.get("version", "v1"))
+    version = f"{base_ver}.1"
+    return {"version": version, "tasks": tasks, "meta": plan.get("meta") or {}}

@@ -108,7 +108,7 @@ class SandboxRunner:
                 os.rmdir(tmpdir)
         return obj
 
-    def run_generated_chart(self, *, spec_hint: Optional[str], dataset_id: Optional[str]) -> Dict[str, Any]:
+    def run_generated_chart(self, *, job_id: Optional[str], spec_hint: Optional[str], dataset_id: Optional[str], cancel_check: Optional[callable] = None) -> Dict[str, Any]:
         """Execute a constrained Python snippet in a subprocess to emit a Vega-like spec.
 
         - No third-party imports
@@ -193,9 +193,25 @@ class SandboxRunner:
                     resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
 
             env = {"PYTHONUNBUFFERED": "1", "PATH": "/usr/bin:/bin"}
-            proc = subprocess.run(["python3", "-I", "-c", code], cwd=tmpdir, capture_output=True, text=True, timeout=self.timeout_sec, check=True, env=env, preexec_fn=_preexec if hasattr(os, 'setuid') else None)
-            out = proc.stdout.strip()
-            obj = _json.loads(out)
+            proc = subprocess.Popen(["python3", "-I", "-c", code], cwd=tmpdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, preexec_fn=_preexec if hasattr(os, 'setuid') else None)
+            waited = 0.0
+            interval = 0.05
+            while True:
+                ret = proc.poll()
+                if ret is not None:
+                    break
+                if cancel_check and cancel_check():
+                    with contextlib.suppress(Exception):
+                        proc.kill()
+                    raise SandboxError("cancelled")
+                time.sleep(interval)
+                waited += interval
+                if waited >= self.timeout_sec:
+                    with contextlib.suppress(Exception):
+                        proc.kill()
+                    raise SandboxError("timeout")
+            out = (proc.stdout.read() if proc.stdout else "").strip()
+            obj = _json.loads(out or "{}")
             # add meta
             obj.setdefault("meta", {})
             obj["meta"].update({"engine": "generated", "duration_ms": None})

@@ -53,7 +53,8 @@ def _start_worker_once() -> None:
                 _JOBS[job_id]["stage"] = "generating"
                 exec_mode = os.environ.get("AUTOEDA_SANDBOX_EXECUTE", "0") in {"1", "true", "TRUE"}
                 if exec_mode:
-                    result = runner.run_generated_chart(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
+                    jid = job_id
+                    result = runner.run_generated_chart(job_id=jid, spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"), cancel_check=lambda: bool(_CANCEL_FLAGS.get(jid)))
                 else:
                     if os.environ.get("AUTOEDA_SANDBOX_SUBPROCESS", "0") in {"1", "true", "TRUE"}:
                         result = runner.run_template_subprocess(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
@@ -203,7 +204,8 @@ def generate(item: Dict[str, Any]) -> Dict[str, Any]:
         runner = SandboxRunner()
         exec_mode = os.environ.get("AUTOEDA_SANDBOX_EXECUTE", "0") in {"1", "true", "TRUE"}
         if exec_mode:
-            result = runner.run_generated_chart(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
+            jid = job_id
+            result = runner.run_generated_chart(job_id=jid, spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"), cancel_check=lambda: bool(_CANCEL_FLAGS.get(jid)))
         else:
             result = runner.run_template(spec_hint=item.get("spec_hint"), dataset_id=item.get("dataset_id"))
         job = {"job_id": job_id, "status": "succeeded", "result": result}
@@ -238,8 +240,9 @@ def generate_batch(items: List[Dict[str, Any]], parallelism: int = 3) -> Dict[st
 
     if _ASYNC:
         _start_worker_once()
+        effective = max(1, min(int(parallelism or 1), _PARALLEL))
         for it in items:
-            job = generate(it)  # queued
+            job = generate({**it, "batch_id": batch_id})  # queued
             entry = {"job_id": job["job_id"], "status": job["status"]}
             if job.get("chart_id"):
                 entry["chart_id"] = job.get("chart_id")
@@ -251,6 +254,8 @@ def generate_batch(items: List[Dict[str, Any]], parallelism: int = 3) -> Dict[st
             "running": len(items),
             "failed": 0,
             "items": job_items,
+            "parallelism": parallelism,
+            "parallelism_effective": effective,
             # no results yet in async mode
         }
         _BATCHES[batch_id] = status
