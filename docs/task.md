@@ -142,7 +142,7 @@
 
 ## 3. 次のイテレーション（優先順）
 
-1. H1‑EXEC（高・継続）: `run_generated_chart` に phase1/phase2 遅延（ENV: `AUTOEDA_SB_TEST_DELAY_MS/_DELAY2_MS`）を導入、AST deny‑list と RLIMIT による安全ガードを維持しつつ、キャンセル/タイムアウトの境界テストを追加しGreenを確認。
+1. H1‑EXEC（高・継続）: `run_generated_chart` に phase1/phase2 遅延（ENV: `AUTOEDA_SB_TEST_DELAY_MS/_DELAY2_MS`）を導入し、AST deny‑list + RLIMIT を維持。キャンセル/タイムアウトの境界テストを追加してGreenを確認。失敗時stderrの先頭要約を `error_detail` として安全伝播（最大500文字）。
 2. H2（中）: VR ストーリーを「閾値ライン強調」「凡例なし」の 2 パターンに分割して OS 別ベースライン安定化。
 3. F2（中）: issues.csv に missing_deps 集約列を追加、Plan ヘッダに最終検証時刻/バージョンを表示。
 4. CH‑13（中）：段階フォールバック（テンプレ→軽量LLM→指数バックオフ再試行）
@@ -185,8 +185,8 @@
 
 ## 6. 変更履歴
 
-- 2025-09-20: H1‑EXEC: `run_template_subprocess` の `AUTOEDA_SB_TEST_DELAY2_MS` 未伝播を修正。`tests/python/test_sandbox_matrix.py` と `test_sandbox_cancel_timing.py` の全ケースがローカルで Green を確認。
- - 2025-09-20: H1‑EXEC: `run_generated_chart` に 2段階チェックポイント（generation/render）を追加し、実行時の `__import__` ランタイムガードを撤廃（AST+RLIMITに一本化）。新規 `tests/python/test_sandbox_exec_matrix.py` を追加し、success/timeout/cancel/cancel‑timing をGreen化。
+- 2025-09-20: H1‑EXEC: `run_template_subprocess` の `AUTOEDA_SB_TEST_DELAY2_MS` 未伝播を修正。`tests/python/test_sandbox_matrix.py` と `test_sandbox_cancel_timing.py` をGreen化。
+- 2025-09-20: H1‑EXEC: `run_generated_chart` に 2段階チェックポイント（generation/render）を追加し、ランタイムの `__import__` ガードを撤廃（AST+RLIMITに一本化）。新規 `tests/python/test_sandbox_exec_matrix.py` を追加し、success/timeout/cancel/cancel‑timing をGreen化。失敗時stderrの要約を `error_detail` として `get_batch().items[]` に伝播（FEは友好的なエラー表示を実装済）。
 
 - 2025-09-20: H2: <80% バー外枠＋80% 凡例を Storybook/VR まで反映、SparklineLowThreshold を追加。H1‑EXEC: cancel timing/param matrix を追加、ChartJobFinished の cancelled/failed を persist。F2: issues.csv に validated_at/version/dataset_id を付与、行別不足CSVの導線を追加。CI: 互換差分の表と移行ガイドを PR 本文に自動追記。
 - 2025-09-19: Capability H の実装状況を反映（P0の一部=実装済み、未実装CHをタスク化）。Capability F/G の未実装を追加タスク化。RAG/Gemini/EDA 安定化、Storybook VR 運用、Mermaid修正、タスク表を更新。
