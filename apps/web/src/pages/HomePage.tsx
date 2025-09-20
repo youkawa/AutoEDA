@@ -10,10 +10,12 @@ export function HomePage() {
   const { lastDataset } = useLastDataset();
   type SloEvent = { count?: number; p95?: number; groundedness_min?: number };
   type SloSnapshot = { events?: Record<string, SloEvent> };
-  const [slo, setSlo] = useState<SloSnapshot>({});
+  type EvalFlags = Record<string, boolean>;
+  type SloPayload = { snapshot?: SloSnapshot; evaluation?: Record<string, EvalFlags>; thresholds?: Record<string, Record<string, number>> };
+  const [slo, setSlo] = useState<SloPayload>({});
 
   useEffect(() => {
-    const envBase = (import.meta as unknown as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE;
+    const envBase = ((import.meta as unknown as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE);
     const base = envBase ?? '';
     fetch(`${base}/api/metrics/slo`).then(async (r) => {
       if (!r.ok) return;
@@ -122,10 +124,14 @@ export function HomePage() {
             </div>
             <div className="rounded-xl bg-white/20 p-4 text-xs text-white/80">
               <p className="font-semibold text-white">SLO モニタリング</p>
-              {slo?.events ? (
+              {slo?.snapshot?.events ? (
                 <ul className="mt-2 grid grid-cols-2 gap-2">
-                  {Object.entries(slo.events).slice(0,4).map(([name, v]) => (
-                    <li key={name} className="rounded bg-white/10 p-2">
+                  {Object.entries(slo.snapshot.events).slice(0,4).map(([name, v]) => {
+                    const evalItem = slo.evaluation?.[name] ?? {};
+                    const ok = Object.values(evalItem).every((flag) => flag === false);
+                    const tone = ok ? 'bg-emerald-500/20 border-emerald-400/40' : 'bg-amber-500/20 border-amber-400/40';
+                    return (
+                    <li key={name} className={`rounded border p-2 ${tone}`}>
                       <div className="text-[11px] uppercase tracking-widest text-white/70">{name}</div>
                       <div className="mt-1 flex items-center gap-3">
                         <span>p95: {v.p95 ?? 0}ms</span>
@@ -133,7 +139,7 @@ export function HomePage() {
                         <span>n={v.count ?? 0}</span>
                       </div>
                     </li>
-                  ))}
+                  );})}
                 </ul>
               ) : (
                 <p className="mt-1 leading-relaxed">`python apps/api/scripts/check_slo.py` で自動検証できます。</p>

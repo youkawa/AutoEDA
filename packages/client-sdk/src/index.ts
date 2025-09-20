@@ -232,7 +232,7 @@ export async function beginChartsBatch(datasetId: string, hints: string[]): Prom
   return (batch.batch_id as string) || '';
 }
 
-export async function getChartsBatchStatus(batchId: string): Promise<{ total: number; done: number; running: number; failed: number; results?: ChartResult[]; items: { job_id: string; status: string }[]; }> {
+export async function getChartsBatchStatus(batchId: string): Promise<{ total: number; done: number; running: number; failed: number; queued?: number; cancelled?: number; results?: ChartResult[]; items: { job_id: string; status: string; stage?: 'generating'|'rendering'|'done' }[]; }> {
   return getJSON(`/api/charts/batches/${batchId}`);
 }
 
@@ -243,7 +243,11 @@ export type ChartsBatchStatus = {
   done: number;
   running: number;
   failed: number;
-  items: { job_id: string; status: string; chart_id?: string }[];
+  queued?: number;
+  cancelled?: number;
+  parallelism?: number;
+  parallelism_effective?: number;
+  items: { job_id: string; status: string; chart_id?: string; stage?: 'generating'|'rendering'|'done' }[];
   results?: ChartResult[];
   results_map?: Record<string, ChartResult>;
 };

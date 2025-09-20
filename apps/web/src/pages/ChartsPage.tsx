@@ -18,7 +18,8 @@ export function ChartsPage() {
   const [selectedDetail, setSelectedDetail] = useState<ChartCandidate | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchInFlight, setBatchInFlight] = useState(false);
-  const [batchProgress, setBatchProgress] = useState<{ total: number; done: number; failed: number } | null>(null);
+  type BatchProgress = { total: number; done: number; failed: number; running?: number; queued?: number; cancelled?: number };
+  const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
   const [batchItems, setBatchItems] = useState<{ chart_id?: string; status: string; stage?: 'generating'|'rendering'|'done' }[]>([]);
   const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
   const [announce, setAnnounce] = useState<string | null>(null);
@@ -93,6 +94,9 @@ export function ChartsPage() {
               <span>
                 一括生成中… {batchProgress.done}/{batchProgress.total}
                 {batchProgress.failed > 0 ? `（失敗 ${batchProgress.failed}）` : ''}
+                {typeof batchProgress.running === 'number' ? `（実行中 ${batchProgress.running}）` : ''}
+                {typeof batchProgress.queued === 'number' ? `（キュー ${batchProgress.queued}）` : ''}
+                {typeof batchProgress.cancelled === 'number' && batchProgress.cancelled > 0 ? `（中断 ${batchProgress.cancelled}）` : ''}
               </span>
             ) : (
               <span>{selectedIds.size} 件選択中</span>
@@ -100,19 +104,20 @@ export function ChartsPage() {
             {/* live region for screen readers */}
             {batchInFlight && batchProgress ? (
               <div className="sr-only" aria-live="polite">
-                バッチ進捗 {batchProgress.done} 件完了（全 {batchProgress.total} 件）
+                バッチ進捗 完了 {batchProgress.done} / 全 {batchProgress.total}、実行中 {batchProgress.running ?? 0}、キュー {batchProgress.queued ?? 0}、失敗 {batchProgress.failed ?? 0}、中断 {batchProgress.cancelled ?? 0}
               </div>
             ) : null}
           </div>
           <div className="flex gap-2">
             {batchInFlight && batchProgress ? (
-              <div className="hidden md:block w-40 self-center">
-                <div className="h-2 w-full rounded bg-slate-100" role="progressbar" aria-valuenow={batchProgress.done} aria-valuemin={0} aria-valuemax={Math.max(1, batchProgress.total)} aria-label="バッチ進捗">
+              <div className="hidden md:block w-56 self-center">
+                <div className="h-2 w-full rounded bg-slate-100" role="progressbar" aria-valuenow={batchProgress.done} aria-valuemin={0} aria-valuemax={Math.max(1, batchProgress.total)} aria-label={`一括進捗 ${batchProgress.done}/${batchProgress.total}`}>
                   <div
                     className="h-2 rounded bg-brand-500 transition-all"
                     style={{ width: `${Math.round((batchProgress.done / Math.max(1, batchProgress.total)) * 100)}%` }}
                   />
                 </div>
+                <div className="mt-1 text-[11px] text-slate-500">R:{batchProgress.running ?? 0} Q:{batchProgress.queued ?? 0} F:{batchProgress.failed ?? 0} C:{batchProgress.cancelled ?? 0}</div>
               </div>
             ) : null}
             <Button
@@ -147,7 +152,7 @@ export function ChartsPage() {
                     while (!finished) {
                       await new Promise((r) => setTimeout(r, 300));
                       const st: ChartsBatchStatus = await getChartsBatchStatusWithMap(batchId);
-                      setBatchProgress({ total: st.total, done: st.done, failed: st.failed });
+                      setBatchProgress({ total: st.total, done: st.done, failed: st.failed, running: st.running, queued: st.queued, cancelled: st.cancelled });
                       setBatchItems(st.items ?? []);
                       if (st.results_map && Object.keys(st.results_map).length > 0) {
                         const next: Record<string, ChartRender> = { ...results };
