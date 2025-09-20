@@ -164,20 +164,16 @@ class SandboxRunner:
 
             code = textwrap.dedent(
                 r"""
-                import builtins
-                _allowed = {'json','csv','os'}
-                _orig_import = builtins.__import__
-                def _guard_import(name, *args, **kwargs):
-                    root = (name or '').split('.')[0]
-                    if root not in _allowed:
-                        raise ImportError(f'disallowed module: {root}')
-                    return _orig_import(name, *args, **kwargs)
-                builtins.__import__ = _guard_import
-
-                import json, csv, os
+                import json, csv, os, time
                 cfg = json.loads(open('in.json','r',encoding='utf-8').read())
                 kind = cfg.get('kind','bar')
                 csv_path = cfg.get('csv_path')
+                # phase-1 delay (generation)
+                try:
+                    d1 = int(os.environ.get('AUTOEDA_SB_TEST_DELAY_MS','0') or '0')
+                    if d1>0: time.sleep(d1/1000.0)
+                except Exception:
+                    pass
                 values = []
                 if csv_path and os.path.exists(csv_path):
                     try:
@@ -220,6 +216,12 @@ class SandboxRunner:
                     "datasets": {"data": values},
                     "description": f"generated {kind} chart",
                 }
+                # phase-2 delay (rendering)
+                try:
+                    d2 = int(os.environ.get('AUTOEDA_SB_TEST_DELAY2_MS','0') or '0')
+                    if d2>0: time.sleep(d2/1000.0)
+                except Exception:
+                    pass
                 out = {
                     "language": "python", "library": "vega", "code": "# generated", "outputs": [
                         {"type":"vega","mime":"application/json","content": spec}
@@ -233,9 +235,10 @@ class SandboxRunner:
             try:
                 tree = _ast.parse(code)
                 # 明示allowlist（標準ライブラリの一部のみ）
-                allowed_imports = {"json", "csv", "os"}
+                allowed_imports = {"json", "csv", "os", "builtins", "time"}
                 # 危険なビルトイン/関数呼び出しを拒否
-                banned_calls = {"eval", "exec", "compile", "__import__", "open", "input", "breakpoint"}
+                # open() は in.json や csv の参照に必要なため禁止対象から除外
+                banned_calls = {"eval", "exec", "compile", "__import__", "input", "breakpoint"}
                 # OS 経由の実行/FS破壊/環境変更を拒否
                 banned_os_calls = {
                     "system", "popen", "spawnv", "spawnve", "spawnvp", "spawnvpe",
@@ -270,7 +273,13 @@ class SandboxRunner:
                     resource.setrlimit(resource.RLIMIT_CPU, (3, 3))
                     resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
 
-            env = {"PYTHONUNBUFFERED": "1", "PATH": "/usr/bin:/bin"}
+            env = {
+                "PYTHONUNBUFFERED": "1",
+                "PATH": "/usr/bin:/bin",
+                # tests can control cooperative timing via env
+                "AUTOEDA_SB_TEST_DELAY_MS": os.environ.get("AUTOEDA_SB_TEST_DELAY_MS", ""),
+                "AUTOEDA_SB_TEST_DELAY2_MS": os.environ.get("AUTOEDA_SB_TEST_DELAY2_MS", ""),
+            }
             proc = subprocess.Popen(["python3", "-I", "-c", code], cwd=tmpdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, preexec_fn=_preexec if hasattr(os, 'setuid') else None)
             waited = 0.0
             interval = 0.05
@@ -294,6 +303,8 @@ class SandboxRunner:
             obj.setdefault("meta", {})
             obj["meta"].update({"engine": "generated", "duration_ms": None})
             return obj
+        except SandboxError:
+            raise
         except Exception:
             # fallback to template path
             from . import charts as chartsvc  # type: ignore
