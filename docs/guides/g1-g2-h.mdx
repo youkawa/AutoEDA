@@ -1,0 +1,46 @@
+# G1/G2/H ガイド（運用・安全・再現性）
+
+## 概要
+- G1: カスタム実行（/analysis/:datasetId） — サンドボックスで Python スニペットを実行し、Vega-Lite JSON か SVG を出力。
+- G2: 深掘りサジェスト — 決定的テンプレから仕様化された提案を提示し、コードへ反映→実行。
+- H: チャート生成 — 提案→単発/一括生成、キャンセル、保存/再実行/再描画のループ。
+
+## 安全ガイド
+- サンドボックス制限（H1-EXEC）
+  - `open()` は read のみ、パスは `in.json` / `csv_path` のみ。
+  - 危険呼び出し: `eval/exec/compile/__import__/input/breakpoint` 禁止。`os.system/popen/.../rename/chmod/chown` 禁止。
+  - RLIMIT: AS/CPU/NOFILE/NPROC/STACK を設定。
+  - stderr は `summarize_logs()` で マスク＋短縮（Bearer/JWT/URL userinfo などをマスク）。
+
+## 失敗時の読み替え
+- `error_code`
+  - `timeout`: 実行時間超過。行数/データ量を減らす、`AUTOEDA_SB_TEST_DELAY*` を確認。
+  - `cancelled`: 協調中断。もう一度実行するか、並列度を下げる。
+  - `forbidden_import`: 上記の禁止インポート/呼び出し/`open()` 制約に抵触。
+  - `format_error`: JSON の出力整形に失敗。`print(json.dumps({...}))` で返却する。
+
+## 再現性Tips
+- Vega-Lite での再描画: `SavedChartsPage` から 再描画 を使うと描画のみの確認が可能。
+- 一括生成: announcer が `served/avg_wait` を含めて読み上げ。キャンセル後は 中断のみ再試行 を利用。
+
+## 最小例（G1 スニペット）
+```python
+import json, csv
+cfg=json.loads(open('in.json','r',encoding='utf-8').read())
+csv_path=cfg.get('csv_path')
+vals=[]
+try:
+  rdr=csv.reader(open(csv_path,'r',encoding='utf-8')) if csv_path else []
+  next(rdr,None)
+  for i,row in zip(range(30),rdr):
+    try: vals.append(float(row[0]))
+    except: vals.append(i%5+1)
+except: vals=[(i%5)+1 for i in range(30)]
+spec={'$schema':'https://vega.github.io/schema/vega-lite/v5.json','data':{'name':'data'},'mark':'line','encoding':{'x':{'field':'x','type':'quantitative'},'y':{'field':'y','type':'quantitative'}}, 'datasets':{'data':[{'x':i,'y':vals[i]} for i in range(len(vals))]}}
+print(json.dumps({'language':'python','library':'vega','outputs':[{'type':'vega','mime':'application/json','content':spec}]}))
+```
+
+---
+
+- 本ガイドは docs/task.md の「次のイテレーション」の Docs 項に対応。
+
