@@ -117,6 +117,7 @@ class SandboxRunner:
         - Returns a dict compatible with ChartResult
         """
         import json as _json
+        import ast as _ast
         import textwrap
         tmpdir = tempfile.mkdtemp(prefix="autoeda_exec_")
         try:
@@ -195,6 +196,31 @@ class SandboxRunner:
                 print(json.dumps(out, ensure_ascii=False))
                 """
             )
+
+            # Host-side AST scanning (forbidden imports/calls)
+            try:
+                tree = _ast.parse(code)
+                allowed_imports = {"json", "csv", "os"}
+                banned_calls = {"eval", "exec", "compile", "__import__"}
+                for node in _ast.walk(tree):
+                    if isinstance(node, _ast.Import):
+                        for alias in node.names:
+                            root = (alias.name or "").split(".")[0]
+                            if root not in allowed_imports:
+                                raise SandboxError(f"forbidden import: {root}")
+                    elif isinstance(node, _ast.ImportFrom):
+                        root = (node.module or "").split(".")[0]
+                        if root and root not in allowed_imports:
+                            raise SandboxError(f"forbidden import: {root}")
+                    elif isinstance(node, _ast.Call):
+                        fn = getattr(node.func, "id", None) or getattr(getattr(node.func, "attr", None), "id", None)
+                        if isinstance(node.func, _ast.Name) and node.func.id in banned_calls:
+                            raise SandboxError(f"forbidden call: {node.func.id}")
+            except SandboxError:
+                raise
+            except Exception:
+                # AST 解析に失敗しても後段のallowlistでガード
+                pass
 
             def _preexec():  # POSIX only
                 with contextlib.suppress(Exception):
