@@ -522,7 +522,23 @@ export function ChartsPage() {
                       ) : null}
                     </div>
                     {results[chart.id]?.showDetail && results[chart.id]?.errorDetail ? (
-                      <pre className="mt-2 max-h-40 overflow-auto rounded bg-amber-100 p-2 text-[11px] text-amber-900" data-testid={`error-detail-${chart.id}`}>{results[chart.id]!.errorDetail}</pre>
+                      <div className="mt-2">
+                        <div className="mb-1 flex items-center gap-2">
+                          <span className="text-[11px] text-amber-900/80">詳細ログ（redact済み）</span>
+                          <Button
+                            variant="secondary"
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(String(results[chart.id]?.errorDetail ?? ''));
+                                toast('エラー詳細をコピーしました', 'success');
+                              } catch {
+                                toast('コピーに失敗しました', 'error');
+                              }
+                            }}
+                          >コピー</Button>
+                        </div>
+                        <pre className="max-h-40 overflow-auto rounded bg-amber-100 p-2 text-[11px] text-amber-900" data-testid={`error-detail-${chart.id}`}>{results[chart.id]!.errorDetail}</pre>
+                      </div>
                     ) : null}
                   </div>
                 ) : null}

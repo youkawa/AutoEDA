@@ -200,6 +200,7 @@ export const ChartJobSchema = z.object({
   result: ChartResultSchema.optional(),
   error: z.string().optional(),
   error_code: z.enum(['timeout','cancelled','forbidden_import','format_error','unknown']).optional(),
+  error_detail: z.string().optional(),
 });
 export type ChartJob = z.infer<typeof ChartJobSchema>;
 

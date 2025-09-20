@@ -537,6 +537,7 @@ class ChartJob(BaseModel):
     result: Optional[ChartResult] = None
     error: Optional[str] = None
     error_code: Optional[Literal["timeout", "cancelled", "forbidden_import", "format_error", "unknown"]] = None
+    error_detail: Optional[str] = None
 
 
 class ChartBatchStatus(BaseModel):
